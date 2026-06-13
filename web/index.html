@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <!--
+      Content-Security-Policy: default allows the local Gateway/Ollama and the
+      built-in direct provider hosts. If you add a custom provider base URL, add
+      that exact host to connect-src instead of using a wildcard.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data: blob:; media-src 'self' blob: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' http://localhost:* http://127.0.0.1:* http://10.0.2.2:* https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com; script-src 'self'"
+    />
+    <title>NOVA Agent</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "nova-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NOVA Agent — voice + chat UI with an OpenAI-compatible multi-LLM gateway",
+  "scripts": {
+    "install:all": "npm --prefix gateway install && npm --prefix web install",
+    "gateway": "npm --prefix gateway start",
+    "gateway:dev": "npm --prefix gateway run dev",
+    "web": "npm --prefix web run dev",
+    "build": "npm --prefix web run build",
+    "preview": "npm --prefix web run preview",
+    "test:gateway": "npm --prefix gateway test",
+    "secret-scan": "node scripts/secret-scan.mjs",
+    "audit": "npm --prefix gateway audit --audit-level=moderate && npm --prefix web audit --audit-level=moderate",
+    "security": "node scripts/security-check.mjs",
+    "smoke:live": "node scripts/smoke-live.mjs"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}

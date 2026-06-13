@@ -1,0 +1,14 @@
+# NOVA — SearXNG (self-hosted meta arama). Gateway'in web_search aracı buraya sorar.
+use_default_settings: true
+server:
+  secret_key: "change-me-searxng-dev-secret"
+  limiter: false
+  image_proxy: false
+search:
+  formats:
+    - html
+    - json
+  safe_search: 0
+  autocomplete: ""
+general:
+  instance_name: "NOVA Search"

@@ -1,0 +1,26 @@
+{
+  "name": "nova-agent-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "NOVA Agent — voice + chat UI for multi-provider LLM routing",
+  "scripts": {
+    "dev": "node ./node_modules/vite/bin/vite.js",
+    "build": "node ./node_modules/vite/bin/vite.js build",
+    "preview": "node ./node_modules/vite/bin/vite.js preview"
+  },
+  "dependencies": {
+    "lucide-react": "^0.453.0",
+    "mermaid": "^11.15.0",
+    "nova-agent": "file:..",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.2",
+    "vite": "^8.0.16"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}

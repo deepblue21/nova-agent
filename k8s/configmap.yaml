@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nova-config
+  namespace: nova
+data:
+  NODE_ENV: "production"
+  PORT: "8088"
+  TRUST_PROXY: "1"
+  ALLOW_ORIGINS: "https://nova.example.com"
+  RATE_MAX: "120"
+  RATE_WINDOW_MS: "60000"
+  LOG_LEVEL: "info"
+  S3_BUCKET: "nova-media"
+  S3_REGION: "us-east-1"
