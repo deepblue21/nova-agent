@@ -124,7 +124,7 @@ ve sıradaki adımı görmek için **[`PROGRESS.md`](./PROGRESS.md)** dosyasına
 
 ### Faz panosu — nerede kaldık?
 
-**Şu anki işaretçi:** Faz 5A (CI & güvenlik otomasyonu) tamam ve Faz 4D için **git history temizliği runbook'u + scriptleri hazır/doğrulandı** (`HISTORY_CLEANUP.md`, `scripts/clean-history.sh`/`.ps1`). Public release için kalan tek adım: kullanıcının kendi makinesinde clean-start'ı çalıştırıp push etmesi (tek commit `da8bece` kişisel e-posta içeriyor). Canlı vision/voice smoke (Faz 4C) de kullanıcının makinesinde yapılır.
+**Şu anki işaretçi:** Faz 5A (CI & güvenlik otomasyonu) tamam ve **Faz 4D git history temizliği YAPILDI** — kullanıcı `clean-history.sh` ile tek temiz commit oluşturup force-push etti (`35d7d37`; kişisel e-posta git geçmişinden kalktı). Repo private; public'e geçmeden önce opsiyonel bulletproof adım repo'yu silip-yeniden-oluşturmak. Canlı vision/voice smoke (Faz 4C) kullanıcının makinesinde yapılır.
 
 | Faz | Durum | Yaptıklarımız | Kalan / çıkış kriteri |
 | --- | --- | --- | --- |
@@ -136,7 +136,7 @@ ve sıradaki adımı görmek için **[`PROGRESS.md`](./PROGRESS.md)** dosyasına
 | Faz 4A — Artifacts/export | ✅ Tamam | HTML/SVG/Mermaid önizleme, artifact indirme, Markdown/JSON/PDF export, local paylaşım linki. | Yok; ileride UX iyileştirmeleri opsiyonel. |
 | Faz 4B — Araçlar/belge/persona | ✅ Tamam | PDF/DOCX text extraction, default kapalı QuickJS `code_run`, persona/prompt kütüphanesi. | `code_run` sadece local ve bilinçli opt-in kalacak. |
 | Faz 4C — Çok modlu + ses kuyruğu | 🟡 Kod hazır | `auto` görsel yönlendirme, `VISION_MODEL`, remote image opt-in, BullMQ voice job endpointleri, UI queue modu. | WSL/Ollama vision smoke ve Redis + Whisper/TTS async smoke yapılacak. |
-| Faz 4D — Public repo hijyeni + güvenlik | 🟡 Tree temiz + runbook hazır | Kişisel izler temizlendi (son: nova-agent.jsx default prompt generic), CSP/JWT/media/image/admin/history sertleştirildi, gateway/web audit 0 vulnerability; git history temizliği için doğrulanmış runbook + script (`HISTORY_CLEANUP.md`, `scripts/clean-history.*`). | **Kullanıcı** Windows/WSL'de clean-start'ı çalıştırıp force-push (veya repo'yu yeniden oluştur) yapacak; sonra public. |
+| Faz 4D — Public repo hijyeni + güvenlik | ✅ Yapıldı | Kişisel izler temizlendi (nova-agent.jsx default prompt generic), CSP/JWT/media/image/admin/history sertleştirildi, audit 0; git history clean-start ile tek temiz commit'e indirildi ve force-push edildi (`35d7d37`). | Opsiyonel: public öncesi repo'yu silip-yeniden-oluştur (da8bece full-SHA GC garantisi). |
 | Faz 5A — CI & güvenlik otomasyonu | ✅ Tamam | CI Node 20.19+22 matris, secret scan, gateway/web `npm audit`, canlı smoke adımı; `scripts/secret-scan.mjs` + `smoke-live.mjs` + `security-check.mjs`; mock'lu ajan-döngüsü testleri (suite 39). | Birleşik `npm test` / `npm run security` Windows'ta yeşil doğrulanacak. |
 | Faz 5B — Prod sertleştirme | ⏳ Sırada | Güvenlik temeli + CI otomasyonu güçlendi. | Keycloak prod mode, portları iç ağa kapatma, secret rotation, `ALLOW_MODELS`, Sentry/OTel, sürümlü dashboardlar. |
 | Faz 6 — CI + Android + ileri ürün | ⏳ Sonra | Android kaynakları `nova-android/` klasörüne çıkarıldı; roadmap netleşti. | Gradle wrapper/test-build, CI security pipeline, çoklu ajan, otomasyon, RBAC. |
