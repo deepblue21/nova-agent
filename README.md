@@ -124,7 +124,7 @@ ve sıradaki adımı görmek için **[`PROGRESS.md`](./PROGRESS.md)** dosyasına
 
 ### Faz panosu — nerede kaldık?
 
-**Şu anki işaretçi:** Faz 5A (CI & güvenlik otomasyonu) tamam ve **Faz 4D git history temizliği YAPILDI** — kullanıcı `clean-history.sh` ile tek temiz commit oluşturup force-push etti (`35d7d37`; kişisel e-posta git geçmişinden kalktı). Repo private; public'e geçmeden önce opsiyonel bulletproof adım repo'yu silip-yeniden-oluşturmak. Canlı vision/voice smoke (Faz 4C) kullanıcının makinesinde yapılır.
+**Şu anki işaretçi:** **Faz 4 tamamen bitti** (4A/4B/4C/4D). 4C vision+voice canlı doğrulandı (görsel→`VISION_MODEL` routing + model görseli tarif etti; async TTS job ses üretti); 4D git history temizlenip force-push edildi (`35d7d37`). Faz 5A CI/güvenlik otomasyonu da hazır. Canlı testte **chat'i kıran bir abort bug'ı** (`req.on('close')`→`res.on('close')`) bulunup düzeltildi. **Kalan tek iş:** bu fix'i commit+push edip Docker gateway imajını rebuild etmek (bkz. PROGRESS). Sıradaki faz: **5B** (gözlemlenebilirlik / prod sertleştirme).
 
 | Faz | Durum | Yaptıklarımız | Kalan / çıkış kriteri |
 | --- | --- | --- | --- |
@@ -135,7 +135,7 @@ ve sıradaki adımı görmek için **[`PROGRESS.md`](./PROGRESS.md)** dosyasına
 | Faz 3 — Ajan + RAG | ✅ Tamam | Tool/function calling, SearXNG web araması, `doc_search`, pgvector RAG, kaynak rozetleri. | Ajan/RAG uçtan uca smoke testleri CI'a eklenecek. |
 | Faz 4A — Artifacts/export | ✅ Tamam | HTML/SVG/Mermaid önizleme, artifact indirme, Markdown/JSON/PDF export, local paylaşım linki. | Yok; ileride UX iyileştirmeleri opsiyonel. |
 | Faz 4B — Araçlar/belge/persona | ✅ Tamam | PDF/DOCX text extraction, default kapalı QuickJS `code_run`, persona/prompt kütüphanesi. | `code_run` sadece local ve bilinçli opt-in kalacak. |
-| Faz 4C — Çok modlu + ses kuyruğu | 🟡 Kod hazır | `auto` görsel yönlendirme, `VISION_MODEL`, remote image opt-in, BullMQ voice job endpointleri, UI queue modu. | WSL/Ollama vision smoke ve Redis + Whisper/TTS async smoke yapılacak. |
+| Faz 4C — Çok modlu + ses kuyruğu | ✅ Yapıldı (canlı) | `auto` görsel yönlendirme + `VISION_MODEL`, remote image opt-in, BullMQ voice job. **Canlı smoke:** görsel→vision routing + model görseli tarif etti (gemma4); async TTS job ses üretti (Redis+TTS). | `VISION_MODEL`'i kurulu bir vision tag'ine ayarla (default `qwen3.5-omni` çoğu kurulumda yok). |
 | Faz 4D — Public repo hijyeni + güvenlik | ✅ Yapıldı | Kişisel izler temizlendi (nova-agent.jsx default prompt generic), CSP/JWT/media/image/admin/history sertleştirildi, audit 0; git history clean-start ile tek temiz commit'e indirildi ve force-push edildi (`35d7d37`). | Opsiyonel: public öncesi repo'yu silip-yeniden-oluştur (da8bece full-SHA GC garantisi). |
 | Faz 5A — CI & güvenlik otomasyonu | ✅ Tamam | CI Node 20.19+22 matris, secret scan, gateway/web `npm audit`, canlı smoke adımı; `scripts/secret-scan.mjs` + `smoke-live.mjs` + `security-check.mjs`; mock'lu ajan-döngüsü testleri (suite 39). | Birleşik `npm test` / `npm run security` Windows'ta yeşil doğrulanacak. |
 | Faz 5B — Prod sertleştirme | ⏳ Sırada | Güvenlik temeli + CI otomasyonu güçlendi. | Keycloak prod mode, portları iç ağa kapatma, secret rotation, `ALLOW_MODELS`, Sentry/OTel, sürümlü dashboardlar. |
@@ -232,7 +232,7 @@ Bu makinede GPU **RTX 3070 (8 GB VRAM)**. Modellerin yerleşimi (`ollama ps` →
 - ✅ **Artifacts paneli** — HTML/SVG/Mermaid önizleme + indirme hazır; Mermaid CDN'siz yerel render ediliyor; hata/boş içerik fallback'i ve scriptsiz sandbox doğrulandı.
 - ✅ **Sohbet dışa aktarma + paylaşım** — Markdown/JSON indirme, PDF olarak yazdır/kaydet ve hash tabanlı local paylaşım/import linki hazır.
 - ✅ **Persona/prompt kütüphanesi** — Ayarlar'da Genel NOVA, Kod İnceleyici, SOC Analisti, Mimari Planlayıcı, Yerel LLM Koçu ve Özel Persona kartları var; seçim header'a yansır ve IndexedDB'de kalıcıdır.
-- 🟡 **Çok modlu + ses kuyruğu** — Qwen 3.5/3.6 çizgisi için gateway `auto` görsel yönlendirme hazır (`VISION_MODEL`, `ROUTE_VISION`); remote image URL fetch opt-in olarak eklendi; BullMQ ses job endpoint'i ve UI kuyruk modu eklendi. Sırada WSL/Ollama ortamında görsel soru smoke testi ve Redis + voice servisleriyle async STT/TTS smoke testi var.
+- ✅ **Çok modlu + ses kuyruğu** — gateway `auto` görsel yönlendirme (`VISION_MODEL`, `ROUTE_VISION`); remote image URL fetch opt-in; BullMQ ses job endpoint'i + UI kuyruk modu. **Canlı doğrulandı (13 Haz):** görsel istek vision modele yönlendi ve model görseli doğru tarif etti; async TTS job kuyruğa girip ses üretti. (`scripts/smoke-live.mjs` ile `SMOKE_VISION=1`/`SMOKE_VOICE=1`.)
 
 ### Olgunlaştırma (Faz 5 — prod sertleştirme & güvenlik)
 - ⏳ **Güvenlik:** Keycloak prod modu (`start`), tüm varsayılan parolaları rotate, portları iç ağa kapat, `ALLOW_MODELS` allowlist, OIDC issuer'ı env/config'e taşı. (Bkz. [`SECURITY.md`](./SECURITY.md).)

@@ -22,6 +22,9 @@ const MODEL = process.env.SMOKE_MODEL || "auto";
 const STRICT = process.env.SMOKE_STRICT === "1";
 const TIMEOUT = parseInt(process.env.SMOKE_TIMEOUT_MS || "120000", 10);
 
+// 48x48 PNG: left half red, right half blue (for the vision routing check).
+const TEST_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAIAAADYYG7QAAAAPklEQVR42u3OMQ0AAAzDsCIZf1AFMxLTLku5I6czJx1tGiAgICAgICAgICAgICAgICAgICAgICAgICCgP9ACMtjYiNuLh3wAAAAASUVORK5CYII=";
+
 const results = [];
 function record(name, status, detail = "") { results.push({ name, status, detail }); }
 const C = { pass: "✓", fail: "✗", skip: "•", warn: "!" };
@@ -36,7 +39,7 @@ async function req(path, { method = "GET", token = TOKEN, body, headers = {} } =
     const r = await fetch(BASE + path, { method, headers: h, body: body !== undefined ? JSON.stringify(body) : undefined, signal: ctrl.signal });
     const text = await r.text();
     let json = null; try { json = JSON.parse(text); } catch { /* not json */ }
-    return { ok: r.ok, status: r.status, text, json };
+    return { ok: r.ok, status: r.status, text, json, headers: Object.fromEntries(r.headers.entries()) };
   } finally { clearTimeout(t); }
 }
 
@@ -52,9 +55,10 @@ function chatContent(json) {
 async function checkHealth() {
   try {
     const r = await req("/health", { token: "" });
-    if (r.status === 200 && r.json && r.json.ok === true) record("health", "pass", `GET /health 200 ok:true`);
-    else record("health", "fail", `status ${r.status} body ${r.text.slice(0, 120)}`);
-  } catch (e) { record("health", "fail", String(e.message || e)); }
+    if (r.status === 200 && r.json && r.json.ok === true) record("health", "pass", "GET /health 200 ok:true");
+    else if (r.status === 200) record("health", "skip", "/health not exposed by proxy (Caddy) — using /v1/models instead");
+    else record("health", STRICT ? "fail" : "warn", `status ${r.status} ${r.text.slice(0, 80)}`);
+  } catch (e) { record("health", STRICT ? "fail" : "warn", String(e.message || e)); }
 }
 
 async function checkAuthEnforced() {
@@ -118,6 +122,46 @@ async function checkRag() {
   } catch (e) { record("rag", STRICT ? "fail" : "warn", String(e.message || e)); }
 }
 
+// ── multimodal (Faz 4C): image-containing request routes to VISION_MODEL ─────
+async function checkVision() {
+  if (process.env.SMOKE_VISION !== "1") { record("vision", "skip", "set SMOKE_VISION=1 to run"); return; }
+  try {
+    const r = await req("/v1/chat/completions", {
+      method: "POST",
+      body: { model: MODEL, stream: false, messages: [{ role: "user", content: [
+        { type: "text", text: "Bu görselde hangi renkler var? Tek cümle, Türkçe yanıtla." },
+        { type: "image_url", image_url: { url: TEST_IMAGE } },
+      ] }] },
+    });
+    const route = r.headers["x-nova-route"] || "(no x-nova-route)";
+    const content = chatContent(r.json);
+    if (r.status === 200 && content) record("vision", "pass", `route=${route} · reply="${content.trim().slice(0, 50)}"`);
+    else record("vision", STRICT ? "fail" : "warn", `status ${r.status} route=${route} — routing set; needs a vision model in Ollama`);
+  } catch (e) { record("vision", STRICT ? "fail" : "warn", String(e.message || e)); }
+}
+
+// ── voice queue (Faz 4C): async TTS job via BullMQ/Redis ─────────────────────
+async function checkVoice() {
+  if (process.env.SMOKE_VOICE !== "1") { record("voice-queue", "skip", "set SMOKE_VOICE=1 to run"); return; }
+  try {
+    const sub = await req("/v1/voice/jobs", { method: "POST", body: { type: "tts", input: "NOVA ses kuyruğu testi." } });
+    if (sub.status === 503) { record("voice-queue", STRICT ? "fail" : "warn", "queue disabled (set VOICE_QUEUE_ENABLED=1)"); return; }
+    if (sub.status !== 202 || !sub.json?.id) { record("voice-queue", STRICT ? "fail" : "warn", `submit status ${sub.status} ${sub.text.slice(0, 80)}`); return; }
+    const id = sub.json.id;
+    let state = sub.json.state, tries = 0;
+    while (tries++ < 40 && state !== "completed" && state !== "failed") {
+      await new Promise((r) => setTimeout(r, 1000));
+      const st = await req("/v1/voice/jobs/" + id);
+      state = st.json?.state;
+    }
+    if (state !== "completed") { record("voice-queue", STRICT ? "fail" : "warn", `job ${id} state=${state} (needs Redis + TTS server up)`); return; }
+    const au = await req("/v1/voice/jobs/" + id + "/audio");
+    const bytes = au.text ? au.text.length : 0;
+    if (au.status === 200 && bytes > 0) record("voice-queue", "pass", `tts job ${id} completed, audio ~${bytes}B`);
+    else record("voice-queue", STRICT ? "fail" : "warn", `audio status ${au.status}`);
+  } catch (e) { record("voice-queue", STRICT ? "fail" : "warn", String(e.message || e)); }
+}
+
 // ── run ─────────────────────────────────────────────────────────────────────
 console.log(`NOVA live smoke → ${BASE}  (token ${TOKEN ? "set" : "none"}, model ${MODEL})\n`);
 await checkHealth();
@@ -126,6 +170,8 @@ await checkModels();
 await checkChat();
 await checkAgent();
 await checkRag();
+await checkVision();
+await checkVoice();
 
 let failed = 0;
 for (const r of results) {
@@ -133,6 +179,6 @@ for (const r of results) {
   const mark = C[r.status] || "?";
   console.log(`  ${mark} ${r.name.padEnd(16)} ${r.detail}`);
 }
-const required = results.filter(r => ["health", "auth-enforced", "models"].includes(r.name) && r.status === "fail").length;
+const required = results.filter(r => ["auth-enforced", "models"].includes(r.name) && r.status === "fail").length;
 console.log(`\n${failed ? C.fail : C.pass} ${results.length} checks, ${failed} failed${required ? ` (${required} required)` : ""}`);
 process.exit(failed ? 1 : 0);

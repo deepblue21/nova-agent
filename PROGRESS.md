@@ -8,6 +8,16 @@
 Bu dosya yeni oturuma başlarken ilk okunacak hafıza dosyasıdır. Her çalışma sonunda
 bu bölüm veya "SIRADAKİ ADIM" bölümü güncel bırakılmalı.
 
+### Oturum — 13 Haziran 2026 (Faz 4C canlı smoke TAMAM + chat abort bug fix)
+- Kullanıcı "Faz 4'te her şey bitsin, öyle 5'e geç" dedi. Faz 4C canlı smoke'ları (vision + voice queue) kullanıcının WSL'inde, **key'siz local** akışla yapıldı (Docker multi-user gateway yerine auth'u kapalı bare-metal gateway, port 8090).
+- **Vision ✅:** `ollama show` ile vision-yetenekli modeller tespit edildi (qwen3.6:latest, qwen3.5:35b, gemma4:latest/26b, nemotron3:33b). Bare-metal gateway `VISION_MODEL=ollama/gemma4:latest` ile: görsel istek `x-nova-route=ollama/gemma4:latest`'e gitti ve model test görselini doğru tarif etti ("kırmızı ve mavi renkler"). Routing + multimodal uçtan uca doğrulandı. (Not: kod varsayılanı `qwen3.5-omni:latest` kullanıcının Ollama'sında yok; kurulu bir vision tag'ine ayarlanmalı.)
+- **Voice queue ✅:** `tts` (faz2, host 8001) + yerel redis (host 6379) ayağa kaldırıldı; bare-metal gateway `VOICE_QUEUE_ENABLED=1 REDIS_URL=redis://localhost:6379 TTS_URL=...:8001` ile başlatıldı. `/health` `voice_queue:true` döndü; SMOKE_VOICE → async TTS job kuyruğa girdi, worker işledi, **11.5 KB ses üretildi** (`tts job 1 completed`). BullMQ/Redis/TTS async pipeline doğrulandı.
+- **🐞 BUG bulundu + düzeltildi (chat'i kıran):** `gateway.mjs` upstream'i `req.on("close")` ile iptal ediyordu — bu, POST body okunur okunmaz (yanıttan önce) tetiklendiği için HER chat/vision çağrısını ~1ms'de abort ediyordu ("ollama This operation was aborted"). `res.on("close")`'a çevrildi. Minimal http repro + canlı smoke ile doğrulandı; `units.test.mjs`'e statik regresyon testi eklendi (`req.on('close')` geri gelirse CI kırılır). Not: Docker imajı 42 saatlik (eski, bug'sız) kod olduğu için canlı Docker chat çalışıyordu; bug current/commit'li kodda.
+- **smoke-live.mjs genişletildi:** `SMOKE_VISION` (test görseli data URL), `SMOKE_VOICE` (async TTS job), ve Caddy proxy'si `/health`'i yayınlamadığı için health kontrolü proxy-toleranslı yapıldı (reachability = `/v1/models`).
+- **Doğrulama:** local smoke `chat ✓ / agent ✓ (108) / vision ✓ / voice-queue ✓`, 0 fail. (gateway.mjs `node --check` geçti; units.test.mjs sandbox mount'ta bayat görünüyor ama diskte doğru — birleşik suite kullanıcı makinesinde ~40 test.)
+- **⚠️ KALAN (kullanıcı, commit'lenmeli):** abort fix + smoke-live güncellemeleri + regresyon testi + bu doc'lar **henüz commit'li değil** (temiz commit `35d7d37` bug'ı içeriyor). Kullanıcı: `git add -A && git commit && git push --force origin main` + **Docker gateway imajını yeniden build et** (`docker compose ... up -d --build gateway`) ki canlı Docker gateway de fix'i alsın.
+- Faz 4 tamamlandı (4A/4B/4C/4D). Sıradaki: Faz 5B (gözlemlenebilirlik) veya prod sertleştirme.
+
 ### Oturum — 13 Haziran 2026 (Faz 4D — git history temizliği hazırlığı)
 - Faz 5A sonrası kullanıcı Faz 4D'yi (git history) seçti. Git **write** işlemleri bu sandbox'tan güvenilmez (`.git/index.lock` EPERM); bu yüzden gerçek rewrite kullanıcının makinesinde yapılacak, burada inceleme + doğrulanmış runbook üretildi.
 - **İnceleme:** tek commit `da8bece`, author = kişisel ad + gmail adresi (kişisel e-posta commit metadata'sında), remote `github.com/deepblue21/nova-agent`, main + origin/main. `da8bece` içeriğinde kişisel e-posta, OS kullanıcı adı, eski demo parola, kişisel mutlak home path'leri ve 3 adet `web/vite.config.js.timestamp-*.mjs` var.
@@ -355,22 +365,20 @@ yeni özellikler · maliyet kontrolü.
 
 ## 👉 SIRADAKİ ADIM (buradan devam)
 
-**Faz 5A (CI & güvenlik otomasyonu) tamamlandı.** CI Node 20.19+22 matrisine alındı; secret scan,
-gateway/web audit ve canlı smoke adımları eklendi; `scripts/secret-scan.mjs`, `scripts/smoke-live.mjs`,
-`scripts/security-check.mjs` ve root `npm run security`/`secret-scan`/`audit`/`smoke:live` script'leri hazır;
-ajan/RAG için mock'lu CI-smoke testleri eklendi.
+**Faz 4 ve Faz 5A tamamlandı.** 4A/4B/4C/4D bitti (4C vision+voice canlı doğrulandı; 4D git history temizlendi + push edildi). 5A CI/güvenlik otomasyonu hazır.
 
-**İlk iş: Windows'ta tek komut doğrulaması.** Bu repo'nun gerçek makinesinde (Windows):
-1. `npm.cmd --prefix gateway test` → 39/39 beklenir (36 + 3 yeni runAgent testi).
-2. `npm.cmd run security` → syntax + gateway test + secret-scan + gateway/web audit + web build hepsi yeşil olmalı.
-   (Sandbox bunları çalıştıramaz: web esbuild Windows binary'si + mount taze-düzenlenen dosyalarda bayat bayt gösteriyor.)
-3. `npm.cmd run secret-scan` → "no secrets found".
+**⚠️ İLK İŞ — commit'lenmemiş fix'i yayınla (kullanıcı, Windows/WSL):** Son oturumda chat'i kıran abort bug'ı (`req.on('close')`→`res.on('close')`), smoke-live vision/voice eklemeleri, regresyon testi ve doc güncellemeleri **henüz commit'li değil**; temiz commit `35d7d37` bug'ı içeriyor. Yapılacak:
+1. `npm.cmd --prefix gateway test` → ~40 test geçmeli (regresyon testi dahil).
+2. `git add -A && git commit -m "fix: abort upstream on res close (chat regression) + 4C live-smoke + docs" && git push origin main`.
+3. **Docker gateway imajını yeniden build et:** `docker compose -f docker-compose.yml -f docker-compose.faz2.yml up -d --build gateway` — canlı Docker gateway 42 saatlik eski imajda; fix'i alması için rebuild şart.
+4. (İsteğe bağlı) `npm.cmd run security` ve `npm.cmd run secret-scan` → yeşil.
 
-**Sonra sırayla (yön kullanıcıya bağlı):**
-- **Faz 5B — prod sertleştirme:** Sentry/OpenTelemetry trace, sürümlü Grafana dashboard'ları, Keycloak prod mode, port daraltma, secret rotation, `ALLOW_MODELS`. (Saf kod kısmı: Sentry/OTel entegrasyonu.)
-- **Faz 4C — canlı vision/voice smoke** (kullanıcının WSL/Docker/Ollama'sı gerekir): `scripts/smoke-live.mjs` ile `SMOKE_AGENT=1`, sonra görsel ve `VOICE_QUEUE_ENABLED=1` ile STT/TTS.
-- **Faz 4D — git history temizliği** (public ön koşulu): ✅ runbook + scriptler hazır (`HISTORY_CLEANUP.md`, `scripts/clean-history.sh`/`.ps1`) ve doğrulandı; tree ek-temizlendi (nova-agent.jsx). **Kalan, kullanıcıda:** Windows/WSL'de `bash scripts/clean-history.sh` çalıştır → `git push --force origin main` (veya GitHub repo'yu silip-yeniden oluştur) → `da8bece` URL 404 + `npm run secret-scan` ile doğrula.
-- **Faz 6 — Android:** `nova-android/` içinde `gradle wrapper --gradle-version 8.9` ile `gradle-wrapper.jar` üret, test-build smoke, CI'daki android job'unu aç.
+**Sonra — Faz 5B (prod sertleştirme, saf kod kısmı şimdi yapılabilir):**
+- Sentry/OpenTelemetry trace + ajan araç-çağrı metrikleri + sürümlü Grafana dashboard'ları.
+- Keycloak prod mode, portları iç ağa kapat, secret rotation, `ALLOW_MODELS` (deploy kararları).
+- `VISION_MODEL` varsayılanını kurulu bir vision tag'ine ayarla (kod default `qwen3.5-omni:latest` çoğu kurulumda yok; ör. `gemma4:latest` veya `qwen3.6:latest`).
+
+**Faz 6 — Android:** `nova-android/` içinde `gradle wrapper --gradle-version 8.9` ile `gradle-wrapper.jar` üret, test-build smoke, CI'daki android job'unu aç.
 
 ## Kalan TODO'lar
 

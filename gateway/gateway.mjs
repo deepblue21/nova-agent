@@ -383,10 +383,13 @@ app.post("/v1/chat/completions", async (req, res) => {
     }
   }
 
-  // cancel upstream if client disconnects + enforce timeout
+  // cancel upstream if client disconnects + enforce timeout.
+  // NB: use res "close" (fires when the RESPONSE ends or the client drops the
+  // connection). req "close" fires as soon as the POST body is read — before we
+  // respond — which would abort every upstream call instantly.
   const up = new AbortController();
   const to = setTimeout(() => up.abort(), TIMEOUT_MS);
-  req.on("close", () => { if (!res.writableEnded) up.abort(); });
+  res.on("close", () => { if (!res.writableEnded) up.abort(); });
   const usage = makeUsageAccumulator(provider);
   const ctx = { signal: up.signal, think, params: pickParams(req.body), retries: MAX_RETRIES, usage };
   try {

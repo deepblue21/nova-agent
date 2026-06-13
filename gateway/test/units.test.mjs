@@ -2,6 +2,7 @@
 //   npm test        (node --test)
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import { newApiKey, isApiKey, keyPrefix, sha256hex, hashEquals, parseBearer } from "../lib/keys.mjs";
 import { priceFor, approxTokens, estimateCostMicros } from "../lib/pricing.mjs";
@@ -17,6 +18,15 @@ import { createProviderClient, messageText, normMsg, pickParams, routeModel } fr
 import {
   usageFromOpenAI, usageFromAnthropic, usageFromGemini, usageFromOllama, makeUsageAccumulator,
 } from "../lib/tokens.mjs";
+
+test("regression: gateway aborts upstream on res 'close', not req 'close'", () => {
+  // Bug (fixed 13 Jun): req.on('close') fires as soon as the POST body is read —
+  // before we respond — so it aborted every chat/vision upstream call instantly
+  // (~1ms). The abort must be wired to res 'close' (response done or client drop).
+  const src = readFileSync(new URL("../gateway.mjs", import.meta.url), "utf8");
+  assert.ok(/res\.on\(\s*["']close["']/.test(src), "expected res.on('close') upstream-abort wiring in gateway.mjs");
+  assert.ok(!/req\.on\(\s*["']close["']/.test(src), "req.on('close') reintroduced — aborts upstream prematurely (use res.on('close'))");
+});
 
 test("api keys: shape, hashing, parsing", () => {
   const k = newApiKey();
