@@ -10,6 +10,7 @@ import { chunkText, toVectorLiteral } from "../lib/embed.mjs";
 import { DOC_TYPES, normalizeKnowledgeInput } from "../lib/doc_extract.mjs";
 import { runJavaScriptSandbox } from "../lib/code_sandbox.mjs";
 import { runAgent } from "../lib/agent.mjs";
+import { registry } from "../lib/metrics.mjs";
 
 function xmlEscape(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -278,5 +279,19 @@ test("runAgent: web_search kaynakları sonuca taşınır", async () => {
     assert.ok(out.toolsUsed.includes("web_search"));
     assert.equal(out.sources.length, 1);
     assert.equal(out.sources[0].url, "https://example.com/nova");
+  } finally { fx.restore(); }
+});
+
+test("metrics: agent runs + tool calls are counted in the registry", async () => {
+  const fx = mockFetch({ ollama: [
+    { content: "", tool_calls: [{ function: { name: "calculator", arguments: { expression: "2+2" } } }] },
+    { content: "ok" },
+  ] });
+  try {
+    await runAgent({ ollamaBase: "http://x:11434", model: "m", messages: [{ role: "user", content: "x" }] });
+    const out = await registry.metrics();
+    assert.match(out, /nova_agent_runs_total \d/);
+    assert.match(out, /nova_agent_tool_calls_total\{tool="calculator",status="ok"\}/);
+    assert.match(out, /nova_agent_tool_duration_seconds_count\{tool="calculator"\}/);
   } finally { fx.restore(); }
 });

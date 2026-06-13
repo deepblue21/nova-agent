@@ -8,6 +8,16 @@
 Bu dosya yeni oturuma başlarken ilk okunacak hafıza dosyasıdır. Her çalışma sonunda
 bu bölüm veya "SIRADAKİ ADIM" bölümü güncel bırakılmalı.
 
+### Oturum — 13 Haziran 2026 (Faz 5B — ajan/araç metrikleri)
+- Abort fix + Faz 4C smoke `b05cb44` olarak commit+push edildi ve Docker gateway fix'li imajla yeniden kuruldu (kullanıcı doğruladı: `npm test` 40/40, push OK, container'lar healthy).
+- Kullanıcı Faz 5B'de "sadece ajan metrikleri" dedi (zero-dep). `gateway/lib/metrics.mjs`'e 3 metrik eklendi: `nova_agent_runs_total`, `nova_agent_tool_calls_total{tool,status}`, `nova_agent_tool_duration_seconds{tool}` (mevcut prom-client; yeni bağımlılık yok).
+- `gateway/lib/agent.mjs` `runAgent`: başta `agentRuns.inc()`, her `runTool` çağrısı `process.hrtime` ile sürelenip `agentToolDuration.observe` + `agentToolCalls.inc({tool,status})` ile sayılıyor (ok/error). `/metrics`'ten yayılıyor.
+- `gateway/test/agent.test.mjs`: mock agent → `registry.metrics()` çıktısında `nova_agent_runs_total` + `nova_agent_tool_calls_total{tool="calculator",status="ok"}` + duration `_count` doğrulandı (test eklendi). Birleşik suite ~41 test (kullanıcı makinesinde).
+- `monitoring/grafana-nova-gw.json`: 3 panel eklendi (id 5 araç çağrı hızı tool/status, id 6 araç p95 süresi, id 7 ajan çalıştırma+araç toplamı). JSON parse geçerliliği doğrulandı (7 panel).
+- Doğrulama notu: sandbox mount taze-düzenlenen mevcut dosyalarda (agent.mjs/metrics.mjs/grafana json) bayat/kesik gösterdi; içerik Read ile (Windows truth) teyit edildi. Test/JSON kullanıcı makinesinde/CI'da koşar.
+- **Trace eklendi (aynı oturum):** `gateway/lib/tracing.mjs` — zero-dep, opt-in OTLP/HTTP trace exporter (`OTEL_EXPORTER_OTLP_ENDPOINT`/`_TRACES_ENDPOINT`/`OTEL_SERVICE_NAME`). `gateway.mjs` chat handler'ında chat başına span (route/provider/model/agent/stream/status), `res.on('finish')`'te kapanır, tracing kapalıyken no-op. Testler: `buildOtlpSpan` yapısı/attribute tipleri/config gating + enabled-export/disabled-no-op (units.test.mjs, mock fetch ile sandbox'ta 2/2 doğrulandı). `.env.example` + README (config tablosu + observability) güncellendi.
+- KALAN (kullanıcı): `npm test` (~43) → `git add -A && commit && push`; Grafana dashboard'unu reimport et. **Faz 5 kod tarafı tamam** (5A + 5B metrik + trace); kalan saf deploy/ops kararları (Keycloak prod mode, iç port kapatma, secret rotation, `ALLOW_MODELS` — SECURITY.md). Sıradaki kod fazı: **Faz 6 — Android**.
+
 ### Oturum — 13 Haziran 2026 (Faz 4C canlı smoke TAMAM + chat abort bug fix)
 - Kullanıcı "Faz 4'te her şey bitsin, öyle 5'e geç" dedi. Faz 4C canlı smoke'ları (vision + voice queue) kullanıcının WSL'inde, **key'siz local** akışla yapıldı (Docker multi-user gateway yerine auth'u kapalı bare-metal gateway, port 8090).
 - **Vision ✅:** `ollama show` ile vision-yetenekli modeller tespit edildi (qwen3.6:latest, qwen3.5:35b, gemma4:latest/26b, nemotron3:33b). Bare-metal gateway `VISION_MODEL=ollama/gemma4:latest` ile: görsel istek `x-nova-route=ollama/gemma4:latest`'e gitti ve model test görselini doğru tarif etti ("kırmızı ve mavi renkler"). Routing + multimodal uçtan uca doğrulandı. (Not: kod varsayılanı `qwen3.5-omni:latest` kullanıcının Ollama'sında yok; kurulu bir vision tag'ine ayarlanmalı.)
@@ -365,20 +375,16 @@ yeni özellikler · maliyet kontrolü.
 
 ## 👉 SIRADAKİ ADIM (buradan devam)
 
-**Faz 4 ve Faz 5A tamamlandı.** 4A/4B/4C/4D bitti (4C vision+voice canlı doğrulandı; 4D git history temizlendi + push edildi). 5A CI/güvenlik otomasyonu hazır.
+**Faz 4 + Faz 5 (kod) tamam.** 5A CI/güvenlik + 5B gözlemlenebilirlik (ajan/araç metrikleri + Grafana panelleri + opt-in OTLP trace exporter). Abort fix canlıda (`b05cb44` + Docker rebuild).
 
-**⚠️ İLK İŞ — commit'lenmemiş fix'i yayınla (kullanıcı, Windows/WSL):** Son oturumda chat'i kıran abort bug'ı (`req.on('close')`→`res.on('close')`), smoke-live vision/voice eklemeleri, regresyon testi ve doc güncellemeleri **henüz commit'li değil**; temiz commit `35d7d37` bug'ı içeriyor. Yapılacak:
-1. `npm.cmd --prefix gateway test` → ~40 test geçmeli (regresyon testi dahil).
-2. `git add -A && git commit -m "fix: abort upstream on res close (chat regression) + 4C live-smoke + docs" && git push origin main`.
-3. **Docker gateway imajını yeniden build et:** `docker compose -f docker-compose.yml -f docker-compose.faz2.yml up -d --build gateway` — canlı Docker gateway 42 saatlik eski imajda; fix'i alması için rebuild şart.
-4. (İsteğe bağlı) `npm.cmd run security` ve `npm.cmd run secret-scan` → yeşil.
+**⚠️ İLK İŞ — 5B'yi commit et (kullanıcı, Windows/WSL):** `metrics.mjs`/`agent.mjs`/`tracing.mjs`/`gateway.mjs`/`agent.test.mjs`/`units.test.mjs`/`grafana-nova-gw.json`/`.env.example`/docs değişiklikleri **henüz commit'li değil**:
+1. `npm.cmd --prefix gateway test` → ~43 test geçmeli (ajan-metrik + 2 tracing testi dahil).
+2. `git add -A && git commit -m "feat: agent metrics + Grafana panels + opt-in OTLP tracing (Faz 5B)" && git push origin main`.
+3. Grafana'da (localhost:3001) NOVA Gateway dashboard'unu reimport et → 3 yeni panel. Trace istersen `OTEL_EXPORTER_OTLP_ENDPOINT`'i bir collector'a (Jaeger/Tempo/OTel Collector) ayarla.
 
-**Sonra — Faz 5B (prod sertleştirme, saf kod kısmı şimdi yapılabilir):**
-- Sentry/OpenTelemetry trace + ajan araç-çağrı metrikleri + sürümlü Grafana dashboard'ları.
-- Keycloak prod mode, portları iç ağa kapat, secret rotation, `ALLOW_MODELS` (deploy kararları).
-- `VISION_MODEL` varsayılanını kurulu bir vision tag'ine ayarla (kod default `qwen3.5-omni:latest` çoğu kurulumda yok; ör. `gemma4:latest` veya `qwen3.6:latest`).
+**Faz 5'in kalanı = saf deploy/ops kararları (kod değil, `SECURITY.md`):** Keycloak prod mode (`start`), iç portları kapat, secret rotation, `ALLOW_MODELS` allowlist, Docker gateway env'inde `VISION_MODEL`'i kurulu bir vision tag'ine ayarla (`gemma4:latest`/`qwen3.6:latest`; kod default `qwen3.5-omni` çoğu kurulumda yok).
 
-**Faz 6 — Android:** `nova-android/` içinde `gradle wrapper --gradle-version 8.9` ile `gradle-wrapper.jar` üret, test-build smoke, CI'daki android job'unu aç.
+**Sıradaki kod fazı — Faz 6 (Android):** `nova-android/` içinde `gradle wrapper --gradle-version 8.9` ile `gradle-wrapper.jar` üret, Android Studio/Gradle test-build smoke, CI'daki android job'unu aç.
 
 ## Kalan TODO'lar
 

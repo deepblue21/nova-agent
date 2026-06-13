@@ -45,6 +45,7 @@ import { media } from "./routes/media.mjs";
 import { admin } from "./routes/admin.mjs";
 import { usage as usageRoutes } from "./routes/usage.mjs";
 import { knowledge } from "./routes/knowledge.mjs";
+import { createTracer } from "./lib/tracing.mjs";
 
 // ---------- zero-dependency .env loader ----------
 // Loads KEY=VALUE pairs from ./.env into process.env WITHOUT overwriting
@@ -98,6 +99,7 @@ const TTS_VOICE     = process.env.TTS_VOICE     || "alloy";
 
 // --- robustness / security knobs ---
 const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN || "";                 // blank = auth OFF
+const tracer = createTracer();   // opt-in OTLP tracing; no-op unless OTEL_* env set
 const TIMEOUT_MS    = parseInt(process.env.REQ_TIMEOUT_MS || "60000", 10);
 const MAX_RETRIES   = parseInt(process.env.MAX_RETRIES || "2", 10);    // on 429/5xx/network error
 const ALLOW         = (process.env.ALLOW_MODELS || "").split(",").map(s => s.trim()).filter(Boolean);
@@ -364,6 +366,8 @@ app.post("/v1/chat/completions", async (req, res) => {
     return res.status(403).json({ error: "model not allowed: " + full });
   }
   res.setHeader("x-nova-route", full);
+  const span = tracer.startSpan("chat", { "nova.route": full, "nova.provider": provider, "nova.model": model, "nova.agent": !!agent, "nova.stream": !!stream });
+  res.on("finish", () => span.end({ "http.status_code": res.statusCode }, res.statusCode >= 500 ? 2 : 1));
 
   if (req.principal) {
     try {

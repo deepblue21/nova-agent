@@ -124,7 +124,7 @@ ve sıradaki adımı görmek için **[`PROGRESS.md`](./PROGRESS.md)** dosyasına
 
 ### Faz panosu — nerede kaldık?
 
-**Şu anki işaretçi:** **Faz 4 tamamen bitti** (4A/4B/4C/4D). 4C vision+voice canlı doğrulandı (görsel→`VISION_MODEL` routing + model görseli tarif etti; async TTS job ses üretti); 4D git history temizlenip force-push edildi (`35d7d37`). Faz 5A CI/güvenlik otomasyonu da hazır. Canlı testte **chat'i kıran bir abort bug'ı** (`req.on('close')`→`res.on('close')`) bulunup düzeltildi. **Kalan tek iş:** bu fix'i commit+push edip Docker gateway imajını rebuild etmek (bkz. PROGRESS). Sıradaki faz: **5B** (gözlemlenebilirlik / prod sertleştirme).
+**Şu anki işaretçi:** Faz 4 + Faz 5A tamam; chat abort bug'ı düzeltilip canlıya alındı (`b05cb44`). **Faz 5B kod tarafı tamam:** ajan/araç Prometheus metrikleri + Grafana panelleri + opt-in zero-dep OTLP trace exporter (commit bekliyor). Faz 5'in kalanı saf deploy/ops kararları (Keycloak prod mode, iç port kapatma, secret rotation, `ALLOW_MODELS` — bkz. `SECURITY.md`). Sıradaki kod fazı: **Faz 6 — Android** (gradle wrapper + test-build).
 
 | Faz | Durum | Yaptıklarımız | Kalan / çıkış kriteri |
 | --- | --- | --- | --- |
@@ -236,7 +236,7 @@ Bu makinede GPU **RTX 3070 (8 GB VRAM)**. Modellerin yerleşimi (`ollama ps` →
 
 ### Olgunlaştırma (Faz 5 — prod sertleştirme & güvenlik)
 - ⏳ **Güvenlik:** Keycloak prod modu (`start`), tüm varsayılan parolaları rotate, portları iç ağa kapat, `ALLOW_MODELS` allowlist, OIDC issuer'ı env/config'e taşı. (Bkz. [`SECURITY.md`](./SECURITY.md).)
-- ⏳ **Gözlemlenebilirlik:** Sentry/OpenTelemetry trace + sürümlü Grafana dashboard'ları; ajan araç-çağrı metrikleri.
+- ✅ **Gözlemlenebilirlik:** ajan/araç Prometheus metrikleri (`nova_agent_runs_total`, `nova_agent_tool_calls_total{tool,status}`, `nova_agent_tool_duration_seconds{tool}`) + Grafana panelleri (`monitoring/grafana-nova-gw.json`) + **opt-in zero-dep OpenTelemetry (OTLP/HTTP) trace exporter** (`OTEL_EXPORTER_OTLP_ENDPOINT`; chat başına span). Opsiyonel kalan: Sentry, dashboard sürümleme otomasyonu.
 - 🟡 **Kod kalitesi:** ✅ ajan-döngüsü smoke testleri (mock'lu) CI'da koşuyor + tek komut `npm run security`; kalan: provider modülü için daha geniş integration testleri.
 - 🟡 **Dağıtım:** ✅ CI'da secret scan + audit + canlı `/health`/auth/models smoke; kalan: K8s/HPA manifest'lerini ajan+RAG+voice servisleriyle güncelle.
 - ⏳ **Android istemci:** kaynaklar artık `nova-android/` klasöründe; kalan iş `gradle-wrapper.jar` üretmek (`gradle wrapper --gradle-version 8.9`).
@@ -451,6 +451,9 @@ All gateway settings are environment variables (see `gateway/.env.example` for t
 | `VOICE_QUEUE_RESULT_TTL_SEC` | `3600` | how long completed voice job results stay available |
 | `VOICE_QUEUE_MAX_AUDIO_BYTES` | `26214400` | max queued STT audio payload size |
 | `TTS_MAX_INPUT_CHARS` | `8000` | max TTS input length |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | *(unset)* | opt-in OTLP/HTTP trace export base URL (traces sent to `…/v1/traces`); unset = tracing off |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | *(unset)* | full traces URL (overrides the base above) |
+| `OTEL_SERVICE_NAME` | `nova-gateway` | `service.name` on exported spans |
 
 ## Voice mode
 

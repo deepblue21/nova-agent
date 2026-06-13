@@ -18,6 +18,7 @@ import { createProviderClient, messageText, normMsg, pickParams, routeModel } fr
 import {
   usageFromOpenAI, usageFromAnthropic, usageFromGemini, usageFromOllama, makeUsageAccumulator,
 } from "../lib/tokens.mjs";
+import { buildOtlpSpan, tracingConfig, createTracer } from "../lib/tracing.mjs";
 
 test("regression: gateway aborts upstream on res 'close', not req 'close'", () => {
   // Bug (fixed 13 Jun): req.on('close') fires as soon as the POST body is read —
@@ -26,6 +27,36 @@ test("regression: gateway aborts upstream on res 'close', not req 'close'", () =
   const src = readFileSync(new URL("../gateway.mjs", import.meta.url), "utf8");
   assert.ok(/res\.on\(\s*["']close["']/.test(src), "expected res.on('close') upstream-abort wiring in gateway.mjs");
   assert.ok(!/req\.on\(\s*["']close["']/.test(src), "req.on('close') reintroduced — aborts upstream prematurely (use res.on('close'))");
+});
+
+test("tracing: buildOtlpSpan structure + attribute typing + config gating", () => {
+  const sp = buildOtlpSpan({ name: "chat", traceId: "a".repeat(32), spanId: "b".repeat(16), startTimeUnixNano: 1n, endTimeUnixNano: 2n, attributes: { "nova.route": "ollama/x", n: 5, ok: true }, statusCode: 1 });
+  const s = sp.resourceSpans[0].scopeSpans[0].spans[0];
+  assert.equal(s.name, "chat");
+  assert.equal(s.startTimeUnixNano, "1");
+  assert.equal(s.status.code, 1);
+  const a = Object.fromEntries(s.attributes.map(x => [x.key, x.value]));
+  assert.deepEqual(a["nova.route"], { stringValue: "ollama/x" });
+  assert.deepEqual(a["n"], { intValue: "5" });
+  assert.deepEqual(a["ok"], { boolValue: true });
+  assert.equal(sp.resourceSpans[0].resource.attributes[0].value.stringValue, "nova-gateway");
+  assert.equal(tracingConfig({}).enabled, false);
+  assert.equal(tracingConfig({ OTEL_EXPORTER_OTLP_ENDPOINT: "http://c:4318" }).enabled, true);
+  assert.match(tracingConfig({ OTEL_EXPORTER_OTLP_ENDPOINT: "http://c:4318/" }).endpoint, /\/v1\/traces$/);
+});
+
+test("tracing: exports span via OTLP when enabled, no-op when disabled", async () => {
+  let posted = null;
+  const tracer = createTracer({ OTEL_EXPORTER_OTLP_ENDPOINT: "http://collector:4318" }, async (url, opts) => { posted = { url, body: JSON.parse(opts.body) }; return { ok: true }; });
+  tracer.startSpan("chat", { "nova.route": "ollama/x" }).end({ "http.status_code": 200 }, 1);
+  await new Promise(r => setTimeout(r, 25));
+  assert.ok(posted, "enabled tracer should POST");
+  assert.match(posted.url, /\/v1\/traces$/);
+  assert.equal(posted.body.resourceSpans[0].scopeSpans[0].spans[0].name, "chat");
+  let p2 = false;
+  createTracer({}, async () => { p2 = true; return { ok: true }; }).startSpan("x").end();
+  await new Promise(r => setTimeout(r, 25));
+  assert.equal(p2, false, "disabled tracer must not POST");
 });
 
 test("api keys: shape, hashing, parsing", () => {

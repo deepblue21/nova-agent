@@ -26,6 +26,28 @@ export const llmTokens = new client.Counter({
   registers: [registry],
 });
 
+// ── Agent (tool-calling) metrics ────────────────────────────────────────────
+export const agentRuns = new client.Counter({
+  name: "nova_agent_runs_total",
+  help: "Number of agent (tool-calling) invocations",
+  registers: [registry],
+});
+
+export const agentToolCalls = new client.Counter({
+  name: "nova_agent_tool_calls_total",
+  help: "Agent tool calls by tool and status",
+  labelNames: ["tool", "status"],   // status: ok | error
+  registers: [registry],
+});
+
+export const agentToolDuration = new client.Histogram({
+  name: "nova_agent_tool_duration_seconds",
+  help: "Agent tool execution duration in seconds",
+  labelNames: ["tool"],
+  buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30],
+  registers: [registry],
+});
+
 // Pure: collapse high-cardinality path segments (uuids, numbers) into labels.
 export function routeLabel(path) {
   return String(path || "")

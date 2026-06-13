@@ -2,6 +2,7 @@
 // çalıştırır → sonucu geri besler → model nihai cevabı üretir. Maks N tur.
 // Akış (onStep) ile UI'a "araç kullanılıyor" izleri verilir.
 import { TOOL_SPECS, runTool } from "./tools.mjs";
+import { agentRuns, agentToolCalls, agentToolDuration } from "./metrics.mjs";
 
 const MAX_ROUNDS = parseInt(process.env.AGENT_MAX_ROUNDS || "4", 10);
 
@@ -32,6 +33,7 @@ async function ollamaChat(ollamaBase, model, messages, tools, signal) {
 // onStep(evt): { type:"tool_call"|"tool_result", name, args?, text? }
 // Döner: { content, sources:[], rounds, toolsUsed:[] }
 export async function runAgent({ ollamaBase, model, messages, signal, onStep, userId }) {
+  agentRuns.inc();
   const convo = [...messages];
   const sources = [];
   const toolsUsed = [];
@@ -51,7 +53,15 @@ export async function runAgent({ ollamaBase, model, messages, signal, onStep, us
       if (typeof args === "string") { try { args = JSON.parse(args); } catch (e) { args = {}; } }
       toolsUsed.push(name);
       onStep && onStep({ type: "tool_call", name, args });
-      const res = await runTool(name, args, { signal, userId });
+      const toolLabel = name || "unknown";
+      const t0 = process.hrtime.bigint();
+      let res;
+      try {
+        res = await runTool(name, args, { signal, userId });
+      } finally {
+        agentToolDuration.observe({ tool: toolLabel }, Number(process.hrtime.bigint() - t0) / 1e9);
+      }
+      agentToolCalls.inc({ tool: toolLabel, status: res && res.ok === false ? "error" : "ok" });
       if (res.sources && res.sources.length) for (const s of res.sources) sources.push(s);
       onStep && onStep({ type: "tool_result", name, text: res.text, sources: res.sources || [] });
       convo.push({ role: "tool", tool_name: name, content: res.text });
