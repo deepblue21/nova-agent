@@ -8,3 +8,10 @@ createRoot(el).render(
     <App />
   </React.StrictMode>
 );
+
+// PWA: register the offline-shell service worker (production build only).
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
