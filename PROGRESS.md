@@ -8,6 +8,22 @@
 Bu dosya yeni oturuma başlarken ilk okunacak hafıza dosyasıdır. Her çalışma sonunda
 bu bölüm veya "SIRADAKİ ADIM" bölümü güncel bırakılmalı.
 
+### Oturum — 14 Haziran 2026 (Faz 6 — çoklu ajan / team mode)
+- **Saf çekirdek:** `gateway/lib/multiagent.mjs` — `mapLimit` (eşzamanlılık sınırı), `buildSynthesisPrompt`, `runTeam` (fan-out → paralel alt-ajan → sentez; `runOne`/`synthesize` enjekte → test edilebilir), `parsePlan` (planlayıcı JSON çıktısından alt-görevler). `gateway/test/multiagent.test.mjs` (core 4/4 sandbox; parsePlan inline 5 assert).
+- **Gateway:** `team:true` chat dalı (agent dalından önce, yalnız ollama+resimsiz): `planSubtasks` (yerel modelden JSON plan) → yoksa tek ajana düş → `runTeam` (her alt-görev `runAgent` ile, tools açık) → sentez `runAgent` → stream (alt-görev event'leri) + kaynak rozetleri + `nova_team`. `TEAM_CONCURRENCY` (vars. 3).
+- **UI:** dock'ta **Takım** toggle (Ajan yanında; `teamMode` state, kalıcı), gateway isteklerine `team:true` ekler (chat + voice).
+- **Doğrulama:** multiagent core 4/4 + parsePlan inline OK. gateway.mjs/multiagent.mjs/nova-agent.jsx mount'ta bayat-truncated → sandbox build/parse edemedi; **diskte doğru** (nova-agent.jsx 2443 satır tam; düzenlemeler 2430'dan önce, kuyruk pre-existing). Kullanıcı `npm test` + `npm run build` + gateway rebuild ile doğrular.
+- **KALAN (kullanıcı):** tam build/test/commit + canlı team denemesi (Gateway + yerel model, dock'ta **Takım** aç, çok-parçalı görev sor → planla→paralel→sentez).
+
+### Oturum — 14 Haziran 2026 (Faz 5 phase kapanışı)
+- Kullanıcı "Faz 5'i phase olarak bitir" dedi; kalan kod kalemleri kapatıldı:
+  - **Grafana auto-provisioning:** `monitoring/grafana/provisioning/{datasources,dashboards}` + compose grafana mount → `prom-nova` datasource + NOVA dashboard otomatik yüklenir (manuel reimport yok).
+  - **Opt-in hata raporlama:** `gateway/lib/errors.mjs` (`ERROR_WEBHOOK_URL`; fire-and-forget JSON; Sentry-relay/Slack/collector) global error handler'a bağlandı; saf `buildErrorEvent` + test (sandbox 1/1).
+  - **K8s configmap** ajan/RAG/voice/scheduler/OTEL/routing/TTS_FORMAT/ALLOW_MODELS knob'larıyla güncellendi.
+  - **prod-check:** `scripts/prod-check.mjs` + `npm run prod-check` — prod env doğrulaması (auth/NODE_ENV/CORS sert; ALLOW_MODELS/TRUST_PROXY/health/rate uyarı). Sandbox'ta fail+pass yolları doğrulandı.
+- Geriye kalan Faz 5 = saf deploy-zamanı kararları (Keycloak prod mode, port kapatma, secret rotation) + opsiyonel (searxng/whisper/tts için ayrı K8s manifest, daha geniş provider integration testleri). README phase board/roadmap + işaretçi ✅ güncellendi.
+- **Sırada:** Faz 6 devam (çoklu ajan / MCP entegrasyonu / Android).
+
 ### Oturum — 14 Haziran 2026 (Faz 6 — zamanlanmış/otomatik ajan görevleri)
 - Kullanıcı Faz 6'da "zamanlanmış/otomatik ajan görevleri"ni seçti. Uçtan uca eklendi.
 - **Saf çekirdek:** `gateway/lib/scheduler.mjs` — `parseSchedule` (`every:Nm/h/d`, `daily:HH:MM`; min 60sn), `nextRunAt`, `dueTasks`, `describeSchedule`. `gateway/test/scheduler.test.mjs` 4/4 (sandbox).

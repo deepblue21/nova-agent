@@ -902,6 +902,7 @@ export default function App() {
   const [openDD, setOpenDD] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [agentMode, setAgentMode] = useState(false); // araç çağırma (web arama, hesap, saat)
+  const [teamMode, setTeamMode] = useState(false);   // çoklu ajan: paralel alt-görevler + sentez
   const [artifact, setArtifact] = useState(null);    // {type, code, lang} — yan önizleme paneli
   const [auth, setAuth] = useState(null);            // Keycloak oturumu {access_token, refresh_token, expires_at, email}
   const [usageInfo, setUsageInfo] = useState(null);  // /v1/usage cevabı (ayarlar paneli)
@@ -1015,6 +1016,7 @@ export default function App() {
             if (g.personaId && PERSONAS.some(p => p.id === g.personaId)) setPersonaId(g.personaId);
             if (typeof g.customPersona === "string") setCustomPersona(g.customPersona);
             if (typeof g.agentMode === "boolean") setAgentMode(g.agentMode);
+            if (typeof g.teamMode === "boolean") setTeamMode(g.teamMode);
             if (g.agent) setAgent(g.agent);
             if (g.agentUrl) setAgentUrl(g.agentUrl);
             if (g.voiceCfg) setVoiceCfg(v => {
@@ -1053,12 +1055,12 @@ export default function App() {
     const t = setTimeout(() => {
       store.set(STATE_KEY, JSON.stringify({
         v: 1,
-        settings: { modelId, customModel, effort, reasoning, personaId, customPersona, agentMode, agent, agentUrl, voiceCfg, providers },
+        settings: { modelId, customModel, effort, reasoning, personaId, customPersona, agentMode, teamMode, agent, agentUrl, voiceCfg, providers },
         convs, activeId,
       }));
     }, 400);
     return () => clearTimeout(t);
-  }, [hydrated, convs, activeId, modelId, customModel, effort, reasoning, personaId, customPersona, agentMode, agent, agentUrl, voiceCfg, providers]);
+  }, [hydrated, convs, activeId, modelId, customModel, effort, reasoning, personaId, customPersona, agentMode, teamMode, agent, agentUrl, voiceCfg, providers]);
 
   // ============================ OIDC (Keycloak) ============================
   async function tokenRequest(params) {
@@ -1361,7 +1363,7 @@ export default function App() {
         prov: curProv, model: curApiModel, system: buildSystem(),
         history: historyMsgs.map(m => ({ role: m.role, content: m.content, images: m.images })),
         think: reasoning, signal: ctrl.signal,
-        extra: curItem.provider === "gateway" ? { effort, think: reasoning, ...(agentMode ? { agent: true } : {}), ...(convId ? { conversation_id: convId } : {}) } : {},
+        extra: curItem.provider === "gateway" ? { effort, think: reasoning, ...(agentMode ? { agent: true } : {}), ...(teamMode ? { team: true } : {}), ...(convId ? { conversation_id: convId } : {}) } : {},
         onRoute: (r) => { route = r; },
         onThought: (t) => { thoughts += t; updateLast({ thoughts }); },
         onTool: (s) => {
@@ -1649,7 +1651,7 @@ export default function App() {
         prov: curProv, model: curApiModel, system: buildSystem(),
         history: hist.map(m => ({ role: m.role, content: m.content, images: m.images })),
         think: reasoning,
-        extra: curItem.provider === "gateway" ? { effort, think: reasoning, ...(agentMode ? { agent: true } : {}), ...(vConvId ? { conversation_id: vConvId } : {}) } : {},
+        extra: curItem.provider === "gateway" ? { effort, think: reasoning, ...(agentMode ? { agent: true } : {}), ...(teamMode ? { team: true } : {}), ...(vConvId ? { conversation_id: vConvId } : {}) } : {},
         onToken: (t) => { full += t; },
       });
     } catch (e) { full = errHint(e, curProv) || "Yanıt alınamadı."; }
@@ -2074,6 +2076,9 @@ export default function App() {
           </button>
           <button className={"reason-toggle agent" + (agentMode?" on":"")} onClick={()=>setAgentMode(!agentMode)} title="Ajan: web araması + araçlar (yalnız Gateway+yerel model)">
             <Waves size={13} /> Ajan
+          </button>
+          <button className={"reason-toggle agent" + (teamMode?" on":"")} onClick={()=>setTeamMode(!teamMode)} title="Takım: görevi paralel alt-ajanlara böl, sonra sentezle (Gateway+yerel model)">
+            <Workflow size={13} /> Takım
           </button>
         </div>
       </div>

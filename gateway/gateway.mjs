@@ -49,6 +49,8 @@ import { createTracer } from "./lib/tracing.mjs";
 import { scheduled } from "./routes/scheduled.mjs";
 import * as schedStore from "./lib/scheduled_store.mjs";
 import { nextRunAt as schedNextRunAt } from "./lib/scheduler.mjs";
+import { createErrorReporter } from "./lib/errors.mjs";
+import { runTeam, parsePlan } from "./lib/multiagent.mjs";
 
 // ---------- zero-dependency .env loader ----------
 // Loads KEY=VALUE pairs from ./.env into process.env WITHOUT overwriting
@@ -104,6 +106,8 @@ const TTS_FORMAT    = process.env.TTS_FORMAT    || "wav";   // wav = en net; mp3
 // --- robustness / security knobs ---
 const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN || "";                 // blank = auth OFF
 const tracer = createTracer();   // opt-in OTLP tracing; no-op unless OTEL_* env set
+const errorReporter = createErrorReporter();   // opt-in; no-op unless ERROR_WEBHOOK_URL set
+const TEAM_CONCURRENCY = parseInt(process.env.TEAM_CONCURRENCY || "3", 10);   // çoklu ajan paralel alt-görev sınırı
 const TIMEOUT_MS    = parseInt(process.env.REQ_TIMEOUT_MS || "60000", 10);
 const MAX_RETRIES   = parseInt(process.env.MAX_RETRIES || "2", 10);    // on 429/5xx/network error
 const ALLOW         = (process.env.ALLOW_MODELS || "").split(",").map(s => s.trim()).filter(Boolean);
@@ -343,8 +347,25 @@ app.get("/v1/models", (_req, res) => {
   ]});
 });
 
+// Çoklu ajan: görevi paralel alt-görevlere böldürür (yerel model). null → tek ajana düş.
+async function planSubtasks(model, task, signal) {
+  const planMsg = [
+    { role: "system", content: "Verilen görevi 2-4 paralel alt-göreve böl. SADECE bir JSON dizisi döndür, başka metin yazma: [{\"role\":\"kısa etiket\",\"prompt\":\"o alt-ajanın yapacağı net iş\"}]." },
+    { role: "user", content: task },
+  ];
+  try {
+    const r = await fetch(OLLAMA.replace(/\/$/, "") + "/api/chat", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages: planMsg, stream: false }), signal,
+    });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return parsePlan((d.message && d.message.content) || "");
+  } catch { return null; }
+}
+
 app.post("/v1/chat/completions", async (req, res) => {
-  const { messages = [], stream = false, think = false, effort, agent = false } = req.body || {};
+  const { messages = [], stream = false, think = false, effort, agent = false, team = false } = req.body || {};
   // input validation
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: "messages must be a non-empty array" });
@@ -405,6 +426,30 @@ app.post("/v1/chat/completions", async (req, res) => {
   try {
     let assistantText;
     // --- AJAN MODU: yerel modelle araç çağırma döngüsü (web arama, hesap, saat) ---
+    // --- ÇOKLU AJAN (TEAM): planla → paralel alt-ajanlar → sentez ---
+    if (team && provider === "ollama" && !hasImageContent(messages)) {
+      if (stream) sse(res);
+      const task = messageText(messages[messages.length - 1]) || "";
+      let subtasks = await planSubtasks(model, task, up.signal);
+      if (!subtasks || !subtasks.length) subtasks = [{ role: "ajan", prompt: task }];
+      if (stream) for (const st of subtasks)
+        res.write("data: " + JSON.stringify({ choices: [{ delta: { tool_step: { name: "subtask", args: { role: st.role } } } }] }) + "\n\n");
+      const sysMsg = messages.find(m => m.role === "system");
+      const baseSys = (sysMsg && sysMsg.content) || "Sen NOVA'nın bir alt-ajanısın; verilen alt-görevi net ve eksiksiz yerine getir.";
+      const uid = req.principal && req.principal.userId;
+      const runOne = (prompt) => runAgent({ ollamaBase: OLLAMA, model, messages: [{ role: "system", content: baseSys }, { role: "user", content: prompt }], signal: up.signal, userId: uid });
+      const synthesize = (synthPrompt) => runAgent({ ollamaBase: OLLAMA, model, messages: [{ role: "user", content: synthPrompt }], signal: up.signal, userId: uid });
+      const teamOut = await runTeam({ task, subtasks, runOne, synthesize, concurrency: TEAM_CONCURRENCY });
+      let text = (teamOut.synthesis && teamOut.synthesis.content) || "";
+      if (teamOut.sources && teamOut.sources.length) {
+        text += "\n\n**Kaynaklar:**\n" + teamOut.sources.map(s => (s.url ? `- [${s.n}] [${s.title || s.url}](${s.url})` : `- ${s.title || "Kaynak"}`)).join("\n");
+      }
+      if (stream) { emit(res, text); finish(res); }
+      else res.json({ choices: [{ message: { role: "assistant", content: text } }], nova_team: subtasks.map(s => s.role) });
+      assistantText = text;
+      await recordChatCompletion(req, { route: full + " (team)", model, messages, assistantText, usage });
+      return;
+    }
     if (agent && provider === "ollama" && !hasImageContent(messages)) {
       if (stream) sse(res);
       const r = await runAgent({
@@ -513,6 +558,7 @@ app.post("/tts", async (req, res) => {
 
 app.use((err, req, res, _next) => {
   req.log?.error?.({ err: err?.message || err }, "unhandled request error");
+  errorReporter.report(err, { reqId: req.id, method: req.method, path: req.path, status: err?.status || 500 });
   if (res.headersSent) return res.end();
   res.status(err?.status || 500).json({ error: clientErr(err?.message || "internal error") });
 });

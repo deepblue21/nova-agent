@@ -19,6 +19,7 @@ import {
   usageFromOpenAI, usageFromAnthropic, usageFromGemini, usageFromOllama, makeUsageAccumulator,
 } from "../lib/tokens.mjs";
 import { buildOtlpSpan, tracingConfig, createTracer } from "../lib/tracing.mjs";
+import { buildErrorEvent, createErrorReporter } from "../lib/errors.mjs";
 
 test("regression: gateway aborts upstream on res 'close', not req 'close'", () => {
   // Bug (fixed 13 Jun): req.on('close') fires as soon as the POST body is read —
@@ -89,6 +90,22 @@ test("voice.synthesizeSpeech: response_format follows config.ttsFormat (default 
   assert.equal(sent.response_format, "opus");
   await synthesizeSpeech({ input: "merhaba" }, { ttsUrl: "http://tts/x" }, { fetchFn });
   assert.equal(sent.response_format, "wav");   // default when unset
+});
+
+test("errors: buildErrorEvent + reporter gating (opt-in webhook)", async () => {
+  const ev = buildErrorEvent(new Error("boom"), { reqId: "r1", path: "/x", status: 500 }, { service: "nova-gateway", environment: "production" });
+  assert.equal(ev.message, "boom");
+  assert.equal(ev.reqId, "r1");
+  assert.equal(ev.level, "error");
+  assert.equal(ev.environment, "production");
+  let posted = false;
+  createErrorReporter({}, async () => { posted = true; return { ok: true }; }).report(new Error("x"));
+  await new Promise((r) => setTimeout(r, 15));
+  assert.equal(posted, false, "disabled reporter must not POST");
+  let body = null;
+  createErrorReporter({ ERROR_WEBHOOK_URL: "http://sink/x" }, async (_u, o) => { body = JSON.parse(o.body); return { ok: true }; }).report(new Error("boom2"), { path: "/y" });
+  await new Promise((r) => setTimeout(r, 15));
+  assert.ok(body && body.message === "boom2" && body.path === "/y", "enabled reporter should POST event");
 });
 
 test("api keys: shape, hashing, parsing", () => {

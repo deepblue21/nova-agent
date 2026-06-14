@@ -1,0 +1,11 @@
+# Auto-load dashboards from /var/lib/grafana/dashboards (NOVA Gateway JSON is
+# mounted there by docker-compose). No manual import needed.
+apiVersion: 1
+providers:
+  - name: nova
+    type: file
+    folder: NOVA
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

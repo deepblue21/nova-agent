@@ -124,7 +124,7 @@ ve sıradaki adımı görmek için **[`PROGRESS.md`](./PROGRESS.md)** dosyasına
 
 ### Faz panosu — nerede kaldık?
 
-**Şu anki işaretçi:** Faz 4 + Faz 5 (kod) tamam. **Faz 6 başladı — zamanlanmış/otomatik ajan görevleri** uçtan uca eklendi (`gateway/lib/scheduler.mjs` + `/v1/scheduled` + opt-in runner `SCHEDULER_ENABLED` + Ayarlar paneli). Bu oturum ayrıca: UI tasarım (hero/sohbet/voice/önizleme), effort→params+model (`ROUTE_*`), TTS wav, gözlemlenebilirlik (metrik+trace). Hepsi commit + rebuild bekliyor. Sıradaki Faz 6 adayları: çoklu ajan, MCP entegrasyonu, Android wrapper.
+**Şu anki işaretçi:** **Faz 5 phase olarak kapandı** (5A CI/güvenlik + 5B gözlemlenebilirlik: metrik + OTLP trace + Grafana auto-provisioning + opt-in hata webhook'u + K8s configmap + `npm run prod-check`; prod toggle'ları deploy-zamanı). **Faz 6 sürüyor** — eklendi: **zamanlanmış/otomatik ajan görevleri** + **çoklu ajan (team mode)**. Bu oturum ayrıca: UI tasarım (hero/sohbet/voice/önizleme), effort→params+model (`ROUTE_*`), TTS wav, gözlemlenebilirlik. Hepsi commit + rebuild bekliyor. Sıradaki Faz 6 adayları: MCP entegrasyonu, Android wrapper.
 
 | Faz | Durum | Yaptıklarımız | Kalan / çıkış kriteri |
 | --- | --- | --- | --- |
@@ -138,7 +138,7 @@ ve sıradaki adımı görmek için **[`PROGRESS.md`](./PROGRESS.md)** dosyasına
 | Faz 4C — Çok modlu + ses kuyruğu | ✅ Yapıldı (canlı) | `auto` görsel yönlendirme + `VISION_MODEL`, remote image opt-in, BullMQ voice job. **Canlı smoke:** görsel→vision routing + model görseli tarif etti (gemma4); async TTS job ses üretti (Redis+TTS). | `VISION_MODEL`'i kurulu bir vision tag'ine ayarla (default `qwen3.5-omni` çoğu kurulumda yok). |
 | Faz 4D — Public repo hijyeni + güvenlik | ✅ Yapıldı | Kişisel izler temizlendi (nova-agent.jsx default prompt generic), CSP/JWT/media/image/admin/history sertleştirildi, audit 0; git history clean-start ile tek temiz commit'e indirildi ve force-push edildi (`35d7d37`). | Opsiyonel: public öncesi repo'yu silip-yeniden-oluştur (da8bece full-SHA GC garantisi). |
 | Faz 5A — CI & güvenlik otomasyonu | ✅ Tamam | CI Node 20.19+22 matris, secret scan, gateway/web `npm audit`, canlı smoke adımı; `scripts/secret-scan.mjs` + `smoke-live.mjs` + `security-check.mjs`; mock'lu ajan-döngüsü testleri (suite 39). | Birleşik `npm test` / `npm run security` Windows'ta yeşil doğrulanacak. |
-| Faz 5B — Prod sertleştirme | ⏳ Sırada | Güvenlik temeli + CI otomasyonu güçlendi. | Keycloak prod mode, portları iç ağa kapatma, secret rotation, `ALLOW_MODELS`, Sentry/OTel, sürümlü dashboardlar. |
+| Faz 5B — Gözlemlenebilirlik + sertleştirme | ✅ Tamam | Prometheus ajan metrikleri + opt-in OTLP trace + Grafana auto-provisioning + opt-in hata webhook'u; K8s configmap güncellendi; `npm run prod-check`. | Prod toggle'ları (Keycloak prod, port kapatma, secret rotation) deploy-zamanı kararı — `SECURITY.md`. |
 | Faz 6 — CI + Android + ileri ürün | ⏳ Sonra | Android kaynakları `nova-android/` klasörüne çıkarıldı; roadmap netleşti. | Gradle wrapper/test-build, CI security pipeline, çoklu ajan, otomasyon, RBAC. |
 
 ### Son çalışma özeti — 13 Haziran 2026 (Faz 5A — CI & güvenlik otomasyonu)
@@ -235,15 +235,16 @@ Bu makinede GPU **RTX 3070 (8 GB VRAM)**. Modellerin yerleşimi (`ollama ps` →
 - ✅ **Çok modlu + ses kuyruğu** — gateway `auto` görsel yönlendirme (`VISION_MODEL`, `ROUTE_VISION`); remote image URL fetch opt-in; BullMQ ses job endpoint'i + UI kuyruk modu. **Canlı doğrulandı (13 Haz):** görsel istek vision modele yönlendi ve model görseli doğru tarif etti; async TTS job kuyruğa girip ses üretti. (`scripts/smoke-live.mjs` ile `SMOKE_VISION=1`/`SMOKE_VOICE=1`.)
 
 ### Olgunlaştırma (Faz 5 — prod sertleştirme & güvenlik)
-- ⏳ **Güvenlik:** Keycloak prod modu (`start`), tüm varsayılan parolaları rotate, portları iç ağa kapat, `ALLOW_MODELS` allowlist, OIDC issuer'ı env/config'e taşı. (Bkz. [`SECURITY.md`](./SECURITY.md).)
-- ✅ **Gözlemlenebilirlik:** ajan/araç Prometheus metrikleri (`nova_agent_runs_total`, `nova_agent_tool_calls_total{tool,status}`, `nova_agent_tool_duration_seconds{tool}`) + Grafana panelleri (`monitoring/grafana-nova-gw.json`) + **opt-in zero-dep OpenTelemetry (OTLP/HTTP) trace exporter** (`OTEL_EXPORTER_OTLP_ENDPOINT`; chat başına span). Opsiyonel kalan: Sentry, dashboard sürümleme otomasyonu.
+- 🟡 **Güvenlik:** ✅ `npm run prod-check` (prod env doğrulaması) + SECURITY.md checklist. Deploy-zamanı kararları: Keycloak prod modu (`start`), varsayılan parolaları rotate, portları iç ağa kapat, `ALLOW_MODELS`, OIDC issuer env/config. (Bkz. [`SECURITY.md`](./SECURITY.md).)
+- ✅ **Gözlemlenebilirlik:** ajan/araç Prometheus metrikleri (`nova_agent_runs_total`, `nova_agent_tool_calls_total{tool,status}`, `nova_agent_tool_duration_seconds{tool}`) + Grafana panelleri (`monitoring/grafana-nova-gw.json`) + **opt-in zero-dep OpenTelemetry (OTLP/HTTP) trace exporter** (`OTEL_EXPORTER_OTLP_ENDPOINT`; chat başına span) + **Grafana auto-provisioning** (datasource + dashboard otomatik yüklenir) + **opt-in hata raporlama webhook'u** (`ERROR_WEBHOOK_URL` — Sentry relay/Slack/collector).
 - 🟡 **Kod kalitesi:** ✅ ajan-döngüsü smoke testleri (mock'lu) CI'da koşuyor + tek komut `npm run security`; kalan: provider modülü için daha geniş integration testleri.
-- 🟡 **Dağıtım:** ✅ CI'da secret scan + audit + canlı `/health`/auth/models smoke; kalan: K8s/HPA manifest'lerini ajan+RAG+voice servisleriyle güncelle.
+- ✅ **Dağıtım:** CI'da secret scan + audit + canlı smoke; K8s configmap ajan/RAG/voice/scheduler/OTEL/routing knob'larıyla güncellendi (prod'da voice/searxng managed veya ayrı manifest).
 - ⏳ **Android istemci:** kaynaklar artık `nova-android/` klasöründe; kalan iş `gradle-wrapper.jar` üretmek (`gradle wrapper --gradle-version 8.9`).
 
 ### Fikir havuzu (Faz 6+)
 - ✅ **Zamanlanmış/otomatik ajan görevleri** — eklendi: `gateway/lib/scheduler.mjs` + `/v1/scheduled` (CRUD) + opt-in in-process runner (`SCHEDULER_ENABLED`) + Ayarlar paneli. Tekrarlayan ajan görevleri (`every:30m` / `daily:09:00`) due olunca `runAgent` ile çalışır, son sonuç saklanır.
-- Sırada: çoklu ajan iş birliği (paralel alt-görevler), MCP sunucu entegrasyonu (harici araçlar), takım/çalışma alanı paylaşımı, ince taneli RBAC, Android wrapper (`gradle-wrapper.jar`).
+- ✅ **Çoklu ajan iş birliği (team mode)** — eklendi: `gateway/lib/multiagent.mjs` (`runTeam`/`mapLimit`/`parsePlan`) + `team:true` chat dalı (planla → paralel alt-ajan → sentez) + dock'ta **Takım** toggle. `TEAM_CONCURRENCY` ile paralellik.
+- Sırada: MCP sunucu entegrasyonu (harici araçlar), takım/çalışma alanı paylaşımı, ince taneli RBAC, Android wrapper (`gradle-wrapper.jar`).
 
 > Reboot sonrası: bir WSL penceresi aç ve `docker compose -f docker-compose.yml -f docker-compose.faz2.yml up -d` çalıştır (docker servisi otomatik başlar, compose native kurulu). WSL kurulum runbook'u: [`WSL_DOCKER.md`](./WSL_DOCKER.md).
 
