@@ -139,7 +139,21 @@ ve sıradaki adımı görmek için **[`PROGRESS.md`](./PROGRESS.md)** dosyasına
 | Faz 4D — Public repo hijyeni + güvenlik | ✅ Yapıldı | Kişisel izler temizlendi (nova-agent.jsx default prompt generic), CSP/JWT/media/image/admin/history sertleştirildi, audit 0; git history clean-start ile tek temiz commit'e indirildi ve force-push edildi (`35d7d37`). | Opsiyonel: public öncesi repo'yu silip-yeniden-oluştur (da8bece full-SHA GC garantisi). |
 | Faz 5A — CI & güvenlik otomasyonu | ✅ Tamam | CI Node 20.19+22 matris, secret scan, gateway/web `npm audit`, canlı smoke adımı; `scripts/secret-scan.mjs` + `smoke-live.mjs` + `security-check.mjs`; mock'lu ajan-döngüsü testleri (suite 39). | Birleşik `npm test` / `npm run security` Windows'ta yeşil doğrulanacak. |
 | Faz 5B — Gözlemlenebilirlik + sertleştirme | ✅ Tamam | Prometheus ajan metrikleri + opt-in OTLP trace + Grafana auto-provisioning + opt-in hata webhook'u; K8s configmap güncellendi; `npm run prod-check`. | Prod toggle'ları (Keycloak prod, port kapatma, secret rotation) deploy-zamanı kararı — `SECURITY.md`. |
-| Faz 6 — İleri ürün + Android | 🟡 Sürüyor | ✅ Zamanlanmış/otomatik ajan görevleri · ✅ Çoklu ajan / team mode · ✅ **Team modu canlı ilerleme akışı** (alt-görev+sentez adımları) · ✅ **Kişisel uzun-dönem hafıza** (`/v1/memory`, oto-hatırlama) · ✅ **Model kıyas/eval** (`/v1/eval`) · ✅ **PWA** (manifest + offline service worker) · ✅ **MCP entegrasyonu** (`gateway/lib/mcp.mjs`, `MCP_SERVERS` ile harici araç sunucuları) · ✅ **Aurora UI redesign** (indigo/cyan palet, cam yüzeyler, reduced-motion). | Sırada: takım/çalışma alanı paylaşımı + RBAC, Android `gradle-wrapper.jar` (kullanıcı makinesi). |
+| Faz 6 — İleri ürün + Android | 🟡 Sürüyor | ✅ Zamanlanmış/otomatik ajan görevleri · ✅ Çoklu ajan / team mode · ✅ **Team modu canlı ilerleme akışı** (alt-görev+sentez adımları) · ✅ **Kişisel uzun-dönem hafıza** (`/v1/memory`, oto-hatırlama) · ✅ **Model kıyas/eval** (`/v1/eval`) · ✅ **PWA** (manifest + offline service worker) · ✅ **MCP entegrasyonu** (`gateway/lib/mcp.mjs`, `MCP_SERVERS` ile harici araç sunucuları) · ✅ **Aurora UI redesign** (indigo/cyan palet, cam yüzeyler, reduced-motion) · ✅ **Çalışma alanı + RBAC** (`/v1/workspaces`, admin/editör/izleyici). | Sırada: Android `gradle-wrapper.jar` (kullanıcı makinesi). |
+
+### Son çalışma özeti — 14 Haziran 2026 (Faz 6 — ürün özellikleri + RBAC + redesign)
+
+Bu oturumda Faz 6 büyük ölçüde kapatıldı (kalan tek madde Android wrapper):
+
+1. **Kullanım panosu (C):** Ayarlar'daki kullanım panelinde model başına maliyet gösterimi.
+2. **Team modu canlı akış (D):** `runTeam` artık `onResult`/`onSynthesize` callback'leri yayar; gateway alt-görev-bitti ve sentez adımlarını SSE `tool_step` olarak stream'ler; UI adımları role bazlı eşleştirir.
+3. **Aurora UI redesign (G):** indigo/cyan palet (token + tüm sabit-kodlu renk literalleri), glassmorphism paneller (sol panel/dock/modal/artifact/AI baloncuk), zenginleşmiş animasyonlu aurora, layout ritmi/yüzen composer/hero, `prefers-reduced-motion`.
+4. **Kişisel uzun-dönem hafıza (E):** `user_memory` tablosu (006) + `/v1/memory` CRUD + her sohbette sistem prompt'una oto-enjeksiyon (hata-toleranslı, `MEMORY_ENABLED`); Ayarlar'da Hafıza paneli. Pure helper'lar test edildi.
+5. **Model kıyas/eval (F):** `POST /v1/eval` aynı promptu birden çok modele paralel koşar (provider client yeniden kullanılır), gecikme/token/maliyet ile döner; kota/rate uygulanır; Ayarlar'da Model Kıyas paneli.
+6. **PWA (A):** web manifest + SVG ikon + same-origin offline service worker (API çağrılarına dokunmaz, sadece prod'da kayıtlı).
+7. **MCP entegrasyonu (B):** zero-dep MCP client (`lib/mcp.mjs`, Streamable-HTTP JSON-RPC, `initialize`→`tools/list`→`tools/call`, SSE/JSON ayrıştırma, `mcp__<server>__<tool>` adlandırma, önbellekli keşif); `runAgent` `extraTools`/`extraDispatch` kabul eder; `MCP_SERVERS` ile ajan+team modunda harici araçlar. Kapalı sunucu ajanı kırmaz.
+8. **Çalışma alanı + RBAC:** `workspaces`/`workspace_members` (006) + saf izin matrisi (`lib/rbac.mjs`: admin>editör>izleyici × read/write/manage) + `/v1/workspaces` yönetim route'ları (son-admin koruması, e-posta daveti, self-leave) + Ayarlar'da çalışma alanı/üye yönetim paneli.
+9. **Doğrulama:** gateway testleri **76/76** (yeni: hafıza, MCP, RBAC ve team-callback pure testleri), web build yeşil, secret-scan temiz (118 dosya). Not: DB/MCP/Ollama gerektiren uçtan-uca akışlar canlı stack'te ayrıca smoke edilmeli; redesign tarayıcıda gözle doğrulanmalı.
 
 ### Son çalışma özeti — 13 Haziran 2026 (Faz 5A — CI & güvenlik otomasyonu)
 
@@ -249,7 +263,8 @@ Bu makinede GPU **RTX 3070 (8 GB VRAM)**. Modellerin yerleşimi (`ollama ps` →
 - ✅ **Model kıyas/eval** — `POST /v1/eval` aynı promptu birden çok modele paralel gönderir, gecikme/token/maliyet ile döner; Ayarlar'da Model Kıyas paneli.
 - ✅ **PWA** — yüklenebilir uygulama (manifest + same-origin offline service worker; API çağrılarına dokunmaz).
 - ✅ **Aurora UI redesign** — indigo/cyan palet, glassmorphism paneller, animasyonlu aurora, `prefers-reduced-motion`.
-- Sırada: takım/çalışma alanı paylaşımı, ince taneli RBAC, Android wrapper (`gradle-wrapper.jar`).
+- ✅ **Çalışma alanı + RBAC** — `workspaces`/`workspace_members` + saf izin matrisi (`lib/rbac.mjs`, admin/editör/izleyici) + `/v1/workspaces` yönetim route'ları + Ayarlar paneli. Paylaşılan bilgi tabanı (RAG) için `documents.workspace_id` kolonu hazır.
+- Sırada: Android wrapper (`gradle-wrapper.jar`), paylaşılan kaynakların (zamanlanmış/hafıza/sohbet) workspace kapsamına tam taşınması.
 
 > Reboot sonrası: bir WSL penceresi aç ve `docker compose -f docker-compose.yml -f docker-compose.faz2.yml up -d` çalıştır (docker servisi otomatik başlar, compose native kurulu). WSL kurulum runbook'u: [`WSL_DOCKER.md`](./WSL_DOCKER.md).
 
@@ -339,7 +354,12 @@ with `ROUTE_FAST` / `ROUTE_BALANCED` / `ROUTE_DEEP` / `ROUTE_MAX` in `.env`.
 | --- | --- | --- | --- |
 | `GET` | `/health` | liveness probe | **public** |
 | `GET` | `/v1/models` | list of advertised model ids | token |
-| `POST` | `/v1/chat/completions` | OpenAI-compatible chat (streaming SSE) | token |
+| `POST` | `/v1/chat/completions` | OpenAI-compatible chat (streaming SSE); `agent`/`team` modes, auto memory recall | token |
+| `POST` | `/v1/eval` | run one prompt against several models; returns output + latency/tokens/cost | token |
+| `GET/POST/DELETE` | `/v1/memory` | personal long-term memory notes (auto-recalled into the system prompt) | token |
+| `GET/POST/PATCH/DELETE` | `/v1/workspaces[...]` | workspaces + RBAC (admin/editor/viewer) + member management | token |
+| `GET/POST/PATCH/DELETE` | `/v1/scheduled` | scheduled/automated agent tasks | token |
+| `GET/POST/DELETE` | `/v1/knowledge` | RAG knowledge base (upload/list/delete) | token |
 | `POST` | `/stt` | speech-to-text (`{audio, mime, language}` base64) | token |
 | `POST` | `/tts` | text-to-speech (returns audio bytes) | token |
 
@@ -461,6 +481,12 @@ All gateway settings are environment variables (see `gateway/.env.example` for t
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | *(unset)* | opt-in OTLP/HTTP trace export base URL (traces sent to `…/v1/traces`); unset = tracing off |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | *(unset)* | full traces URL (overrides the base above) |
 | `OTEL_SERVICE_NAME` | `nova-gateway` | `service.name` on exported spans |
+| `TEAM_CONCURRENCY` | `3` | parallel sub-agents in team mode |
+| `MEMORY_ENABLED` | `1` | personal memory recall + writes (`0` disables) |
+| `MEMORY_MAX_ITEMS` / `MEMORY_MAX_CHARS` | `60` / `500` | max notes recalled / max chars per note |
+| `EVAL_CONCURRENCY` / `EVAL_MAX_MODELS` | `3` / `6` | model-comparison parallelism / max models per request |
+| `MCP_SERVERS` | *(unset)* | external MCP tool servers (JSON array or `name=url` list); opt-in |
+| `MCP_CACHE_MS` | `300000` | how long each MCP server's tool list is cached |
 
 ## Voice mode
 
