@@ -8,6 +8,16 @@
 Bu dosya yeni oturuma başlarken ilk okunacak hafıza dosyasıdır. Her çalışma sonunda
 bu bölüm veya "SIRADAKİ ADIM" bölümü güncel bırakılmalı.
 
+### Oturum — 14 Haziran 2026 (UI tasarım + ses + effort işlevselliği)
+- Kullanıcı: arayüzü "göz alıcı" yap, sesli sohbeti iyileştir, web önizleme penceresi ekle, effort/agent gerçekten çalışsın, **her yeni koda test**, security'i bırakma.
+- **Ses/UI:** Sesli modda **Durdur/barge-in** (`stopSpeaking`; konuşurken mikrofon STOP + mercan pulse halka; Web Audio + tarayıcı TTS kesilir). **Orb durum rengi** (`useOrb`: boşta cyan → dinleme azure → düşünme mor → konuşma mercan, yumuşak geçiş).
+- **Web sitesi canlı önizleme:** tam HTML yanıtında `artifact` paneli **otomatik açılır** (`extractWebsite`), tarayıcı chrome'u (trafik ışığı + adres çubuğu), iframe `allow-scripts` ama `allow-same-origin` YOK (izole). `extractWebsite` → `web/src/lib/site.mjs` (saf/test edilebilir).
+- **Tasarım:** hero giriş animasyonu + animasyonlu gradient başlık + yüzen marka, daha canlı aurora, mask-border ışıltılı öneri kartları, buton press feedback, AI avatar hover sheen, gradient AI baloncuk, kod bloğu hover, smooth scroll. Hepsi **saf CSS** (CSP'ye dokunulmadı, yeni bağımlılık yok).
+- **Effort bar işlevsel yapıldı:** (1) **effort→params** (`pickParams`+`EFFORT_TIERS`): Maks=4096tok/0.3 … Hızlı=512/0.7 (açık değer verilmezse) → fixed local modelde bile Maks daha uzun/kararlı. (2) **effort→model** (`ROUTE_*` compose'da; mevcut `pickDynamicModel`): auto'da Maks→`qwen3.6:35b`, Derin→`qwen3.5:35b`, Dengeli→`gemma4:latest`, Hızlı→`gemma4:e2b` (yalnız auto/Dinamik Yönlendirme).
+- **TTS netliği:** gateway `response_format` mp3→**wav** (yapılandırılabilir `TTS_FORMAT`). "Kelime yutma" = Türkçe-olmayan voice; açık karar (openedai-speech Türkçe voice config ya da tarayıcı tr-TR).
+- **Testler:** gateway → effort-tier + ROUTE_* override + ttsFormat testleri; **web'e `node --test` harness'ı + `web/test/site.test.mjs`** (extractWebsite 3/3 sandbox'ta geçti). Tam suite kullanıcı makinesinde.
+- **KALAN (kullanıcı, Windows/WSL):** `npm --prefix gateway test` + `npm --prefix web test` + `npm --prefix web run build` + `docker compose -f docker-compose.yml -f docker-compose.faz2.yml up -d --build gateway` + `git add -A && commit && push`. Türkçe TTS voice kararı.
+
 ### Oturum — 13 Haziran 2026 (Faz 5B — ajan/araç metrikleri)
 - Abort fix + Faz 4C smoke `b05cb44` olarak commit+push edildi ve Docker gateway fix'li imajla yeniden kuruldu (kullanıcı doğruladı: `npm test` 40/40, push OK, container'lar healthy).
 - Kullanıcı Faz 5B'de "sadece ajan metrikleri" dedi (zero-dep). `gateway/lib/metrics.mjs`'e 3 metrik eklendi: `nova_agent_runs_total`, `nova_agent_tool_calls_total{tool,status}`, `nova_agent_tool_duration_seconds{tool}` (mevcut prom-client; yeni bağımlılık yok).

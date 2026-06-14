@@ -78,6 +78,20 @@ const STYLES = `
 .send-btn:hover{box-shadow:0 0 22px rgba(56,225,214,.4);filter:brightness(1.07);}
 .status-pill{transition:border-color .2s,background .2s;}
 .status-pill:hover{border-color:var(--line-bright);}
+/* ---- sohbet görünümü polish ---- */
+.chat-scroll{scroll-behavior:smooth;}
+.avatar.ai{position:relative;overflow:hidden;}
+.avatar.ai::before{content:'';position:absolute;inset:-50%;background:conic-gradient(from 0deg,transparent,rgba(255,255,255,.4),transparent 45%);opacity:0;transition:opacity .3s;}
+.avatar.ai svg{position:relative;z-index:1;}
+.msg:hover .avatar.ai::before{opacity:1;animation:gemSpin 4s linear infinite;}
+.bubble.ai{background:linear-gradient(180deg,rgba(255,255,255,.05),var(--surface));}
+.bubble.me{box-shadow:0 4px 18px rgba(43,160,255,.12);}
+.code-block{transition:border-color .2s,box-shadow .2s;}
+.code-block:hover{border-color:var(--line-bright);box-shadow:0 6px 20px rgba(0,0,0,.3);}
+.stat-chip{transition:border-color .15s,color .15s;}
+.msg:hover .stat-chip.model{border-color:var(--line-bright);}
+.tt-source{transition:transform .15s,border-color .15s,color .15s;}
+a.tt-source:hover{transform:translateY(-1px);}
 .mini-btn{height:44px;padding:0 18px;border-radius:100px;cursor:pointer;font-size:13px;background:var(--surface);border:1px solid var(--line);color:var(--muted);display:flex;align-items:center;gap:8px;transition:all .2s;font-family:'Sora',sans-serif;}
 .mini-btn:hover{color:var(--text);border-color:var(--line-bright);}
 .voice-fallback{display:flex;gap:10px;width:100%;max-width:560px;}
