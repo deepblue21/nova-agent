@@ -934,6 +934,10 @@ export default function App() {
   const [mems, setMems] = useState([]);                  // kişisel uzun-dönem hafıza notları
   const [memText, setMemText] = useState("");
   const [memBusy, setMemBusy] = useState(false);
+  const [evalPrompt, setEvalPrompt] = useState("");      // model kıyas (eval)
+  const [evalModelsText, setEvalModelsText] = useState("ollama/gemma4:e2b, ollama/qwen3.5-9b-agent:latest");
+  const [evalRunning, setEvalRunning] = useState(false);
+  const [evalResults, setEvalResults] = useState(null);
   const docFileRef = useRef(null);
 
   const [providers, setProviders] = useState({
@@ -1224,6 +1228,22 @@ export default function App() {
   async function deleteMem(id) {
     const k = providers.gateway.apiKey; if (!k) return;
     try { await fetch(kbBase() + "/v1/memory/" + id, { method: "DELETE", headers: { Authorization: "Bearer " + k } }); await loadMems(); } catch (e) {}
+  }
+  // ---- model kıyas (eval) ----
+  async function runEval() {
+    const k = providers.gateway.apiKey; const prompt = evalPrompt.trim();
+    const models = evalModelsText.split(",").map(s => s.trim()).filter(Boolean);
+    if (!k || evalRunning || prompt.length < 2 || !models.length) return;
+    setEvalRunning(true); setEvalResults(null);
+    try {
+      const r = await fetch(kbBase() + "/v1/eval", {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + k },
+        body: JSON.stringify({ prompt, models }),
+      });
+      if (r.ok) setEvalResults((await r.json()).results || []);
+      else { let m = "Kıyas başarısız"; try { m = (await r.json()).error || m; } catch (e) {} setEvalResults([{ model: "—", ok: false, error: m }]); }
+    } catch (e) { setEvalResults([{ model: "—", ok: false, error: (e && e.message) || "Kıyas başarısız" }]); }
+    finally { setEvalRunning(false); }
   }
   // ---- zamanlanmış / otomatik ajan görevleri ----
   async function loadSchedTasks() {
@@ -2237,6 +2257,33 @@ export default function App() {
                         <Sparkles size={13} />
                         <span className="kb-name">{m.content}</span>
                         <button className="kb-del" onClick={()=>deleteMem(m.id)}><Trash2 size={13} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {providers.gateway.apiKey && (
+              <div className="m-section">
+                <div className="ms-label">Model Kıyas (Eval)</div>
+                <div className="kb-hint">Aynı promptu birden çok modele gönder; cevapları gecikme · token · maliyet ile yan yana karşılaştır. Modelleri virgülle ayır (örn. <b>ollama/gemma4:e2b, gemini/gemini-2.5-flash</b>).</div>
+                <div className="kb-upload">
+                  <textarea className="kb-text" value={evalPrompt} onChange={(e)=>setEvalPrompt(e.target.value)} placeholder="Kıyaslanacak prompt…" rows={2} />
+                  <input className="kb-title" value={evalModelsText} onChange={(e)=>setEvalModelsText(e.target.value)} placeholder="model1, model2, …" />
+                  <div className="kb-actions">
+                    <button className="kb-add" onClick={runEval} disabled={evalRunning || evalPrompt.trim().length<2}>{evalRunning ? "Çalışıyor…" : "Kıyasla"}</button>
+                  </div>
+                </div>
+                {evalResults && (
+                  <div className="usage-models" style={{marginTop:10}}>
+                    {evalResults.map((r, i) => (
+                      <div key={i} className="um-row" style={{flexDirection:"column",alignItems:"stretch",gap:6}}>
+                        <div style={{display:"flex",justifyContent:"space-between",gap:10}}>
+                          <span className="um-m">{r.model}</span>
+                          <span className="um-t">{r.ok ? (`${fmtNum(r.ms)}ms · ${fmtNum(Number(r.tokens_in)+Number(r.tokens_out))} tok${Number(r.cost_micros)>0 ? " · $"+(Number(r.cost_micros)/1e6).toFixed(4) : ""}`) : "hata"}</span>
+                        </div>
+                        <div style={{fontFamily:"'Sora',sans-serif",color: r.ok ? "var(--text)" : "var(--coral)",fontSize:12.5,lineHeight:1.5,whiteSpace:"pre-wrap",maxHeight:160,overflowY:"auto"}}>{r.ok ? r.content : r.error}</div>
                       </div>
                     ))}
                   </div>

@@ -52,7 +52,8 @@ import { withMemory } from "./lib/memory_store.mjs";
 import * as schedStore from "./lib/scheduled_store.mjs";
 import { nextRunAt as schedNextRunAt } from "./lib/scheduler.mjs";
 import { createErrorReporter } from "./lib/errors.mjs";
-import { runTeam, parsePlan } from "./lib/multiagent.mjs";
+import { runTeam, parsePlan, mapLimit } from "./lib/multiagent.mjs";
+import { estimateCostMicros } from "./lib/pricing.mjs";
 
 // ---------- zero-dependency .env loader ----------
 // Loads KEY=VALUE pairs from ./.env into process.env WITHOUT overwriting
@@ -498,6 +499,66 @@ app.post("/v1/chat/completions", async (req, res) => {
     if (res.headersSent) { try { emit(res, "⚠️ " + clientErr(e.message)); finish(res); } catch {} return; }
     if (stream) { sse(res); emit(res, "⚠️ " + clientErr(e.message)); return finish(res); }
     res.status(e && e.status ? e.status : 500).json({ error: clientErr(e.message || e) });
+  } finally { clearTimeout(to); }
+});
+
+// ---------- Model eval / comparison (step F) ----------
+// Run one prompt against several models in parallel and return each output with
+// latency + tokens + cost so the user can compare. Reuses the provider client
+// (stream:false → returns text). Usage is metered like a normal chat.
+const EVAL_CONCURRENCY = Math.max(1, parseInt(process.env.EVAL_CONCURRENCY || "3", 10));
+const EVAL_MAX_MODELS  = Math.max(1, parseInt(process.env.EVAL_MAX_MODELS || "6", 10));
+app.post("/v1/eval", async (req, res) => {
+  const body = req.body || {};
+  const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
+  const system = typeof body.system === "string" ? body.system.trim() : "";
+  const models = Array.isArray(body.models)
+    ? [...new Set(body.models.filter(m => typeof m === "string" && m.trim()).map(m => m.trim()))].slice(0, EVAL_MAX_MODELS)
+    : [];
+  if (!prompt) return res.status(400).json({ error: "prompt required" });
+  if (!models.length) return res.status(400).json({ error: "models required" });
+
+  if (req.principal) {
+    try {
+      const rl = await distributedRateLimit(req.principal.userId, RATE_MAX, RATE_WINDOW_MS);
+      if (!rl.allowed) { res.setHeader("Retry-After", String(Math.ceil(rl.retryAfterMs / 1000))); return res.status(429).json({ error: "rate limit exceeded" }); }
+      const quota = await checkQuota(req.principal.userId);
+      if (!quota.allowed) return res.status(402).json({ error: "quota exceeded", used: quota.used, limit: quota.limit });
+    } catch (e) {
+      req.log?.error?.({ err: e.message }, "eval quota/rate check failed");
+      return res.status(503).json({ error: "quota or rate-limit unavailable" });
+    }
+  }
+
+  const baseMessages = system ? [{ role: "system", content: system }] : [];
+  baseMessages.push({ role: "user", content: prompt });
+  const up = new AbortController();
+  const to = setTimeout(() => up.abort(), TIMEOUT_MS);
+  res.on("close", () => { if (!res.writableEnded) up.abort(); });
+  try {
+    const results = await mapLimit(models, EVAL_CONCURRENCY, async (modelStr) => {
+      const { provider, model } = routeModel(modelStr, DEFAULT);
+      const full = provider + "/" + model;
+      if (ALLOW.length && !ALLOW.includes(full) && !ALLOW.includes(provider + "/*"))
+        return { model: full, ok: false, error: "model not allowed" };
+      const usage = makeUsageAccumulator(provider);
+      const ctx = { signal: up.signal, params: pickParams(body), retries: MAX_RETRIES, usage };
+      const t0 = Date.now();
+      try {
+        const text = await providerClient.chat({ provider, model, messages: baseMessages, stream: false, ctx, res: null });
+        const real = usage.seen() ? usage.get() : null;
+        const tokensIn  = real ? real.in  : approxTokens(prompt);
+        const tokensOut = real ? real.out : approxTokens(text);
+        if (req.principal) { try { await recordUsage({ userId: req.principal.userId, route: full + " (eval)", tokensIn, tokensOut }); } catch {} }
+        return { model: full, ok: true, content: text, ms: Date.now() - t0, tokens_in: tokensIn, tokens_out: tokensOut, cost_micros: estimateCostMicros(full, tokensIn, tokensOut) };
+      } catch (e) {
+        if (e && e.name === "AbortError") return { model: full, ok: false, error: "aborted", ms: Date.now() - t0 };
+        return { model: full, ok: false, error: clientErr(e && e.message ? e.message : e), ms: Date.now() - t0 };
+      }
+    });
+    res.json({ prompt, results });
+  } catch (e) {
+    res.status(500).json({ error: clientErr(e && e.message ? e.message : e) });
   } finally { clearTimeout(to); }
 });
 
