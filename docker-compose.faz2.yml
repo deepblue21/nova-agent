@@ -36,7 +36,7 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"   # loopback-only; prod'da Caddy/TLS arkasına al
     volumes:
       - ./keycloak/nova-realm.json:/opt/keycloak/data/import/nova-realm.json:ro
       - keycloak_data:/opt/keycloak/data
@@ -51,7 +51,7 @@ services:
     volumes:
       - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"   # loopback-only (iç ağda gateway 'searxng:8080' kullanır)
 
   minio:
     image: minio/minio:latest
@@ -60,8 +60,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_USER:-minio}
       MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-minio12345}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"   # loopback-only (S3 API)
+      - "127.0.0.1:9001:9001"   # loopback-only (MinIO console)
     volumes:
       - minio_data:/data
 
@@ -70,14 +70,14 @@ services:
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"   # loopback-only (Prometheus)
 
   grafana:
     image: grafana/grafana:latest
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"   # loopback-only (Grafana)
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
@@ -88,12 +88,12 @@ services:
   whisper:
     image: fedirz/faster-whisper-server:latest-cpu
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"   # loopback-only (Whisper STT)
 
   tts:
     image: ghcr.io/matatonic/openedai-speech-min:latest
     ports:
-      - "8001:8000"
+      - "127.0.0.1:8001:8000"   # loopback-only (TTS)
 
 volumes:
   minio_data:

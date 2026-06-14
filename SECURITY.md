@@ -49,6 +49,26 @@ ve hepsi env değişkeniyle override edilebilir:
    (Postgres/Keycloak/MinIO/Redis) ve cleartext (`http://`) MCP sunucuları.
    Ayrıca prod'da gateway, çok kısa (`<24`) `GATEWAY_TOKEN` ile başlamayı reddeder.
 
+## Production compose overlay (Faz 8)
+
+İç servis panelleri (Keycloak, SearXNG, MinIO, Prometheus, Grafana, Whisper, TTS)
+artık `docker-compose.faz2.yml`'de **yalnızca `127.0.0.1`'e** bağlanır — host'tan
+erişilir ama ağdan/internetten erişilemez. Yalnızca Caddy 80/443 publish eder.
+
+Production için sertleştirme overlay'ini ekle:
+
+```bash
+# prod .env'i hazırla (güçlü secret'lar + KC_HOSTNAME + ALLOW_ORIGINS), sonra:
+npm run prod-check
+docker compose -f docker-compose.yml -f docker-compose.faz2.yml -f docker-compose.prod.yml up -d
+```
+
+`docker-compose.prod.yml`: Keycloak'ı **`start`** (prod modu) ile çalıştırır,
+`NODE_ENV=production` + `TRUST_PROXY=1` set eder, `restart: unless-stopped` ekler ve
+`${VAR:?...}` ile **zorunlu secret'lar** (Keycloak/Postgres/MinIO/Grafana parolaları,
+`KC_HOSTNAME`, `ALLOW_ORIGINS`) atanmadan başlatmayı engeller. Panellere erişim için
+SSH tüneli kullan ya da her alt-alan için kimlik doğrulamalı bir Caddy route ekle.
+
 ## Uygulama içi korumalar (gateway)
 
 - **Auth:** her istek (`/health` `/metrics` hariç) bearer token veya OIDC JWT / API key ister; sabit-zamanlı karşılaştırma.
