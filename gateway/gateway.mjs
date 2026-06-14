@@ -49,6 +49,7 @@ import { createTracer } from "./lib/tracing.mjs";
 import { scheduled } from "./routes/scheduled.mjs";
 import { memory } from "./routes/memory.mjs";
 import { withMemory } from "./lib/memory_store.mjs";
+import { getMcpTools } from "./lib/mcp.mjs";
 import * as schedStore from "./lib/scheduled_store.mjs";
 import { nextRunAt as schedNextRunAt } from "./lib/scheduler.mjs";
 import { createErrorReporter } from "./lib/errors.mjs";
@@ -443,7 +444,8 @@ app.post("/v1/chat/completions", async (req, res) => {
       const sysMsg = messages.find(m => m.role === "system");
       const baseSys = (sysMsg && sysMsg.content) || "Sen NOVA'nın bir alt-ajanısın; verilen alt-görevi net ve eksiksiz yerine getir.";
       const uid = req.principal && req.principal.userId;
-      const runOne = (prompt) => runAgent({ ollamaBase: OLLAMA, model, messages: [{ role: "system", content: baseSys }, { role: "user", content: prompt }], signal: up.signal, userId: uid });
+      const mcp = await getMcpTools(up.signal);
+      const runOne = (prompt) => runAgent({ ollamaBase: OLLAMA, model, messages: [{ role: "system", content: baseSys }, { role: "user", content: prompt }], signal: up.signal, userId: uid, extraTools: mcp.specs, extraDispatch: mcp.dispatch });
       const synthesize = (synthPrompt) => runAgent({ ollamaBase: OLLAMA, model, messages: [{ role: "user", content: synthPrompt }], signal: up.signal, userId: uid });
       const teamOut = await runTeam({
         task, subtasks, runOne, synthesize, concurrency: TEAM_CONCURRENCY,
@@ -463,9 +465,11 @@ app.post("/v1/chat/completions", async (req, res) => {
     }
     if (agent && provider === "ollama" && !hasImageContent(messages)) {
       if (stream) sse(res);
+      const mcp = await getMcpTools(up.signal);
       const r = await runAgent({
         ollamaBase: OLLAMA, model, messages, signal: up.signal,
         userId: req.principal && req.principal.userId,
+        extraTools: mcp.specs, extraDispatch: mcp.dispatch,
         onStep: (ev) => {
           if (!stream) return;
           if (ev.type === "tool_call")

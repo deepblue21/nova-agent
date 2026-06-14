@@ -32,15 +32,18 @@ async function ollamaChat(ollamaBase, model, messages, tools, signal) {
 // messages: OpenAI tarzı [{role,content}]. system zaten içinde.
 // onStep(evt): { type:"tool_call"|"tool_result", name, args?, text? }
 // Döner: { content, sources:[], rounds, toolsUsed:[] }
-export async function runAgent({ ollamaBase, model, messages, signal, onStep, userId }) {
+export async function runAgent({ ollamaBase, model, messages, signal, onStep, userId, extraTools = [], extraDispatch }) {
   agentRuns.inc();
   const convo = [...messages];
   const sources = [];
   const toolsUsed = [];
   let rounds = 0;
 
+  const specs = extraTools && extraTools.length ? [...TOOL_SPECS, ...extraTools] : TOOL_SPECS;
+  const extraNames = new Set((extraTools || []).map((t) => t.function && t.function.name).filter(Boolean));
+
   for (; rounds < MAX_ROUNDS; rounds++) {
-    const msg = await ollamaChat(ollamaBase, model, convo, TOOL_SPECS, signal);
+    const msg = await ollamaChat(ollamaBase, model, convo, specs, signal);
     const calls = msg.tool_calls || [];
     if (!calls.length) {
       return { content: msg.content || "", sources, rounds, toolsUsed };
@@ -57,7 +60,9 @@ export async function runAgent({ ollamaBase, model, messages, signal, onStep, us
       const t0 = process.hrtime.bigint();
       let res;
       try {
-        res = await runTool(name, args, { signal, userId });
+        res = (extraNames.has(name) && extraDispatch)
+          ? await extraDispatch(name, args, { signal, userId })
+          : await runTool(name, args, { signal, userId });
       } finally {
         agentToolDuration.observe({ tool: toolLabel }, Number(process.hrtime.bigint() - t0) / 1e9);
       }
