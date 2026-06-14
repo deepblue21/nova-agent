@@ -170,6 +170,7 @@ const BILLING_FLUSH_MS = parseInt(process.env.BILLING_FLUSH_MS || "3600000", 10)
 if (PROD) {
   const fatal = [];
   if (!MULTI_USER && !GATEWAY_TOKEN) fatal.push("GATEWAY_TOKEN is empty (auth would be disabled)");
+  if (!MULTI_USER && GATEWAY_TOKEN && GATEWAY_TOKEN.length < 24) fatal.push("GATEWAY_TOKEN is too short (<24 chars) — use `openssl rand -hex 32`");
   if (ANY_ORIGIN)     fatal.push("ALLOW_ORIGINS='*' (any website could call this gateway)");
   if (process.env.OIDC_JWKS_URL && !process.env.OIDC_ISSUER) fatal.push("OIDC_JWKS_URL is set but OIDC_ISSUER is empty");
   if (process.env.HEALTH_DETAILS_ENABLED === "1") fatal.push("HEALTH_DETAILS_ENABLED=1 would expose runtime details on public /health");
