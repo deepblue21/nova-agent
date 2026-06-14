@@ -139,7 +139,7 @@ ve sıradaki adımı görmek için **[`PROGRESS.md`](./PROGRESS.md)** dosyasına
 | Faz 4D — Public repo hijyeni + güvenlik | ✅ Yapıldı | Kişisel izler temizlendi (nova-agent.jsx default prompt generic), CSP/JWT/media/image/admin/history sertleştirildi, audit 0; git history clean-start ile tek temiz commit'e indirildi ve force-push edildi (`35d7d37`). | Opsiyonel: public öncesi repo'yu silip-yeniden-oluştur (da8bece full-SHA GC garantisi). |
 | Faz 5A — CI & güvenlik otomasyonu | ✅ Tamam | CI Node 20.19+22 matris, secret scan, gateway/web `npm audit`, canlı smoke adımı; `scripts/secret-scan.mjs` + `smoke-live.mjs` + `security-check.mjs`; mock'lu ajan-döngüsü testleri (suite 39). | Birleşik `npm test` / `npm run security` Windows'ta yeşil doğrulanacak. |
 | Faz 5B — Gözlemlenebilirlik + sertleştirme | ✅ Tamam | Prometheus ajan metrikleri + opt-in OTLP trace + Grafana auto-provisioning + opt-in hata webhook'u; K8s configmap güncellendi; `npm run prod-check`. | Prod toggle'ları (Keycloak prod, port kapatma, secret rotation) deploy-zamanı kararı — `SECURITY.md`. |
-| Faz 6 — İleri ürün + Android | 🟡 Sürüyor | ✅ **Zamanlanmış/otomatik ajan görevleri** (`gateway/lib/scheduler.mjs` + `/v1/scheduled` + opt-in runner + Ayarlar paneli). ✅ **Çoklu ajan / team mode** (`gateway/lib/multiagent.mjs` + `team:true` chat dalı: planla→paralel alt-ajan→sentez + dock'ta Takım toggle). | Sırada: MCP sunucu entegrasyonu, takım/çalışma alanı paylaşımı + RBAC, Android `gradle-wrapper.jar` (kullanıcı makinesi). |
+| Faz 6 — İleri ürün + Android | 🟡 Sürüyor | ✅ Zamanlanmış/otomatik ajan görevleri · ✅ Çoklu ajan / team mode · ✅ **Team modu canlı ilerleme akışı** (alt-görev+sentez adımları) · ✅ **Kişisel uzun-dönem hafıza** (`/v1/memory`, oto-hatırlama) · ✅ **Model kıyas/eval** (`/v1/eval`) · ✅ **PWA** (manifest + offline service worker) · ✅ **MCP entegrasyonu** (`gateway/lib/mcp.mjs`, `MCP_SERVERS` ile harici araç sunucuları) · ✅ **Aurora UI redesign** (indigo/cyan palet, cam yüzeyler, reduced-motion). | Sırada: takım/çalışma alanı paylaşımı + RBAC, Android `gradle-wrapper.jar` (kullanıcı makinesi). |
 
 ### Son çalışma özeti — 13 Haziran 2026 (Faz 5A — CI & güvenlik otomasyonu)
 
@@ -244,7 +244,12 @@ Bu makinede GPU **RTX 3070 (8 GB VRAM)**. Modellerin yerleşimi (`ollama ps` →
 ### Fikir havuzu (Faz 6+)
 - ✅ **Zamanlanmış/otomatik ajan görevleri** — eklendi: `gateway/lib/scheduler.mjs` + `/v1/scheduled` (CRUD) + opt-in in-process runner (`SCHEDULER_ENABLED`) + Ayarlar paneli. Tekrarlayan ajan görevleri (`every:30m` / `daily:09:00`) due olunca `runAgent` ile çalışır, son sonuç saklanır.
 - ✅ **Çoklu ajan iş birliği (team mode)** — eklendi: `gateway/lib/multiagent.mjs` (`runTeam`/`mapLimit`/`parsePlan`) + `team:true` chat dalı (planla → paralel alt-ajan → sentez) + dock'ta **Takım** toggle. `TEAM_CONCURRENCY` ile paralellik.
-- Sırada: MCP sunucu entegrasyonu (harici araçlar), takım/çalışma alanı paylaşımı, ince taneli RBAC, Android wrapper (`gradle-wrapper.jar`).
+- ✅ **MCP entegrasyonu** — `gateway/lib/mcp.mjs` (Streamable-HTTP JSON-RPC client, `initialize`→`tools/list`→`tools/call`, sunucu-kapsamlı araç adları `mcp__<server>__<tool>`, önbellekli keşif). `MCP_SERVERS` ile opt-in; ajan ve team modunda harici araçlar otomatik kullanılabilir. Kapalı sunucu ajanı kırmaz.
+- ✅ **Kişisel uzun-dönem hafıza** — `user_memory` tablosu + `/v1/memory` + her sohbette sistem prompt'una oto-enjeksiyon (`MEMORY_ENABLED`); Ayarlar'da Hafıza paneli.
+- ✅ **Model kıyas/eval** — `POST /v1/eval` aynı promptu birden çok modele paralel gönderir, gecikme/token/maliyet ile döner; Ayarlar'da Model Kıyas paneli.
+- ✅ **PWA** — yüklenebilir uygulama (manifest + same-origin offline service worker; API çağrılarına dokunmaz).
+- ✅ **Aurora UI redesign** — indigo/cyan palet, glassmorphism paneller, animasyonlu aurora, `prefers-reduced-motion`.
+- Sırada: takım/çalışma alanı paylaşımı, ince taneli RBAC, Android wrapper (`gradle-wrapper.jar`).
 
 > Reboot sonrası: bir WSL penceresi aç ve `docker compose -f docker-compose.yml -f docker-compose.faz2.yml up -d` çalıştır (docker servisi otomatik başlar, compose native kurulu). WSL kurulum runbook'u: [`WSL_DOCKER.md`](./WSL_DOCKER.md).
 
@@ -396,7 +401,7 @@ Individual checks are also available:
 ```bash
 npm run secret-scan   # scan tracked files for leaked keys/tokens (also a CI step)
 npm run audit         # npm audit for gateway + web (moderate level)
-npm --prefix gateway test   # gateway unit + agent-loop tests (39)
+npm --prefix gateway test   # gateway unit + agent-loop tests (69)
 npm run smoke:live    # end-to-end smoke against a RUNNING gateway (see below)
 ```
 
