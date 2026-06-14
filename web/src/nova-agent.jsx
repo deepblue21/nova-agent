@@ -951,6 +951,7 @@ export default function App() {
   const [usageInfo, setUsageInfo] = useState(null);  // /v1/usage cevabı (ayarlar paneli)
   const [gatewayInfo, setGatewayInfo] = useState(null); // /health: aktif default + vision routing
   const [docs, setDocs] = useState([]);              // bilgi tabanı belgeleri
+  const [kbWs, setKbWs] = useState("");              // yükleme hedefi: "" = kişisel, yoksa workspace id
   const [docText, setDocText] = useState("");
   const [docTitle, setDocTitle] = useState("");
   const [docFile, setDocFile] = useState(null);      // {name,mime,b64} — PDF/DOCX server-side extraction
@@ -1220,9 +1221,10 @@ export default function App() {
     setDocError("");
     setDocBusy(true);
     try {
+      const ws = kbWs ? { workspace_id: kbWs } : {};
       const body = docFile
-        ? { title: docTitle.trim() || docFile.name.replace(/\.[^.]+$/, ""), file: docFile }
-        : { title: docTitle.trim() || "Belge", text };
+        ? { title: docTitle.trim() || docFile.name.replace(/\.[^.]+$/, ""), file: docFile, ...ws }
+        : { title: docTitle.trim() || "Belge", text, ...ws };
       const r = await fetch(kbBase() + "/v1/knowledge", {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + k },
         body: JSON.stringify(body),
@@ -2280,13 +2282,19 @@ export default function App() {
             {providers.gateway.apiKey && (
               <div className="m-section">
                 <div className="ms-label">Bilgi Tabanı (Ajan · belgelerle sohbet)</div>
-                <div className="kb-hint">Belge yükle; <b>Ajan</b> modunda model bu belgelerde arama yapıp kaynak göstererek cevaplar (doc_search).</div>
+                <div className="kb-hint">Belge yükle; <b>Ajan</b> modunda model bu belgelerde arama yapıp kaynak göstererek cevaplar (doc_search). Hedef bir <b>çalışma alanı</b> seçersen belge ekibinle paylaşılır.</div>
                 <div className="kb-upload">
                   <input className="kb-title" value={docTitle} onChange={(e)=>setDocTitle(e.target.value)} placeholder="Başlık (opsiyonel)" />
                   <textarea className="kb-text" value={docText} onChange={(e)=>{ setDocText(e.target.value); setDocFile(null); setDocError(""); }} placeholder="Metni yapıştır ya da .txt/.md/.pdf/.docx dosyası seç…" rows={3} />
                   {docFile && <div className="kb-hint">Seçili dosya: <b>{docFile.name}</b> — metin gateway tarafında çıkarılacak.</div>}
                   {docError && <div className="kb-hint" style={{color:"var(--coral)"}}>{docError}</div>}
                   <div className="kb-actions">
+                    <select className="sched-sel" style={{flex:1}} value={kbWs} onChange={(e)=>setKbWs(e.target.value)}>
+                      <option value="">Kişisel (sadece ben)</option>
+                      {wss.filter(w => w.role === "admin" || w.role === "editor").map(w => (
+                        <option key={w.id} value={w.id}>{w.name} (paylaşımlı)</option>
+                      ))}
+                    </select>
                     <input ref={docFileRef} type="file" accept=".txt,.md,.markdown,.csv,.json,.log,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style={{display:"none"}} onChange={(e)=>{ readDocFile(e.target.files[0]); e.target.value=""; }} />
                     <button className="kb-file" onClick={()=>docFileRef.current && docFileRef.current.click()}><Plus size={14} /> Dosya</button>
                     <button className="kb-add" onClick={uploadDoc} disabled={docBusy || (!docFile && docText.trim().length<20)}>{docBusy ? "Yükleniyor…" : "Belgeyi Ekle"}</button>
@@ -2294,14 +2302,17 @@ export default function App() {
                 </div>
                 {docs.length > 0 && (
                   <div className="kb-list">
-                    {docs.map(d => (
+                    {docs.map(d => {
+                      const ws = d.workspace_id ? wss.find(w => w.id === d.workspace_id) : null;
+                      return (
                       <div key={d.id} className="kb-row">
                         <MessageSquare size={13} />
                         <span className="kb-name">{d.title}</span>
+                        {d.workspace_id && <span className="kb-meta" style={{color:"var(--cyan)"}}>{ws ? ws.name : "paylaşımlı"}</span>}
                         <span className="kb-meta">{d.chunks} parça</span>
                         <button className="kb-del" onClick={()=>deleteDoc(d.id)}><Trash2 size={13} /></button>
                       </div>
-                    ))}
+                    );})}
                   </div>
                 )}
               </div>

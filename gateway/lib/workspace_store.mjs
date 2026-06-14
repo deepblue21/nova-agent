@@ -28,6 +28,12 @@ export async function createWorkspace(userId, name) {
   });
 }
 
+// All workspace ids the user is a member of (for scoping shared resources).
+export async function listWorkspaceIds(userId) {
+  const r = await q(`SELECT workspace_id FROM workspace_members WHERE user_id=$1`, [userId]);
+  return r.rows.map((x) => x.workspace_id);
+}
+
 // A user's role in a workspace, or null if not a member.
 export async function getRole(workspaceId, userId) {
   const r = await q(
