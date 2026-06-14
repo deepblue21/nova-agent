@@ -43,6 +43,11 @@ ve hepsi env değişkeniyle override edilebilir:
    de set edilmeli; production preflight bunu zorlar.
 10. **Bağımlılık audit'i:** public release öncesi `npm.cmd --prefix gateway audit`
    ve `npm.cmd --prefix web audit` 0 vulnerability dönmeli.
+11. **Otomatik kontrol:** prod `.env`'i source ettikten sonra `npm run prod-check`
+   çalıştır. Artık şunları da doğrular: `GATEWAY_TOKEN` gücü (≥32), multi-user için
+   `DATABASE_URL`/`ADMIN_USER_IDS`, varsayılan/zayıf altyapı parolaları
+   (Postgres/Keycloak/MinIO/Redis) ve cleartext (`http://`) MCP sunucuları.
+   Ayrıca prod'da gateway, çok kısa (`<24`) `GATEWAY_TOKEN` ile başlamayı reddeder.
 
 ## Uygulama içi korumalar (gateway)
 
