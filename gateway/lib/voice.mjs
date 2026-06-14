@@ -96,7 +96,7 @@ export async function synthesizeSpeech(payload, config = {}, ctx = {}) {
       model: p.model || config.ttsModel || "tts-1",
       voice: p.voice || config.ttsVoice || "alloy",
       input: p.input,
-      response_format: "mp3",
+      response_format: config.ttsFormat || "wav",
     }),
     signal: ctx.signal,
   });

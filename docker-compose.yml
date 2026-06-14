@@ -65,6 +65,12 @@ services:
       # Local LLM: reach the host's Ollama from inside the container.
       OLLAMA_URL: http://host.docker.internal:11434
       DEFAULT_MODEL: ollama/gemma4:latest
+      # effort kademesi → model (YALNIZ 'auto' / Dinamik Yönlendirme'de geçerli).
+      # Kendi kurulu Ollama tag'lerine göre değiştir (ollama list).
+      ROUTE_FAST: ollama/gemma4:e2b
+      ROUTE_BALANCED: ollama/gemma4:latest
+      ROUTE_DEEP: ollama/qwen3.5:35b
+      ROUTE_MAX: ollama/qwen3.6:35b
     extra_hosts:
       - "host.docker.internal:host-gateway"
     expose:

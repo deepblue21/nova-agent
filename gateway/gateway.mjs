@@ -96,6 +96,7 @@ const WHISPER_MODEL = process.env.WHISPER_MODEL || "Systran/faster-whisper-small
 const TTS_URL       = process.env.TTS_URL       || "http://localhost:8001/v1/audio/speech";
 const TTS_MODEL     = process.env.TTS_MODEL     || "tts-1";
 const TTS_VOICE     = process.env.TTS_VOICE     || "alloy";
+const TTS_FORMAT    = process.env.TTS_FORMAT    || "wav";   // wav = en net; mp3 boğuk olabilir (opus/flac/mp3 de olur)
 
 // --- robustness / security knobs ---
 const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN || "";                 // blank = auth OFF
@@ -113,6 +114,7 @@ const VOICE_CONFIG  = {
   ttsUrl: TTS_URL,
   ttsModel: TTS_MODEL,
   ttsVoice: TTS_VOICE,
+  ttsFormat: TTS_FORMAT,
   ...voiceLimitsFromEnv(process.env),
 };
 const IMAGE_CONFIG = imageInputConfig(process.env);

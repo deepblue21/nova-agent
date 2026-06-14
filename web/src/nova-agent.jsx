@@ -4,6 +4,7 @@ import {
   ChevronDown, Square, Brain, Check, Activity, Link2, CircleDot, Waves,
   Copy, RotateCcw, Trash2, Menu, Plus, GitBranch, Eye, Download, Code2, Workflow
 } from "lucide-react";
+import { extractWebsite } from "./lib/site.mjs";
 
 /* ============================ STYLES ============================ */
 const STYLES = `
@@ -55,6 +56,28 @@ const STYLES = `
 .mic-btn.active{background:linear-gradient(135deg,var(--cyan),var(--azure));color:#04121a;border-color:transparent;box-shadow:0 0 40px rgba(56,225,214,0.5);}
 .mic-btn.active::before{content:'';position:absolute;inset:-6px;border-radius:50%;border:1.5px solid rgba(56,225,214,0.5);animation:ripple 1.6s ease-out infinite;}
 @keyframes ripple{0%{transform:scale(1);opacity:.8;}100%{transform:scale(1.5);opacity:0;}}
+.mic-btn.speaking{background:linear-gradient(135deg,var(--coral),#ff5c7a);color:#190a06;border-color:transparent;box-shadow:0 0 46px rgba(255,138,91,0.5);animation:speakPulse 1.2s ease-in-out infinite;}
+.mic-btn.speaking::before{content:'';position:absolute;inset:-7px;border-radius:50%;border:1.5px solid rgba(255,138,91,0.5);animation:ripple 1.4s ease-out infinite;}
+@keyframes speakPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
+.mic-btn:active,.mini-btn:active,.icon-btn:active,.sugg-card:active,.send-btn:active{transform:scale(.95);}
+.bubble.ai{transition:border-color .2s,box-shadow .2s;}
+.bubble.ai:hover{border-color:var(--line-bright);box-shadow:0 6px 22px rgba(0,0,0,.22);}
+/* ---- tasarım yükseltmesi: hero + tema aksanları ---- */
+@keyframes hueFlow{0%{background-position:0% 50%;}100%{background-position:200% 50%;}}
+@keyframes floatY{0%,100%{transform:translateY(0);}50%{transform:translateY(-7px);}}
+@keyframes heroIn{from{opacity:0;transform:translateY(14px) scale(.98);}to{opacity:1;transform:translateY(0) scale(1);}}
+.empty-state{animation:heroIn .6s cubic-bezier(.2,.7,.3,1);}
+.empty-state .brand-mark{animation:markPulse 4s ease-in-out infinite, floatY 5s ease-in-out infinite;}
+.empty-state .es-title{background:linear-gradient(90deg,#fff,#8fe9ff,#a98bff,#fff);background-size:200% auto;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:hueFlow 7s linear infinite;}
+.empty-state .es-title em{-webkit-text-fill-color:var(--cyan);}
+.aurora .blob{opacity:0.62;}
+.sugg-card{position:relative;overflow:hidden;}
+.sugg-card::after{content:'';position:absolute;inset:0;border-radius:15px;padding:1px;background:linear-gradient(135deg,rgba(56,225,214,.55),rgba(120,110,255,.32),transparent 70%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:opacity .25s;pointer-events:none;}
+.sugg-card:hover::after{opacity:1;}
+.send-btn{transition:transform .15s,box-shadow .2s,filter .2s;}
+.send-btn:hover{box-shadow:0 0 22px rgba(56,225,214,.4);filter:brightness(1.07);}
+.status-pill{transition:border-color .2s,background .2s;}
+.status-pill:hover{border-color:var(--line-bright);}
 .mini-btn{height:44px;padding:0 18px;border-radius:100px;cursor:pointer;font-size:13px;background:var(--surface);border:1px solid var(--line);color:var(--muted);display:flex;align-items:center;gap:8px;transition:all .2s;font-family:'Sora',sans-serif;}
 .mini-btn:hover{color:var(--text);border-color:var(--line-bright);}
 .voice-fallback{display:flex;gap:10px;width:100%;max-width:560px;}
@@ -149,6 +172,11 @@ a.tt-source:hover{color:var(--cyan);border-color:var(--line-bright);}
 .ap-btn{width:32px;height:32px;border-radius:9px;background:transparent;border:1px solid transparent;color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;}
 .ap-btn:hover{color:var(--text);border-color:var(--line);background:var(--surface);}
 .ap-frame{flex:1;border:none;width:100%;background:#fff;}
+.ap-browser{display:flex;align-items:center;gap:6px;padding:8px 12px;background:#0e1320;border-bottom:1px solid var(--line);}
+.ap-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.ap-dot.r{background:#ff5f57;}.ap-dot.y{background:#febc2e;}.ap-dot.g{background:#28c840;}
+.ap-url{flex:1;margin-left:8px;display:flex;align-items:center;gap:6px;height:27px;padding:0 12px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:11px;}
+.ap-url svg{color:var(--cyan);}
 @media (max-width:980px){.artifact-panel{width:100%;min-width:0;max-width:none;}}
 .avatar.ai.thinking{animation:gemPulse 1.3s ease-in-out infinite;}
 @keyframes gemPulse{0%,100%{box-shadow:0 0 0 0 rgba(56,225,214,0.4);}50%{box-shadow:0 0 0 7px rgba(56,225,214,0);}}
@@ -757,6 +785,7 @@ function errHint(e, prov) {
 /* ============================ ORB ============================ */
 function useOrb(canvasRef, voiceStateRef, waveRef, reducedRef, extLevelRef) {
   const levelRef = useRef(0.08);
+  const colRef = useRef([56, 225, 214]);   // duruma göre yumuşak geçen orb rengi
   useEffect(() => {
     const cv = canvasRef.current; if (!cv) return;
     const ctx = cv.getContext("2d");
@@ -766,6 +795,7 @@ function useOrb(canvasRef, voiceStateRef, waveRef, reducedRef, extLevelRef) {
     resize();
     const ro = new ResizeObserver(resize); ro.observe(cv);
     const palette = [[56,225,214],[43,160,255],[120,110,255],[255,138,91]];
+    const STATE_COL = { idle:[56,225,214], listening:[43,160,255], thinking:[150,120,255], speaking:[255,138,91] };
     function targetLevel(t) {
       // gerçek ses (mikrofon/TTS) varsa onu kullan
       if (extLevelRef && extLevelRef.current >= 0) return Math.min(1, extLevelRef.current);
@@ -783,10 +813,14 @@ function useOrb(canvasRef, voiceStateRef, waveRef, reducedRef, extLevelRef) {
       const t = (now - start) * sp, W = cv.width, H = cv.height;
       levelRef.current += (targetLevel(t) - levelRef.current) * 0.12;
       const level = levelRef.current, cx = W/2, cy = H/2;
+      const tcol = STATE_COL[voiceStateRef.current] || STATE_COL.idle;
+      const col = colRef.current;
+      for (let k=0;k<3;k++) col[k] += (tcol[k]-col[k])*0.04;
+      const C0=Math.round(col[0]), C1=Math.round(col[1]), C2=Math.round(col[2]);
       const base = Math.min(W,H)*0.25, R = base*(1 + level*0.22);
       ctx.clearRect(0,0,W,H);
       let g = ctx.createRadialGradient(cx,cy,0,cx,cy,R*2.6);
-      g.addColorStop(0, "rgba(56,225,214," + (0.16+level*0.25) + ")");
+      g.addColorStop(0, "rgba("+C0+","+C1+","+C2+"," + (0.16+level*0.28) + ")");
       g.addColorStop(0.5, "rgba(43,140,255,0.05)"); g.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
       ctx.globalCompositeOperation = "lighter";
@@ -814,10 +848,10 @@ function useOrb(canvasRef, voiceStateRef, waveRef, reducedRef, extLevelRef) {
         ctx.fillStyle = "rgba(150,230,255," + (0.12 + w*0.5) + ")";
         ctx.beginPath(); ctx.arc(x,y,s,0,Math.PI*2); ctx.fill();
       }
-      ctx.strokeStyle = "rgba(120,220,255," + (0.08+level*0.18) + ")"; ctx.lineWidth = 1*dpr;
+      ctx.strokeStyle = "rgba("+C0+","+C1+","+C2+"," + (0.10+level*0.20) + ")"; ctx.lineWidth = 1*dpr;
       ctx.beginPath(); ctx.arc(cx,cy,R*1.16,0,Math.PI*2); ctx.stroke();
       const arcA = t*0.0012;
-      ctx.strokeStyle = "rgba(56,225,214," + (0.4+level*0.3) + ")"; ctx.lineWidth = 2*dpr;
+      ctx.strokeStyle = "rgba("+C0+","+C1+","+C2+"," + (0.5+level*0.35) + ")"; ctx.lineWidth = 2*dpr;
       ctx.beginPath(); ctx.arc(cx,cy,R*1.16, arcA, arcA+0.9); ctx.stroke();
 
       // dalga çubuklarını DOM üzerinden güncelle (re-render YOK)
@@ -1303,6 +1337,8 @@ export default function App() {
       const ms = Math.round(performance.now() - t0);
       const tok = Math.max(1, Math.round((full.length + thoughts.length) / 4)); // ~4 krktr/token
       updateLast({ content: full.trim() || "(boş yanıt)", route, stats: { ms, ttft: Math.round(firstAt), tok, model: route || curApiModel } });
+      const site = extractWebsite(full);
+      if (site) openArtifact({ type: "html", code: site, lang: "html" });   // tam HTML sayfası → canlı önizlemeyi otomatik aç
     } catch (e) {
       const h = errHint(e, curProv);
       updateLast({ content: full + (h ? (full ? "\n\n" : "") + h : ""), route });
@@ -1388,8 +1424,12 @@ export default function App() {
     }
   }
   function artifactSandbox(a) {
-    return "";
+    // HTML site preview: allow scripts so pages are interactive — but NEVER
+    // allow-same-origin, so the iframe runs in a null origin and cannot reach
+    // the app, its storage, cookies or gateway token. SVG/Mermaid stay locked.
+    return a && a.type === "html" ? "allow-scripts" : "";
   }
+  // extractWebsite → ./lib/site.mjs (saf, test edilebilir; web/test/site.test.mjs)
   function exportChat(fmt) {
     const a = convs.find(c => c.id === activeId); if (!a) return;
     const ts = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
@@ -1541,6 +1581,16 @@ export default function App() {
   function speak(text) {
     setVoiceState("speaking"); setVoiceSub(text.slice(0, 180));
     if (voiceCfg.real) speakReal(text); else speakBrowser(text);
+  }
+
+  // Sesi anında kes (Web Audio TTS + tarayıcı TTS) — barge-in / "Durdur".
+  function stopSpeaking() {
+    try { ttsAudioRef.current && ttsAudioRef.current.stop(); } catch (e) {}
+    ttsAudioRef.current = null;
+    try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {}
+    stopMeter();
+    setVoiceState("idle");
+    setVoiceSub("Konuşmak için mikrofona dokun");
   }
 
   async function runVoice(text) {
@@ -1760,11 +1810,14 @@ export default function App() {
               {Array.from({ length: 28 }).map((_, i) => <span key={i} style={{ height: 6 }} />)}
             </div>
             <div className="voice-controls">
-              <button className={"mic-btn" + (voiceState === "listening" ? " active" : "")} onClick={startListening}>
-                {voiceState === "listening" ? <Square size={24} /> : <Mic size={26} />}
+              <button
+                className={"mic-btn" + (voiceState === "listening" ? " active" : "") + (voiceState === "speaking" ? " speaking" : "")}
+                onClick={voiceState === "speaking" ? stopSpeaking : startListening}
+                title={voiceState === "speaking" ? "Durdur" : voiceState === "listening" ? "Dinlemeyi durdur" : "Konuşmak için dokun"}>
+                {(voiceState === "speaking" || voiceState === "listening") ? <Square size={24} /> : <Mic size={26} />}
               </button>
               {voiceState === "speaking" && (
-                <button className="mini-btn" onClick={() => { try { ttsAudioRef.current && ttsAudioRef.current.stop(); } catch (e) {} stopMeter(); window.speechSynthesis && window.speechSynthesis.cancel(); setVoiceState("idle"); setVoiceSub("Konuşmak için mikrofona dokun"); }}>
+                <button className="mini-btn" onClick={stopSpeaking}>
                   <Square size={15} /> Durdur
                 </button>
               )}
@@ -1918,6 +1971,12 @@ export default function App() {
               <button className="ap-btn" onClick={()=>setArtifact(null)} title="Kapat"><X size={15} /></button>
             </div>
           </div>
+          {artifact.type === "html" && (
+            <div className="ap-browser">
+              <span className="ap-dot r" /><span className="ap-dot y" /><span className="ap-dot g" />
+              <div className="ap-url"><CircleDot size={11} /> localhost · canlı önizleme</div>
+            </div>
+          )}
           <iframe className="ap-frame" title="artifact" sandbox={artifactSandbox(artifact)} referrerPolicy="no-referrer" srcDoc={artifactSrcDoc(artifact)} />
         </div>
       )}

@@ -59,6 +59,38 @@ test("tracing: exports span via OTLP when enabled, no-op when disabled", async (
   assert.equal(p2, false, "disabled tracer must not POST");
 });
 
+test("providers.pickParams: effort tiers drive local generation defaults", () => {
+  assert.deepEqual(pickParams({}), {});                       // no effort → no defaults
+  assert.equal(pickParams({ effort: "max" }).max_tokens, 4096);
+  assert.equal(pickParams({ effort: "max" }).temperature, 0.3);
+  assert.equal(pickParams({ effort: "fast" }).max_tokens, 512);
+  assert.equal(pickParams({ effort: "deep" }).max_tokens, 2048);
+  // explicit values always win over tier defaults
+  const ex = pickParams({ effort: "max", max_tokens: 100, temperature: 0.9 });
+  assert.equal(ex.max_tokens, 100);
+  assert.equal(ex.temperature, 0.9);
+});
+
+test("routing.pickDynamicModel: ROUTE_<EFFORT> env overrides the model (auto)", () => {
+  const env = { ROUTE_MAX: "ollama/qwen3.6:35b", ROUTE_FAST: "ollama/gemma4:e2b" };
+  assert.equal(pickDynamicModel({ effort: "max", messages: [], keys: {}, defaultModel: "ollama/d", env }), "ollama/qwen3.6:35b");
+  assert.equal(pickDynamicModel({ effort: "fast", messages: [], keys: {}, defaultModel: "ollama/d", env }), "ollama/gemma4:e2b");
+  // no override + no cloud keys → default model
+  assert.equal(pickDynamicModel({ effort: "max", messages: [], keys: {}, defaultModel: "ollama/d", env: {} }), "ollama/d");
+});
+
+test("voice.synthesizeSpeech: response_format follows config.ttsFormat (default wav)", async () => {
+  let sent = null;
+  const fetchFn = async (_url, opts) => {
+    sent = JSON.parse(opts.body);
+    return { ok: true, headers: { get: () => "audio/wav" }, arrayBuffer: async () => new ArrayBuffer(8) };
+  };
+  await synthesizeSpeech({ input: "merhaba" }, { ttsUrl: "http://tts/x", ttsFormat: "opus" }, { fetchFn });
+  assert.equal(sent.response_format, "opus");
+  await synthesizeSpeech({ input: "merhaba" }, { ttsUrl: "http://tts/x" }, { fetchFn });
+  assert.equal(sent.response_format, "wav");   // default when unset
+});
+
 test("api keys: shape, hashing, parsing", () => {
   const k = newApiKey();
   assert.match(k.prefix, /^nv_[0-9a-f]{6}$/);

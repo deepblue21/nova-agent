@@ -8,11 +8,25 @@ export function routeModel(model, defaultModel) {
   return { provider: selected.slice(0, i), model: selected.slice(i + 1) };
 }
 
+// effort kademeleri → makul üretim varsayılanları. Böylece "Hızlı/Dengeli/Derin/Maks"
+// SADECE auto routing'i değil, fixed (local) modelde üretimi de etkiler:
+// Maks = uzun + kararlı, Hızlı = kısa + canlı. Açıkça verilen değerler kazanır.
+const EFFORT_TIERS = {
+  fast:     { max_tokens: 512,  temperature: 0.7 },
+  balanced: { max_tokens: 1024, temperature: 0.6 },
+  deep:     { max_tokens: 2048, temperature: 0.4 },
+  max:      { max_tokens: 4096, temperature: 0.3 },
+};
 export function pickParams(body) {
   const p = {};
   if (body && body.max_tokens != null) p.max_tokens = body.max_tokens;
   if (body && body.temperature != null) p.temperature = body.temperature;
   if (body && body.top_p != null) p.top_p = body.top_p;
+  const tier = body && EFFORT_TIERS[body.effort];
+  if (tier) {
+    if (p.max_tokens == null) p.max_tokens = tier.max_tokens;
+    if (p.temperature == null) p.temperature = tier.temperature;
+  }
   return p;
 }
 
