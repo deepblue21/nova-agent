@@ -962,6 +962,7 @@ export default function App() {
   const [schedBusy, setSchedBusy] = useState(false);
   const [mems, setMems] = useState([]);                  // kişisel uzun-dönem hafıza notları
   const [memText, setMemText] = useState("");
+  const [memWs, setMemWs] = useState("");                // hafıza hedefi: "" = kişisel
   const [memBusy, setMemBusy] = useState(false);
   const [evalPrompt, setEvalPrompt] = useState("");      // model kıyas (eval)
   const [evalModelsText, setEvalModelsText] = useState("ollama/gemma4:e2b, ollama/qwen3.5-9b-agent:latest");
@@ -1255,7 +1256,7 @@ export default function App() {
     try {
       const r = await fetch(kbBase() + "/v1/memory", {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + k },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, ...(memWs ? { workspace_id: memWs } : {}) }),
       });
       if (r.ok) { setMemText(""); await loadMems(); }
     } catch (e) {} finally { setMemBusy(false); }
@@ -2321,22 +2322,31 @@ export default function App() {
             {providers.gateway.apiKey && (
               <div className="m-section">
                 <div className="ms-label">Hafıza (Kişisel · Otomatik Hatırlama)</div>
-                <div className="kb-hint">Hakkında kalıcı notlar ekle (tercih, isim, bağlam); NOVA her sohbette bunları otomatik hatırlar.</div>
+                <div className="kb-hint">Hakkında kalıcı notlar ekle (tercih, isim, bağlam); NOVA her sohbette bunları otomatik hatırlar. Çalışma alanı seçersen not ekiple paylaşılır.</div>
                 <div className="kb-upload">
                   <textarea className="kb-text" value={memText} onChange={(e)=>setMemText(e.target.value)} placeholder="Örn: Beni Salih diye çağır. Kotlin/Compose ile çalışıyorum. Kısa ve net cevap severim." rows={2} />
                   <div className="kb-actions">
+                    <select className="sched-sel" style={{flex:1}} value={memWs} onChange={(e)=>setMemWs(e.target.value)}>
+                      <option value="">Kişisel (sadece ben)</option>
+                      {wss.filter(w => w.role === "admin" || w.role === "editor").map(w => (
+                        <option key={w.id} value={w.id}>{w.name} (paylaşımlı)</option>
+                      ))}
+                    </select>
                     <button className="kb-add" onClick={addMem} disabled={memBusy || memText.trim().length<2}>{memBusy ? "Ekleniyor…" : "Hafızaya Ekle"}</button>
                   </div>
                 </div>
                 {mems.length > 0 && (
                   <div className="kb-list">
-                    {mems.map(m => (
+                    {mems.map(m => {
+                      const ws = m.workspace_id ? wss.find(w => w.id === m.workspace_id) : null;
+                      return (
                       <div key={m.id} className="kb-row">
                         <Sparkles size={13} />
                         <span className="kb-name">{m.content}</span>
+                        {m.workspace_id && <span className="kb-meta" style={{color:"var(--cyan)"}}>{ws ? ws.name : "paylaşımlı"}</span>}
                         <button className="kb-del" onClick={()=>deleteMem(m.id)}><Trash2 size={13} /></button>
                       </div>
-                    ))}
+                    );})}
                   </div>
                 )}
               </div>
