@@ -780,7 +780,7 @@ async function streamChat({ prov, model, system, history, think, onToken, signal
     const d = o.choices && o.choices[0] && o.choices[0].delta;
     if (d && d.reasoning_content && onThought) onThought(d.reasoning_content); // gateway think relay
     if (d && d.tool_step && onTool) {                                          // ajan: yapısal araç adımı
-      const ts = d.tool_step; const q = ts.args && (ts.args.query || ts.args.expression || "");
+      const ts = d.tool_step; const q = ts.args && (ts.args.query || ts.args.expression || ts.args.role || "");
       onTool({ name: ts.name, q, done: !!ts.done, sources: ts.sources || [] });
     }
     const t = d && d.content; if (t) onToken(t);
@@ -1370,7 +1370,7 @@ export default function App() {
           if (s.done) {
             const next = [...toolSteps];
             let idx = -1;
-            for (let i = next.length - 1; i >= 0; i--) { if (next[i].name === s.name) { idx = i; break; } }
+            for (let i = next.length - 1; i >= 0; i--) { if (next[i].name === s.name && (!s.q || next[i].q === s.q)) { idx = i; break; } }
             if (idx >= 0) next[idx] = { ...next[idx], ...s, q: next[idx].q || s.q };
             else next.push(s);
             toolSteps = next;
@@ -1909,8 +1909,8 @@ export default function App() {
                             <div className="tt-head"><Waves size={13} /> Araç kullanıldı</div>
                             {m.tools.map((s, ti) => (
                               <div key={ti} className="tt-step">
-                                <span className="tt-ic">{s.name === "web_search" ? <GitBranch size={12} /> : s.name === "calculator" ? <Activity size={12} /> : s.name === "code_run" ? <Code2 size={12} /> : <Check size={12} />}</span>
-                                <span className="tt-name">{s.name === "web_search" ? "Web araması" : s.name === "calculator" ? "Hesaplama" : s.name === "current_time" ? "Saat" : s.name === "code_run" ? "Kod sandbox" : s.name}</span>
+                                <span className="tt-ic">{s.name === "web_search" ? <GitBranch size={12} /> : s.name === "calculator" ? <Activity size={12} /> : s.name === "code_run" ? <Code2 size={12} /> : s.name === "subtask" ? <Sparkles size={12} /> : s.name === "synthesis" ? <Waves size={12} /> : <Check size={12} />}</span>
+                                <span className="tt-name">{s.name === "web_search" ? "Web araması" : s.name === "calculator" ? "Hesaplama" : s.name === "current_time" ? "Saat" : s.name === "code_run" ? "Kod sandbox" : s.name === "subtask" ? "Alt-ajan" : s.name === "synthesis" ? "Sentez" : s.name}</span>
                                 {s.q && <span className="tt-q">{s.q}</span>}
                                 {s.sources && s.sources.length > 0 && (
                                   <div className="tt-sources">
@@ -2142,7 +2142,7 @@ export default function App() {
                     {usageInfo.month.by_model.map(m => (
                       <div key={m.model} className="um-row">
                         <span className="um-m">{m.model}</span>
-                        <span className="um-t">{fmtNum(Number(m.tokens_in) + Number(m.tokens_out))} tok · {fmtNum(m.requests)} istek</span>
+                        <span className="um-t">{fmtNum(Number(m.tokens_in) + Number(m.tokens_out))} tok · {fmtNum(m.requests)} istek{Number(m.cost_micros) > 0 ? " · $" + (Number(m.cost_micros) / 1e6).toFixed(4) : ""}</span>
                       </div>
                     ))}
                   </div>

@@ -439,7 +439,12 @@ app.post("/v1/chat/completions", async (req, res) => {
       const uid = req.principal && req.principal.userId;
       const runOne = (prompt) => runAgent({ ollamaBase: OLLAMA, model, messages: [{ role: "system", content: baseSys }, { role: "user", content: prompt }], signal: up.signal, userId: uid });
       const synthesize = (synthPrompt) => runAgent({ ollamaBase: OLLAMA, model, messages: [{ role: "user", content: synthPrompt }], signal: up.signal, userId: uid });
-      const teamOut = await runTeam({ task, subtasks, runOne, synthesize, concurrency: TEAM_CONCURRENCY });
+      const teamOut = await runTeam({
+        task, subtasks, runOne, synthesize, concurrency: TEAM_CONCURRENCY,
+        onResult: (out) => { if (stream) res.write("data: " + JSON.stringify({ choices: [{ delta: { tool_step: { name: "subtask", args: { role: out.role }, done: true } } }] }) + "\n\n"); },
+        onSynthesize: () => { if (stream) res.write("data: " + JSON.stringify({ choices: [{ delta: { tool_step: { name: "synthesis" } } }] }) + "\n\n"); },
+      });
+      if (stream) res.write("data: " + JSON.stringify({ choices: [{ delta: { tool_step: { name: "synthesis", done: true } } }] }) + "\n\n");
       let text = (teamOut.synthesis && teamOut.synthesis.content) || "";
       if (teamOut.sources && teamOut.sources.length) {
         text += "\n\n**Kaynaklar:**\n" + teamOut.sources.map(s => (s.url ? `- [${s.n}] [${s.title || s.url}](${s.url})` : `- ${s.title || "Kaynak"}`)).join("\n");

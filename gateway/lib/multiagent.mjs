@@ -52,19 +52,25 @@ export function parsePlan(text, max = 5) {
 
 // Orchestrate: fan-out → paralel alt-ajanlar → sentez. Bir alt-görev hata verirse
 // diğerleri etkilenmez (sonuçta ok:false olarak işaretlenir).
-export async function runTeam({ task, subtasks, runOne, synthesize, concurrency = 3 }) {
+// Canlı ilerleme (opsiyonel): onResult(result, idx) her alt-görev bitince,
+// onSynthesize() sentez başlamadan hemen önce çağrılır.
+export async function runTeam({ task, subtasks, runOne, synthesize, concurrency = 3, onResult, onSynthesize }) {
   if (!Array.isArray(subtasks) || subtasks.length === 0) throw new Error("subtasks required");
   if (typeof runOne !== "function") throw new Error("runOne function required");
-  const results = await mapLimit(subtasks, concurrency, async (st) => {
+  const results = await mapLimit(subtasks, concurrency, async (st, idx) => {
+    let out;
     try {
       const r = await runOne(st.prompt, st.role);
-      return { role: st.role, content: (r && r.content) || "", sources: (r && r.sources) || [], ok: true };
+      out = { role: st.role, content: (r && r.content) || "", sources: (r && r.sources) || [], ok: true };
     } catch (e) {
-      return { role: st.role, content: "", sources: [], ok: false, error: String((e && e.message) || e) };
+      out = { role: st.role, content: "", sources: [], ok: false, error: String((e && e.message) || e) };
     }
+    if (typeof onResult === "function") onResult(out, idx);
+    return out;
   });
   const sources = [];
   for (const r of results) for (const s of (r.sources || [])) sources.push(s);
+  if (typeof onSynthesize === "function") onSynthesize();
   const synthesis = synthesize ? await synthesize(buildSynthesisPrompt(task, results), results) : null;
   return { results, sources, synthesis };
 }

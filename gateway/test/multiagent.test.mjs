@@ -48,6 +48,27 @@ test("runTeam: fan-out + sources + synthesis; failing subtask isolated", async (
   assert.equal(out.synthesis.content, "SENTEZ");
 });
 
+test("runTeam: onResult fires per subtask, onSynthesize once before synthesis", async () => {
+  const events = [];
+  const runOne = async (_p, role) => {
+    if (role === "bad") throw new Error("boom");
+    return { content: "c:" + role };
+  };
+  const synthesize = async () => { events.push("synth"); return { content: "S" }; };
+  await runTeam({
+    task: "t",
+    subtasks: [{ role: "a", prompt: "p1" }, { role: "bad", prompt: "p2" }, { role: "b", prompt: "p3" }],
+    runOne, synthesize, concurrency: 3,
+    onResult: (out) => events.push("res:" + out.role + ":" + (out.ok ? "ok" : "err")),
+    onSynthesize: () => events.push("before-synth"),
+  });
+  const resEvents = events.filter(e => e.startsWith("res:"));
+  assert.deepEqual(resEvents.sort(), ["res:a:ok", "res:b:ok", "res:bad:err"]); // her alt-görev + ok/err doğru
+  assert.equal(events[events.length - 2], "before-synth"); // sentezden hemen önce
+  assert.equal(events[events.length - 1], "synth");        // en son sentez
+  assert.ok(events.indexOf("before-synth") >= 3, "tüm alt-görevler sentez öncesi bitmeli");
+});
+
 test("parsePlan: extracts subtasks from planner JSON (handles fences/prose/bad input)", () => {
   const out = parsePlan('İşte plan:\n```json\n[{"role":"araştırmacı","prompt":"X ara"},{"role":"yazar","prompt":"özetle"}]\n```');
   assert.equal(out.length, 2);
