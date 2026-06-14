@@ -2049,8 +2049,8 @@ export default function App() {
                             <div className="tt-head"><Waves size={13} /> Araç kullanıldı</div>
                             {m.tools.map((s, ti) => (
                               <div key={ti} className="tt-step">
-                                <span className="tt-ic">{s.name === "web_search" ? <GitBranch size={12} /> : s.name === "calculator" ? <Activity size={12} /> : s.name === "code_run" ? <Code2 size={12} /> : s.name === "subtask" ? <Sparkles size={12} /> : s.name === "synthesis" ? <Waves size={12} /> : <Check size={12} />}</span>
-                                <span className="tt-name">{s.name === "web_search" ? "Web araması" : s.name === "calculator" ? "Hesaplama" : s.name === "current_time" ? "Saat" : s.name === "code_run" ? "Kod sandbox" : s.name === "subtask" ? "Alt-ajan" : s.name === "synthesis" ? "Sentez" : s.name}</span>
+                                <span className="tt-ic">{s.name === "web_search" ? <GitBranch size={12} /> : s.name === "calculator" ? <Activity size={12} /> : s.name === "code_run" ? <Code2 size={12} /> : s.name === "fetch_url" ? <Link2 size={12} /> : s.name === "subtask" ? <Sparkles size={12} /> : s.name === "synthesis" ? <Waves size={12} /> : <Check size={12} />}</span>
+                                <span className="tt-name">{s.name === "web_search" ? "Web araması" : s.name === "calculator" ? "Hesaplama" : s.name === "current_time" ? "Saat" : s.name === "code_run" ? "Kod sandbox" : s.name === "fetch_url" ? "Web sayfası" : s.name === "subtask" ? "Alt-ajan" : s.name === "synthesis" ? "Sentez" : (s.name && s.name.startsWith("mcp__") ? s.name.replace(/^mcp__/, "").replace("__", " · ") : s.name)}</span>
                                 {s.q && <span className="tt-q">{s.q}</span>}
                                 {s.sources && s.sources.length > 0 && (
                                   <div className="tt-sources">

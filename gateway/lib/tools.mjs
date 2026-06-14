@@ -2,9 +2,14 @@
 // sonucu modele geri verir (agent.mjs döngüsü). Araçlar OpenAI/Ollama uyumlu
 // JSON şema formatında tanımlanır. Yeni araç eklemek: SPECS + EXECUTORS.
 
+import { lookup as dnsLookup } from "node:dns/promises";
 import { webSearch, formatResults } from "./search.mjs";
 import { search as ragSearch } from "./rag.mjs";
 import { codeToolEnabled, runJavaScriptSandbox } from "./code_sandbox.mjs";
+import { isPrivateAddress } from "./image_inputs.mjs";
+
+// Opt-in web page reader. Off by default (SSRF surface); enable with FETCH_TOOL_ENABLED=1.
+const FETCH_TOOL_ENABLED = process.env.FETCH_TOOL_ENABLED === "1";
 
 const BASE_TOOL_SPECS = [
   {
@@ -72,7 +77,49 @@ const CODE_TOOL_SPEC = {
   },
 };
 
-export const TOOL_SPECS = codeToolEnabled() ? [...BASE_TOOL_SPECS, CODE_TOOL_SPEC] : BASE_TOOL_SPECS;
+const FETCH_TOOL_SPEC = {
+  type: "function",
+  function: {
+    name: "fetch_url",
+    description: "Bir web sayfasının (http/https) okunabilir metin içeriğini getirir. web_search özet+link döner; tam sayfa metni gerektiğinde bunu kullan.",
+    parameters: {
+      type: "object",
+      properties: { url: { type: "string", description: "Getirilecek http(s) URL" } },
+      required: ["url"],
+    },
+  },
+};
+
+export const TOOL_SPECS = [
+  ...BASE_TOOL_SPECS,
+  ...(codeToolEnabled() ? [CODE_TOOL_SPEC] : []),
+  ...(FETCH_TOOL_ENABLED ? [FETCH_TOOL_SPEC] : []),
+];
+
+// --- fetch_url güvenliği: SSRF koruması (pure, test edilebilir) ---
+const LOCAL_HOSTNAMES = new Set(["localhost", "localhost.localdomain", "ip6-localhost", "ip6-loopback"]);
+export function isUnsafeFetchHost(hostname) {
+  const h = String(hostname || "").toLowerCase().replace(/\.$/, "");
+  if (!h) return true;
+  if (LOCAL_HOSTNAMES.has(h)) return true;
+  if (h.endsWith(".local") || h.endsWith(".internal")) return true;
+  if (h === "metadata.google.internal") return true;
+  if (isPrivateAddress(h)) return true;   // literal private/loopback IP
+  return false;
+}
+
+// Kaba HTML → metin: script/style at, etiketleri sök, entity çöz, kısalt.
+export function htmlToText(html, max = 6000) {
+  let s = String(html || "")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<\/(p|div|li|h[1-6]|tr|br)>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, " ").replace(/\n[ \t]*(\n[ \t]*)+/g, "\n\n").trim();
+  return s.length > max ? s.slice(0, max) + "\n…(kısaltıldı)" : s;
+}
 
 // Güvenli aritmetik: sıkı allowlist. Yalnızca sayı/operatör/parantez/virgül ve
 // izinli Math fonksiyon adları. Uzunluk + karakter + token denetimi; başka
@@ -118,6 +165,28 @@ const EXECUTORS = {
     if (!codeToolEnabled()) return { text: "Kod çalıştırma aracı kapalı. Local kullanımda CODE_TOOL_ENABLED=1 ile açılabilir." };
     const r = await runJavaScriptSandbox(args || {});
     return { text: r.text };
+  },
+  async fetch_url(args, ctx) {
+    if (!FETCH_TOOL_ENABLED) return { text: "fetch_url aracı kapalı (FETCH_TOOL_ENABLED=1 ile aç)." };
+    let u;
+    try { u = new URL(String(args.url || "").trim()); } catch { return { text: "Geçersiz URL." }; }
+    if (u.protocol !== "http:" && u.protocol !== "https:") return { text: "Sadece http/https desteklenir." };
+    if (u.username || u.password) return { text: "URL içinde kimlik bilgisi kabul edilmez." };
+    if (isUnsafeFetchHost(u.hostname)) return { text: "Özel/yerel/loopback adresler engellendi (SSRF koruması)." };
+    try {
+      const addrs = await dnsLookup(u.hostname, { all: true });
+      for (const a of addrs) if (isPrivateAddress(a.address)) return { text: "Host özel bir adrese çözümleniyor; engellendi." };
+    } catch { return { text: "Host çözümlenemedi." }; }
+    const MAX = parseInt(process.env.FETCH_TOOL_MAX_BYTES || "2000000", 10);
+    const r = await fetch(u.toString(), { redirect: "manual", signal: ctx && ctx.signal, headers: { "User-Agent": "NOVA-Agent/1.0", Accept: "text/html,text/plain,*/*" } });
+    if (r.status >= 300 && r.status < 400) return { text: "Yönlendirme engellendi (SSRF güvenliği için takip edilmez): HTTP " + r.status };
+    if (!r.ok) return { text: "Sayfa getirilemedi: HTTP " + r.status };
+    const ct = r.headers.get("content-type") || "";
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length > MAX) return { text: "İçerik çok büyük (" + buf.length + " bayt)." };
+    const body = buf.toString("utf8");
+    const text = /html/i.test(ct) ? htmlToText(body) : body.slice(0, 6000);
+    return { text: text || "(boş içerik)", sources: [{ n: 1, title: u.hostname, url: u.toString() }] };
   },
 };
 
