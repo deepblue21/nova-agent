@@ -53,18 +53,19 @@ docker compose logs -f gateway
 - **Android:** ⚙️ → Base URL `https://nova.example.com/v1`, token. Production'da
   `AndroidManifest.xml`'deki `usesCleartextTraffic="true"` kaldırılmalı (artık `https`).
 
-## Bilinen manuel adım — Android gradle wrapper
+## Android gradle wrapper ✅ (paketlendi)
 
-Repodaki zip'te `gradle/wrapper/gradle-wrapper.jar` eksik (yalnız `.properties` var),
-bu yüzden `./gradlew` CLI/CI'da çalışmaz. Bir kez düzelt:
+Gradle wrapper (jar + `gradlew`/`gradlew.bat`, 8.9) artık repoda dahil; `./gradlew`
+doğrudan çalışır (JDK 17 + Android SDK ile). Ek bir manuel adım gerekmez.
 
 ```bash
-cd nova-android
-gradle wrapper --gradle-version 8.9     # veya projeyi Android Studio'da aç (jar'ı üretir)
-git add gradle/wrapper/gradle-wrapper.jar
+cd nova-android && ./gradlew assembleDebug
 ```
 
-Sonra `.github/workflows/ci.yml` içindeki yorumlu `android` job'ı etkinleştirilebilir.
+## Tam production VPS kurulumu
+
+Çok kullanıcılı, sertleştirilmiş tam stack (Postgres/Keycloak/MinIO/…) için:
+**[`DEPLOY_VPS.md`](./DEPLOY_VPS.md)**.
 
 ## Sonraki faz
 
