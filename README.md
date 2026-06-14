@@ -140,7 +140,7 @@ ve sıradaki adımı görmek için **[`PROGRESS.md`](./PROGRESS.md)** dosyasına
 | Faz 5A — CI & güvenlik otomasyonu | ✅ Tamam | CI Node 20.19+22 matris, secret scan, gateway/web `npm audit`, canlı smoke adımı; `scripts/secret-scan.mjs` + `smoke-live.mjs` + `security-check.mjs`; mock'lu ajan-döngüsü testleri (suite 39). | Birleşik `npm test` / `npm run security` Windows'ta yeşil doğrulanacak. |
 | Faz 5B — Gözlemlenebilirlik + sertleştirme | ✅ Tamam | Prometheus ajan metrikleri + opt-in OTLP trace + Grafana auto-provisioning + opt-in hata webhook'u; K8s configmap güncellendi; `npm run prod-check`. | Prod toggle'ları (Keycloak prod, port kapatma, secret rotation) deploy-zamanı kararı — `SECURITY.md`. |
 | Faz 6 — İleri ürün + Android | 🟡 Sürüyor | ✅ Zamanlanmış/otomatik ajan görevleri · ✅ Çoklu ajan / team mode · ✅ **Team modu canlı ilerleme akışı** (alt-görev+sentez adımları) · ✅ **Kişisel uzun-dönem hafıza** (`/v1/memory`, oto-hatırlama) · ✅ **Model kıyas/eval** (`/v1/eval`) · ✅ **PWA** (manifest + offline service worker) · ✅ **MCP entegrasyonu** (`gateway/lib/mcp.mjs`, `MCP_SERVERS` ile harici araç sunucuları) · ✅ **Aurora UI redesign** (indigo/cyan palet, cam yüzeyler, reduced-motion) · ✅ **Çalışma alanı + RBAC** (`/v1/workspaces`, admin/editör/izleyici). | Sırada: Android `gradle-wrapper.jar` (kullanıcı makinesi). |
-| Faz 7 — İşbirliği (paylaşımlı kaynaklar) | 🟡 Sürüyor | RBAC üstüne workspace kapsamı: ✅ **Bilgi tabanı/RAG** (paylaşımlı belgeler, üye araması) · ✅ **Kişisel hafıza** (ortak takım notları) · ✅ **Zamanlanmış görevler** (paylaşımlı otomasyonlar). Hepsi: yazma editör/admin gerektirir, listeleme/arama üye workspace'leri kapsar. | Sırada: **sohbet/konuşma paylaşımı** (workspace kapsamı), aktif-workspace global seçici. |
+| Faz 7 — İşbirliği (paylaşımlı kaynaklar) | ✅ Temel tamam | RBAC üstüne workspace kapsamı: ✅ **Bilgi tabanı/RAG** (paylaşımlı belgeler, üye araması) · ✅ **Kişisel hafıza** (ortak takım notları) · ✅ **Zamanlanmış görevler** (paylaşımlı otomasyonlar). Hepsi: yazma editör/admin gerektirir, listeleme/arama üye workspace'leri kapsar. | Opsiyonel (sonraya bırakıldı): sohbet/konuşma paylaşımı + global aktif-workspace seçici. |
 
 ### Son çalışma özeti — 14 Haziran 2026 (Faz 7 — işbirliği: paylaşımlı kaynaklar)
 
@@ -149,7 +149,7 @@ RBAC (Faz 6) temeli üzerine kaynaklar workspace kapsamına taşındı:
 1. **Bilgi tabanı / RAG:** `documents.workspace_id`; yükleme yazma yetkisi (editör/admin) ister, listeleme + `doc_search` kişisel + üye-workspace belgelerini kapsar, silme sahiplik/rol kontrolü yapar. UI: yükleme hedefi seçici + paylaşım rozeti.
 2. **Kişisel hafıza:** `user_memory.workspace_id` (007); ortak takım notları her sohbette üyelere oto-hatırlatılır; paylaşımlı not yazma/silme yazma yetkisi ister.
 3. **Zamanlanmış görevler:** `scheduled_tasks.workspace_id` (007); paylaşımlı otomasyonlar üyelerce görülür, değişiklik yazma yetkisi ister (`getTaskMeta` + RBAC).
-4. **Doğrulama:** gateway **76/76** test, web build yeşil, secret-scan temiz. Kalan: sohbet/konuşma paylaşımı + global aktif-workspace seçici.
+4. **Doğrulama:** gateway **76/76** test, web build yeşil, secret-scan temiz. Faz 7 temel kapsam (paylaşımlı kaynaklar) kapatıldı; sohbet/konuşma paylaşımı + global aktif-workspace seçici opsiyonel olarak sonraya bırakıldı.
 
 ### Son çalışma özeti — 14 Haziran 2026 (Faz 6 — ürün özellikleri + RBAC + redesign)
 
