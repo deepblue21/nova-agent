@@ -419,6 +419,34 @@ grammarly-extension,grammarly-popups,grammarly-card,div[data-grammarly-part]{dis
   *,*::before,*::after{animation-duration:0.001ms !important;animation-iteration-count:1 !important;transition-duration:0.001ms !important;scroll-behavior:auto !important;}
   .aurora .blob{animation:none !important;}
 }
+/* ===== Aurora redesign: layout derinleştirme (kompozisyon + ritim) ===== */
+.topbar{padding:20px 30px;}
+.chat-view{max-width:900px;}
+.chat-scroll{padding:24px 30px 14px;gap:22px;}
+.msg{gap:14px;}
+.bubble{max-width:80%;border-radius:18px;padding:14px 18px;}
+.bubble.ai{border-top-left-radius:6px;}
+.bubble.me{border-top-right-radius:6px;}
+/* yüzen composer kartı: alt kenardan ayrık, daha belirgin cam */
+.composer{padding:16px 30px 10px;}
+.composer-inner{border-radius:22px;padding:10px 10px 10px 20px;box-shadow:0 12px 40px rgba(0,0,0,0.32);}
+.composer-inner:focus-within{box-shadow:0 12px 44px rgba(99,102,241,0.18);}
+.dock{padding:0 24px 22px;gap:14px;}
+/* hero: daha geniş nefes + büyük tipografi */
+.empty-state{gap:26px;}
+.empty-state .es-title{font-size:33px;letter-spacing:.3px;}
+.empty-state .es-sub{font-size:14.5px;max-width:460px;}
+.empty-state .brand-mark{width:52px;height:52px;border-radius:16px;}
+.side-rail{width:272px;padding:18px 13px;gap:12px;}
+@media (min-width:981px){
+  .vega-root.has-rail .topbar,.vega-root.has-rail main.stage,.vega-root.has-rail .dock{margin-left:272px;}
+}
+@media (max-width:720px){
+  .topbar{padding:14px 16px;}
+  .chat-scroll{padding:16px 16px 10px;}
+  .composer{padding:12px 16px 8px;}
+  .empty-state .es-title{font-size:26px;}
+}
 `;
 
 /* ============================ DATA ============================ */
