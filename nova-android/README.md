@@ -9,11 +9,24 @@ Animasyonlu orb, sesli + sohbet modu, model/efor/düşünme seçimi, streaming y
 
 ## Açma & Derleme
 
+Gradle wrapper (jar + `gradlew`/`gradlew.bat`, Gradle 8.9) artık repoya dahildir —
+ayrıca `gradle wrapper` çalıştırmana gerek yok. Tek gereksinim **JDK 17** ve Android SDK
+(Android Studio ikisini de sağlar).
+
+**Android Studio ile:**
 1. **Android Studio** (Ladybug / 2024.2+ önerilir) ile bu klasörü aç.
-2. İlk açılışta Gradle senkronu çalışır. Wrapper jar yoksa Studio onu oluşturur (ya da terminalde `gradle wrapper`).
+2. İlk açılışta Gradle senkronu çalışır (wrapper hazır).
 3. Bir cihaz/emülatör seç → **Run**.
 
-Sürüm uyumu: AGP 8.5.2 · Kotlin 2.0.21 · Compose BOM 2024.10.01 · compileSdk 35 · minSdk 26.
+**Terminalden (JDK 17 kurulu):**
+```bash
+cd nova-android
+./gradlew assembleDebug         # APK: app/build/outputs/apk/debug/app-debug.apk
+./gradlew installDebug          # bağlı cihaza/emülatöre kur
+```
+Windows'ta `gradlew.bat assembleDebug`.
+
+Sürüm uyumu: AGP 8.5.2 · Kotlin 2.0.21 · Compose BOM 2024.10.01 · compileSdk 35 · minSdk 26 · Gradle 8.9.
 Android Studio daha yeni AGP isterse `build.gradle.kts` içindeki sürümleri kabul ettiği değerlere yükselt.
 
 ---
