@@ -46,6 +46,9 @@ import { admin } from "./routes/admin.mjs";
 import { usage as usageRoutes } from "./routes/usage.mjs";
 import { knowledge } from "./routes/knowledge.mjs";
 import { createTracer } from "./lib/tracing.mjs";
+import { scheduled } from "./routes/scheduled.mjs";
+import * as schedStore from "./lib/scheduled_store.mjs";
+import { nextRunAt as schedNextRunAt } from "./lib/scheduler.mjs";
 
 // ---------- zero-dependency .env loader ----------
 // Loads KEY=VALUE pairs from ./.env into process.env WITHOUT overwriting
@@ -311,6 +314,7 @@ if (MULTI_USER) {
   app.use(admin); // /v1/admin/* — guarded by ADMIN_USER_IDS inside the router
   app.use(usageRoutes); // GET /v1/usage — kendi kullanım/kota görünümü
   app.use(knowledge);   // /v1/knowledge — RAG belge yükle/listele/sil
+  app.use(scheduled);   // /v1/scheduled — zamanlanmış/otomatik ajan görevleri
 }
 
 // ---------- Endpoints ----------
@@ -520,6 +524,43 @@ if (process.env.STRIPE_SECRET_KEY && process.env.DATABASE_URL && BILLING_FLUSH_M
       .catch(e => logger.error({ err: e.message }, "billing flush failed"));
   }, BILLING_FLUSH_MS);
   if (billingTimer.unref) billingTimer.unref();
+}
+
+// ---------- Scheduled / automated agent tasks (Faz 6) ----------
+// Opt-in: SCHEDULER_ENABLED=1 + multi-user + DATABASE_URL. In-process poller runs
+// due tasks through the agent loop (tools available) and stores the last result.
+async function runScheduledTask(task) {
+  const { provider, model } = routeModel(task.model || DEFAULT, DEFAULT);
+  if (provider !== "ollama") return { status: "error", result: "zamanlanmış görevler yerel (ollama) model gerektirir" };
+  const messages = [
+    { role: "system", content: "Sen NOVA'nın otomatik görev ajanısın. Görevi kısa, net ve eksiksiz yerine getir; gerekiyorsa araçları kullan." },
+    { role: "user", content: task.prompt },
+  ];
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  try {
+    const r = await runAgent({ ollamaBase: OLLAMA, model, messages, signal: ctrl.signal, userId: task.user_id });
+    return { status: "ok", result: r.content || "" };
+  } catch (e) {
+    return { status: "error", result: String(e.message || e) };
+  } finally { clearTimeout(to); }
+}
+
+if (MULTI_USER && process.env.SCHEDULER_ENABLED === "1" && process.env.DATABASE_URL) {
+  const tickMs = parseInt(process.env.SCHEDULER_TICK_MS || "30000", 10);
+  const tick = async () => {
+    try {
+      const due = await schedStore.listDue(Date.now(), 20);
+      for (const task of due) {
+        const out = await runScheduledTask(task);
+        await schedStore.markRun(task.id, { ...out, nextRunAt: schedNextRunAt(task.schedule, Date.now()) });
+        logger.info({ taskId: task.id, status: out.status }, "scheduled task ran");
+      }
+    } catch (e) { logger.warn({ err: e.message || e }, "scheduler tick failed"); }
+  };
+  const schedTimer = setInterval(tick, tickMs);
+  if (schedTimer.unref) schedTimer.unref();
+  logger.info({ tickMs }, "scheduler enabled");
 }
 
 app.listen(PORT, () => {

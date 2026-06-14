@@ -124,7 +124,7 @@ ve sıradaki adımı görmek için **[`PROGRESS.md`](./PROGRESS.md)** dosyasına
 
 ### Faz panosu — nerede kaldık?
 
-**Şu anki işaretçi:** Faz 4 + Faz 5A tamam; chat abort bug'ı düzeltilip canlıya alındı (`b05cb44`). **Faz 5B kod tarafı tamam:** ajan/araç Prometheus metrikleri + Grafana panelleri + opt-in zero-dep OTLP trace exporter (commit bekliyor). Faz 5'in kalanı saf deploy/ops kararları (Keycloak prod mode, iç port kapatma, secret rotation, `ALLOW_MODELS` — bkz. `SECURITY.md`). Sıradaki kod fazı: **Faz 6 — Android** (gradle wrapper + test-build).
+**Şu anki işaretçi:** Faz 4 + Faz 5 (kod) tamam. **Faz 6 başladı — zamanlanmış/otomatik ajan görevleri** uçtan uca eklendi (`gateway/lib/scheduler.mjs` + `/v1/scheduled` + opt-in runner `SCHEDULER_ENABLED` + Ayarlar paneli). Bu oturum ayrıca: UI tasarım (hero/sohbet/voice/önizleme), effort→params+model (`ROUTE_*`), TTS wav, gözlemlenebilirlik (metrik+trace). Hepsi commit + rebuild bekliyor. Sıradaki Faz 6 adayları: çoklu ajan, MCP entegrasyonu, Android wrapper.
 
 | Faz | Durum | Yaptıklarımız | Kalan / çıkış kriteri |
 | --- | --- | --- | --- |
@@ -242,7 +242,8 @@ Bu makinede GPU **RTX 3070 (8 GB VRAM)**. Modellerin yerleşimi (`ollama ps` →
 - ⏳ **Android istemci:** kaynaklar artık `nova-android/` klasöründe; kalan iş `gradle-wrapper.jar` üretmek (`gradle wrapper --gradle-version 8.9`).
 
 ### Fikir havuzu (Faz 6+)
-- Çoklu ajan iş birliği (paralel alt-görevler), zamanlanmış/otomatik ajan görevleri, MCP sunucu entegrasyonu (harici araçlar), takım/çalışma alanı paylaşımı, ince taneli RBAC.
+- ✅ **Zamanlanmış/otomatik ajan görevleri** — eklendi: `gateway/lib/scheduler.mjs` + `/v1/scheduled` (CRUD) + opt-in in-process runner (`SCHEDULER_ENABLED`) + Ayarlar paneli. Tekrarlayan ajan görevleri (`every:30m` / `daily:09:00`) due olunca `runAgent` ile çalışır, son sonuç saklanır.
+- Sırada: çoklu ajan iş birliği (paralel alt-görevler), MCP sunucu entegrasyonu (harici araçlar), takım/çalışma alanı paylaşımı, ince taneli RBAC, Android wrapper (`gradle-wrapper.jar`).
 
 > Reboot sonrası: bir WSL penceresi aç ve `docker compose -f docker-compose.yml -f docker-compose.faz2.yml up -d` çalıştır (docker servisi otomatik başlar, compose native kurulu). WSL kurulum runbook'u: [`WSL_DOCKER.md`](./WSL_DOCKER.md).
 

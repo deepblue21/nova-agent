@@ -92,6 +92,8 @@ const STYLES = `
 .msg:hover .stat-chip.model{border-color:var(--line-bright);}
 .tt-source{transition:transform .15s,border-color .15s,color .15s;}
 a.tt-source:hover{transform:translateY(-1px);}
+.sched-sel{flex:1;cursor:pointer;color:var(--text);}
+.sched-sel option{background:var(--bg2);color:var(--text);}
 .mini-btn{height:44px;padding:0 18px;border-radius:100px;cursor:pointer;font-size:13px;background:var(--surface);border:1px solid var(--line);color:var(--muted);display:flex;align-items:center;gap:8px;transition:all .2s;font-family:'Sora',sans-serif;}
 .mini-btn:hover{color:var(--text);border-color:var(--line-bright);}
 .voice-fallback{display:flex;gap:10px;width:100%;max-width:560px;}
@@ -910,6 +912,9 @@ export default function App() {
   const [docFile, setDocFile] = useState(null);      // {name,mime,b64} — PDF/DOCX server-side extraction
   const [docError, setDocError] = useState("");
   const [docBusy, setDocBusy] = useState(false);
+  const [schedTasks, setSchedTasks] = useState([]);      // zamanlanmış/otomatik ajan görevleri
+  const [schedForm, setSchedForm] = useState({ title: "", prompt: "", schedule: "daily:09:00" });
+  const [schedBusy, setSchedBusy] = useState(false);
   const docFileRef = useRef(null);
 
   const [providers, setProviders] = useState({
@@ -1151,6 +1156,7 @@ export default function App() {
     try { const r = await fetch(kbBase() + "/v1/knowledge", { headers: { Authorization: "Bearer " + k } }); if (r.ok) setDocs((await r.json()).data || []); } catch (e) {}
   }
   useEffect(() => { if (showSettings) loadDocs(); }, [showSettings, providers.gateway.apiKey]);
+  useEffect(() => { if (showSettings) loadSchedTasks(); }, [showSettings, providers.gateway.apiKey]);
   async function uploadDoc() {
     const k = providers.gateway.apiKey; const text = docText.trim();
     if (!k || docBusy || (!docFile && text.length < 20)) return;
@@ -1176,6 +1182,31 @@ export default function App() {
   async function deleteDoc(id) {
     const k = providers.gateway.apiKey; if (!k) return;
     try { await fetch(kbBase() + "/v1/knowledge/" + id, { method: "DELETE", headers: { Authorization: "Bearer " + k } }); await loadDocs(); } catch (e) {}
+  }
+  // ---- zamanlanmış / otomatik ajan görevleri ----
+  async function loadSchedTasks() {
+    const k = providers.gateway.apiKey; if (!k) return;
+    try { const r = await fetch(kbBase() + "/v1/scheduled", { headers: { Authorization: "Bearer " + k } }); if (r.ok) setSchedTasks((await r.json()).data || []); } catch (e) {}
+  }
+  async function createSchedTask() {
+    const k = providers.gateway.apiKey; const title = schedForm.title.trim(), prompt = schedForm.prompt.trim();
+    if (!k || schedBusy || !title || prompt.length < 3) return;
+    setSchedBusy(true);
+    try {
+      const r = await fetch(kbBase() + "/v1/scheduled", {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + k },
+        body: JSON.stringify({ title, prompt, schedule: schedForm.schedule, agent: true }),
+      });
+      if (r.ok) { setSchedForm({ title: "", prompt: "", schedule: schedForm.schedule }); await loadSchedTasks(); }
+    } catch (e) {} finally { setSchedBusy(false); }
+  }
+  async function toggleSchedTask(t) {
+    const k = providers.gateway.apiKey; if (!k) return;
+    try { await fetch(kbBase() + "/v1/scheduled/" + t.id, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: "Bearer " + k }, body: JSON.stringify({ enabled: !t.enabled }) }); await loadSchedTasks(); } catch (e) {}
+  }
+  async function deleteSchedTask(id) {
+    const k = providers.gateway.apiKey; if (!k) return;
+    try { await fetch(kbBase() + "/v1/scheduled/" + id, { method: "DELETE", headers: { Authorization: "Bearer " + k } }); await loadSchedTasks(); } catch (e) {}
   }
   function readDocFile(file) {
     if (!file) return;
@@ -2137,6 +2168,41 @@ export default function App() {
                         <span className="kb-name">{d.title}</span>
                         <span className="kb-meta">{d.chunks} parça</span>
                         <button className="kb-del" onClick={()=>deleteDoc(d.id)}><Trash2 size={13} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {providers.gateway.apiKey && (
+              <div className="m-section">
+                <div className="ms-label">Zamanlanmış Görevler (Otomatik Ajan)</div>
+                <div className="kb-hint">Tekrarlayan ajan görevleri tanımla (ör. her sabah haber özeti). Sunucu zamanı gelince ajanı çalıştırır; son sonuç altta görünür. Gateway'de <b>SCHEDULER_ENABLED=1</b> gerekir.</div>
+                <div className="kb-upload">
+                  <input className="kb-title" value={schedForm.title} onChange={(e)=>setSchedForm(f=>({...f,title:e.target.value}))} placeholder="Görev başlığı (ör. Günlük teknoloji özeti)" />
+                  <textarea className="kb-text" value={schedForm.prompt} onChange={(e)=>setSchedForm(f=>({...f,prompt:e.target.value}))} placeholder="Ajana verilecek görev (ör. 'Bugünün teknoloji haberlerini web'de ara, 5 maddede özetle')" rows={2} />
+                  <div className="kb-actions">
+                    <select className="kb-title sched-sel" value={schedForm.schedule} onChange={(e)=>setSchedForm(f=>({...f,schedule:e.target.value}))}>
+                      <option value="every:30m">Her 30 dakika</option>
+                      <option value="every:1h">Her saat</option>
+                      <option value="every:6h">Her 6 saat</option>
+                      <option value="every:1d">Her gün (24s)</option>
+                      <option value="daily:09:00">Her gün 09:00</option>
+                      <option value="daily:18:00">Her gün 18:00</option>
+                    </select>
+                    <button className="kb-add" onClick={createSchedTask} disabled={schedBusy || !schedForm.title.trim() || schedForm.prompt.trim().length<3}>{schedBusy ? "Ekleniyor…" : "Görev Ekle"}</button>
+                  </div>
+                </div>
+                {schedTasks.length > 0 && (
+                  <div className="kb-list">
+                    {schedTasks.map(t => (
+                      <div key={t.id} className="kb-row" style={{opacity: t.enabled ? 1 : 0.5}}>
+                        <Workflow size={13} />
+                        <span className="kb-name" title={t.last_result || t.prompt}>{t.title}</span>
+                        <span className="kb-meta">{t.schedule}{t.last_status ? " · " + t.last_status : ""}</span>
+                        <button className="kb-del" title={t.enabled ? "Duraklat" : "Etkinleştir"} onClick={()=>toggleSchedTask(t)}>{t.enabled ? <CircleDot size={13}/> : <Check size={13}/>}</button>
+                        <button className="kb-del" title="Sil" onClick={()=>deleteSchedTask(t.id)}><Trash2 size={13} /></button>
                       </div>
                     ))}
                   </div>

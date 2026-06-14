@@ -71,6 +71,8 @@ services:
       ROUTE_BALANCED: ollama/gemma4:latest
       ROUTE_DEEP: ollama/qwen3.5:35b
       ROUTE_MAX: ollama/qwen3.6:35b
+      SCHEDULER_ENABLED: "1"        # zamanlanmış/otomatik ajan görevleri çalışsın
+      SCHEDULER_TICK_MS: "30000"    # due görevleri ne sıklıkta kontrol etsin (ms)
     extra_hosts:
       - "host.docker.internal:host-gateway"
     expose:

@@ -8,6 +8,15 @@
 Bu dosya yeni oturuma başlarken ilk okunacak hafıza dosyasıdır. Her çalışma sonunda
 bu bölüm veya "SIRADAKİ ADIM" bölümü güncel bırakılmalı.
 
+### Oturum — 14 Haziran 2026 (Faz 6 — zamanlanmış/otomatik ajan görevleri)
+- Kullanıcı Faz 6'da "zamanlanmış/otomatik ajan görevleri"ni seçti. Uçtan uca eklendi.
+- **Saf çekirdek:** `gateway/lib/scheduler.mjs` — `parseSchedule` (`every:Nm/h/d`, `daily:HH:MM`; min 60sn), `nextRunAt`, `dueTasks`, `describeSchedule`. `gateway/test/scheduler.test.mjs` 4/4 (sandbox).
+- **Backend:** migration `004_scheduled_tasks.sql` (user-scoped tablo, ms epoch çıktısı); `lib/scheduled_store.mjs` (list/create/update/delete + `listDue` + `markRun`); `routes/scheduled.mjs` (`/v1/scheduled` GET/POST/PATCH/DELETE, userId-scoped, schedule+UUID doğrulama). `gateway.mjs`: multi-user mount + **opt-in in-process runner** (`SCHEDULER_ENABLED=1`): due görevleri `runAgent` ile çalıştırır (araçlar açık), sonucu saklar; `SCHEDULER_TICK_MS` (vars. 30sn), `timer.unref()`.
+- **UI:** Ayarlar'da "Zamanlanmış Görevler" paneli — başlık + görev metni + zamanlama (`<select>`: 30dk/saat/6saat/gün, günlük 09:00/18:00) ile oluştur; liste: başlık/zamanlama/son durum + duraklat (PATCH enabled) + sil. `kbBase()` + Bearer auth deseni.
+- **Compose/env:** `SCHEDULER_ENABLED=1` + `SCHEDULER_TICK_MS=30000` (compose), `.env.example` belgelendi.
+- **Doğrulama:** scheduler 4/4; yeni gateway `.mjs`'ler `node --check`; **web build sandbox'ta geçti** (tüm UI derlendi). Tam gateway suite + canlı koşum kullanıcı makinesinde (migration 004 otomatik uygulanır + `SCHEDULER_ENABLED`). Scheduler yalnız multi-user + DATABASE_URL ile koşar (Docker stack'te mevcut).
+- **KALAN (kullanıcı):** gateway rebuild (migration 004 + runner) + web build + commit. Ayarlar → Zamanlanmış Görevler ile bir görev ekle, `docker compose logs gateway`'de "scheduled task ran" gör.
+
 ### Oturum — 14 Haziran 2026 (UI tasarım + ses + effort işlevselliği)
 - Kullanıcı: arayüzü "göz alıcı" yap, sesli sohbeti iyileştir, web önizleme penceresi ekle, effort/agent gerçekten çalışsın, **her yeni koda test**, security'i bırakma.
 - **Ses/UI:** Sesli modda **Durdur/barge-in** (`stopSpeaking`; konuşurken mikrofon STOP + mercan pulse halka; Web Audio + tarayıcı TTS kesilir). **Orb durum rengi** (`useOrb`: boşta cyan → dinleme azure → düşünme mor → konuşma mercan, yumuşak geçiş).
