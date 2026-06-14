@@ -50,6 +50,7 @@ import { scheduled } from "./routes/scheduled.mjs";
 import { memory } from "./routes/memory.mjs";
 import { withMemory } from "./lib/memory_store.mjs";
 import { getMcpTools } from "./lib/mcp.mjs";
+import { workspaces } from "./routes/workspaces.mjs";
 import * as schedStore from "./lib/scheduled_store.mjs";
 import { nextRunAt as schedNextRunAt } from "./lib/scheduler.mjs";
 import { createErrorReporter } from "./lib/errors.mjs";
@@ -324,6 +325,7 @@ if (MULTI_USER) {
   app.use(knowledge);   // /v1/knowledge — RAG belge yükle/listele/sil
   app.use(scheduled);   // /v1/scheduled — zamanlanmış/otomatik ajan görevleri
   app.use(memory);      // /v1/memory — kişisel uzun-dönem hafıza (oto-hatırlama)
+  app.use(workspaces);  // /v1/workspaces — çalışma alanı + RBAC (3 rol)
 }
 
 // ---------- Endpoints ----------

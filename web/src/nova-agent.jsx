@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import {
   Mic, MessageSquare, Send, Settings, X, Zap, Cpu, Cloud, Sparkles,
   ChevronDown, Square, Brain, Check, Activity, Link2, CircleDot, Waves,
-  Copy, RotateCcw, Trash2, Menu, Plus, GitBranch, Eye, Download, Code2, Workflow
+  Copy, RotateCcw, Trash2, Menu, Plus, GitBranch, Eye, Download, Code2, Workflow, Users
 } from "lucide-react";
 import { extractWebsite } from "./lib/site.mjs";
 
@@ -966,6 +966,11 @@ export default function App() {
   const [evalModelsText, setEvalModelsText] = useState("ollama/gemma4:e2b, ollama/qwen3.5-9b-agent:latest");
   const [evalRunning, setEvalRunning] = useState(false);
   const [evalResults, setEvalResults] = useState(null);
+  const [wss, setWss] = useState([]);                    // workspaces (RBAC)
+  const [wsName, setWsName] = useState("");
+  const [wsOpen, setWsOpen] = useState(null);            // açık workspace id (üyeler)
+  const [wsMembers, setWsMembers] = useState([]);
+  const [wsInvite, setWsInvite] = useState({ email: "", role: "viewer" });
   const docFileRef = useRef(null);
 
   const [providers, setProviders] = useState({
@@ -1272,6 +1277,40 @@ export default function App() {
       else { let m = "Kıyas başarısız"; try { m = (await r.json()).error || m; } catch (e) {} setEvalResults([{ model: "—", ok: false, error: m }]); }
     } catch (e) { setEvalResults([{ model: "—", ok: false, error: (e && e.message) || "Kıyas başarısız" }]); }
     finally { setEvalRunning(false); }
+  }
+  // ---- çalışma alanları (workspace + RBAC) ----
+  async function loadWss() {
+    const k = providers.gateway.apiKey; if (!k) return;
+    try { const r = await fetch(kbBase() + "/v1/workspaces", { headers: { Authorization: "Bearer " + k } }); if (r.ok) setWss((await r.json()).data || []); } catch (e) {}
+  }
+  useEffect(() => { if (showSettings) loadWss(); }, [showSettings, providers.gateway.apiKey]);
+  async function createWs() {
+    const k = providers.gateway.apiKey; const name = wsName.trim();
+    if (!k || name.length < 1) return;
+    try { const r = await fetch(kbBase() + "/v1/workspaces", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + k }, body: JSON.stringify({ name }) }); if (r.ok) { setWsName(""); await loadWss(); } } catch (e) {}
+  }
+  async function openWsMembers(id) {
+    if (wsOpen === id) { setWsOpen(null); setWsMembers([]); return; }
+    const k = providers.gateway.apiKey; if (!k) return;
+    setWsOpen(id);
+    try { const r = await fetch(kbBase() + "/v1/workspaces/" + id + "/members", { headers: { Authorization: "Bearer " + k } }); if (r.ok) setWsMembers((await r.json()).data || []); } catch (e) {}
+  }
+  async function inviteMember(id) {
+    const k = providers.gateway.apiKey; const email = wsInvite.email.trim();
+    if (!k || !email) return;
+    try { const r = await fetch(kbBase() + "/v1/workspaces/" + id + "/members", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + k }, body: JSON.stringify({ email, role: wsInvite.role }) }); if (r.ok) { setWsInvite({ email: "", role: "viewer" }); await openWsMembers2(id); } else { try { alert((await r.json()).error || "Davet başarısız"); } catch (e) {} } } catch (e) {}
+  }
+  async function openWsMembers2(id) { // davet/değişiklik sonrası listeyi tazele (toggle etmeden)
+    const k = providers.gateway.apiKey; if (!k) return;
+    try { const r = await fetch(kbBase() + "/v1/workspaces/" + id + "/members", { headers: { Authorization: "Bearer " + k } }); if (r.ok) setWsMembers((await r.json()).data || []); } catch (e) {}
+  }
+  async function changeMemberRole(id, userId, role) {
+    const k = providers.gateway.apiKey; if (!k) return;
+    try { const r = await fetch(kbBase() + "/v1/workspaces/" + id + "/members/" + userId, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: "Bearer " + k }, body: JSON.stringify({ role }) }); if (r.ok) await openWsMembers2(id); else { try { alert((await r.json()).error || "Rol değişmedi"); } catch (e) {} } } catch (e) {}
+  }
+  async function removeMember(id, userId) {
+    const k = providers.gateway.apiKey; if (!k) return;
+    try { const r = await fetch(kbBase() + "/v1/workspaces/" + id + "/members/" + userId, { method: "DELETE", headers: { Authorization: "Bearer " + k } }); if (r.ok || r.status === 204) await openWsMembers2(id); else { try { alert((await r.json()).error || "Çıkarılamadı"); } catch (e) {} } } catch (e) {}
   }
   // ---- zamanlanmış / otomatik ajan görevleri ----
   async function loadSchedTasks() {
@@ -2312,6 +2351,61 @@ export default function App() {
                           <span className="um-t">{r.ok ? (`${fmtNum(r.ms)}ms · ${fmtNum(Number(r.tokens_in)+Number(r.tokens_out))} tok${Number(r.cost_micros)>0 ? " · $"+(Number(r.cost_micros)/1e6).toFixed(4) : ""}`) : "hata"}</span>
                         </div>
                         <div style={{fontFamily:"'Sora',sans-serif",color: r.ok ? "var(--text)" : "var(--coral)",fontSize:12.5,lineHeight:1.5,whiteSpace:"pre-wrap",maxHeight:160,overflowY:"auto"}}>{r.ok ? r.content : r.error}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {providers.gateway.apiKey && (
+              <div className="m-section">
+                <div className="ms-label">Çalışma Alanları (Takım · RBAC)</div>
+                <div className="kb-hint">Çalışma alanı oluştur ve üyeleri rolüyle yönet: <b>admin</b> (tam yetki) · <b>editör</b> (paylaşılan içerik yaz) · <b>izleyici</b> (sadece görüntüle).</div>
+                <div className="kb-upload">
+                  <div className="kb-actions">
+                    <input className="kb-title" value={wsName} onChange={(e)=>setWsName(e.target.value)} placeholder="Yeni çalışma alanı adı" style={{flex:1}} />
+                    <button className="kb-add" onClick={createWs} disabled={wsName.trim().length<1}>Oluştur</button>
+                  </div>
+                </div>
+                {wss.length > 0 && (
+                  <div className="kb-list">
+                    {wss.map(w => (
+                      <div key={w.id} style={{border:"1px solid var(--line)",borderRadius:10,padding:"8px 10px",background:"rgba(255,255,255,0.02)"}}>
+                        <div className="kb-row" style={{border:"none",padding:0,background:"none"}}>
+                          <Users size={13} />
+                          <span className="kb-name">{w.name}</span>
+                          <span className="kb-meta">{w.role}</span>
+                          <button className="kb-del" onClick={()=>openWsMembers(w.id)} title="Üyeler">{wsOpen===w.id ? <X size={13} /> : <Settings size={13} />}</button>
+                        </div>
+                        {wsOpen===w.id && (
+                          <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:6}}>
+                            {wsMembers.map(m => (
+                              <div key={m.user_id} style={{display:"flex",alignItems:"center",gap:8,fontSize:12}}>
+                                <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"var(--text)"}}>{m.email}</span>
+                                {w.role==="admin" ? (
+                                  <select className="sched-sel" style={{flex:"0 0 auto",padding:"3px 6px"}} value={m.role} onChange={(e)=>changeMemberRole(w.id, m.user_id, e.target.value)}>
+                                    <option value="admin">admin</option>
+                                    <option value="editor">editör</option>
+                                    <option value="viewer">izleyici</option>
+                                  </select>
+                                ) : <span className="kb-meta">{m.role}</span>}
+                                {w.role==="admin" && <button className="kb-del" onClick={()=>removeMember(w.id, m.user_id)}><Trash2 size={12} /></button>}
+                              </div>
+                            ))}
+                            {w.role==="admin" && (
+                              <div style={{display:"flex",gap:6,marginTop:4}}>
+                                <input className="kb-title" style={{flex:1}} value={wsInvite.email} onChange={(e)=>setWsInvite(v=>({...v,email:e.target.value}))} placeholder="E-posta ile davet et" />
+                                <select className="sched-sel" style={{flex:"0 0 auto",padding:"3px 6px"}} value={wsInvite.role} onChange={(e)=>setWsInvite(v=>({...v,role:e.target.value}))}>
+                                  <option value="admin">admin</option>
+                                  <option value="editor">editör</option>
+                                  <option value="viewer">izleyici</option>
+                                </select>
+                                <button className="kb-add" onClick={()=>inviteMember(w.id)} disabled={!wsInvite.email.trim()}>Davet</button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
