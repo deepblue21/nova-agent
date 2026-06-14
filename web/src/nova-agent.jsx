@@ -973,6 +973,8 @@ export default function App() {
   const [wsOpen, setWsOpen] = useState(null);            // açık workspace id (üyeler)
   const [wsMembers, setWsMembers] = useState([]);
   const [wsInvite, setWsInvite] = useState({ email: "", role: "viewer" });
+  const [mcpInfo, setMcpInfo] = useState(null);          // { servers, tools } — MCP introspection
+  const [mcpBusy, setMcpBusy] = useState(false);
   const docFileRef = useRef(null);
 
   const [providers, setProviders] = useState({
@@ -1281,6 +1283,14 @@ export default function App() {
     } catch (e) { setEvalResults([{ model: "—", ok: false, error: (e && e.message) || "Kıyas başarısız" }]); }
     finally { setEvalRunning(false); }
   }
+  // ---- MCP araçları (introspection) ----
+  async function loadMcp() {
+    const k = providers.gateway.apiKey; if (!k) return;
+    setMcpBusy(true);
+    try { const r = await fetch(kbBase() + "/v1/mcp/tools", { headers: { Authorization: "Bearer " + k } }); if (r.ok) setMcpInfo(await r.json()); } catch (e) {}
+    finally { setMcpBusy(false); }
+  }
+  useEffect(() => { if (showSettings) loadMcp(); }, [showSettings, providers.gateway.apiKey]);
   // ---- çalışma alanları (workspace + RBAC) ----
   async function loadWss() {
     const k = providers.gateway.apiKey; if (!k) return;
@@ -2427,6 +2437,28 @@ export default function App() {
                             )}
                           </div>
                         )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {providers.gateway.apiKey && mcpInfo && (mcpInfo.servers || []).length > 0 && (
+              <div className="m-section">
+                <div className="ms-label">MCP Araçları (Harici Sunucular)</div>
+                <div className="kb-hint">`MCP_SERVERS` ile yapılandırılan sunucular ve ajana açılan araçlar. Sunucular gateway env'inde tanımlanır.</div>
+                <div className="kb-actions" style={{marginBottom:8}}>
+                  <span className="kb-meta" style={{flex:1}}>Sunucular: {mcpInfo.servers.join(", ")} · {(mcpInfo.tools||[]).length} araç</span>
+                  <button className="kb-file" onClick={loadMcp} disabled={mcpBusy}><RotateCcw size={13} /> {mcpBusy ? "…" : "Yenile"}</button>
+                </div>
+                {(mcpInfo.tools || []).length > 0 && (
+                  <div className="kb-list">
+                    {mcpInfo.tools.map(t => (
+                      <div key={t.name} className="kb-row" title={t.description}>
+                        <Workflow size={13} />
+                        <span className="kb-name">{t.tool}</span>
+                        <span className="kb-meta" style={{color:"var(--cyan)"}}>{t.server}</span>
                       </div>
                     ))}
                   </div>

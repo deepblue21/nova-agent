@@ -46,6 +46,19 @@ export function splitToolName(name) {
 }
 export const isMcpTool = (name) => String(name || "").startsWith(TOOL_PREFIX);
 
+// Describe agent tool specs as MCP server/tool pairs (for an introspection UI).
+// Non-MCP specs are skipped. Pure → testable.
+export function describeTools(specs) {
+  const out = [];
+  for (const s of specs || []) {
+    const name = s && s.function && s.function.name;
+    const parts = splitToolName(name);
+    if (!parts) continue;
+    out.push({ server: parts.server, tool: parts.tool, name, description: (s.function.description || "").slice(0, 300) });
+  }
+  return out;
+}
+
 // Convert an MCP tool definition to an Ollama/OpenAI function tool spec.
 export function toToolSpec(server, mcpTool) {
   const tool = mcpTool || {};

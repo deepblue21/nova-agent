@@ -49,7 +49,7 @@ import { createTracer } from "./lib/tracing.mjs";
 import { scheduled } from "./routes/scheduled.mjs";
 import { memory } from "./routes/memory.mjs";
 import { withMemory } from "./lib/memory_store.mjs";
-import { getMcpTools } from "./lib/mcp.mjs";
+import { getMcpTools, describeTools, parseServers } from "./lib/mcp.mjs";
 import { workspaces } from "./routes/workspaces.mjs";
 import * as schedStore from "./lib/scheduled_store.mjs";
 import { nextRunAt as schedNextRunAt } from "./lib/scheduler.mjs";
@@ -564,6 +564,18 @@ app.post("/v1/eval", async (req, res) => {
       }
     });
     res.json({ prompt, results });
+  } catch (e) {
+    res.status(500).json({ error: clientErr(e && e.message ? e.message : e) });
+  } finally { clearTimeout(to); }
+});
+
+// MCP tool introspection (agent deepening) — list configured servers + discovered tools.
+app.get("/v1/mcp/tools", async (req, res) => {
+  const up = new AbortController();
+  const to = setTimeout(() => up.abort(), TIMEOUT_MS);
+  try {
+    const mcp = await getMcpTools(up.signal);
+    res.json({ servers: parseServers(process.env.MCP_SERVERS).map((s) => s.name), tools: describeTools(mcp.specs) });
   } catch (e) {
     res.status(500).json({ error: clientErr(e && e.message ? e.message : e) });
   } finally { clearTimeout(to); }

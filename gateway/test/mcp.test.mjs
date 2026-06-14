@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   parseServers, prefixedName, splitToolName, isMcpTool,
-  toToolSpec, parseRpcBody, flattenContent,
+  toToolSpec, parseRpcBody, flattenContent, describeTools,
 } from "../lib/mcp.mjs";
 
 test("parseServers: JSON array form", () => {
@@ -54,6 +54,19 @@ test("parseRpcBody: plain JSON and SSE stream", () => {
 test("parseRpcBody: SSE picks the last valid data line", () => {
   const sse = "data: keepalive\ndata: {\"result\":{\"v\":1}}\ndata: {\"result\":{\"v\":2}}\n";
   assert.deepEqual(parseRpcBody("text/event-stream", sse).result, { v: 2 });
+});
+
+test("describeTools: maps MCP specs to server/tool pairs, skips non-MCP", () => {
+  const specs = [
+    toToolSpec("fs", { name: "read_file", description: "Read a file" }),
+    { type: "function", function: { name: "web_search", description: "builtin" } },
+    toToolSpec("db", { name: "query" }),
+  ];
+  const out = describeTools(specs);
+  assert.equal(out.length, 2);
+  assert.deepEqual(out[0], { server: "fs", tool: "read_file", name: "mcp__fs__read_file", description: "Read a file" });
+  assert.equal(out[1].server, "db");
+  assert.equal(describeTools([]).length, 0);
 });
 
 test("flattenContent: joins text parts, reads resource text/uri", () => {
