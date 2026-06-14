@@ -958,7 +958,7 @@ export default function App() {
   const [docError, setDocError] = useState("");
   const [docBusy, setDocBusy] = useState(false);
   const [schedTasks, setSchedTasks] = useState([]);      // zamanlanmış/otomatik ajan görevleri
-  const [schedForm, setSchedForm] = useState({ title: "", prompt: "", schedule: "daily:09:00" });
+  const [schedForm, setSchedForm] = useState({ title: "", prompt: "", schedule: "daily:09:00", ws: "" });
   const [schedBusy, setSchedBusy] = useState(false);
   const [mems, setMems] = useState([]);                  // kişisel uzun-dönem hafıza notları
   const [memText, setMemText] = useState("");
@@ -1327,9 +1327,9 @@ export default function App() {
     try {
       const r = await fetch(kbBase() + "/v1/scheduled", {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + k },
-        body: JSON.stringify({ title, prompt, schedule: schedForm.schedule, agent: true }),
+        body: JSON.stringify({ title, prompt, schedule: schedForm.schedule, agent: true, ...(schedForm.ws ? { workspace_id: schedForm.ws } : {}) }),
       });
-      if (r.ok) { setSchedForm({ title: "", prompt: "", schedule: schedForm.schedule }); await loadSchedTasks(); }
+      if (r.ok) { setSchedForm({ title: "", prompt: "", schedule: schedForm.schedule, ws: schedForm.ws }); await loadSchedTasks(); }
     } catch (e) {} finally { setSchedBusy(false); }
   }
   async function toggleSchedTask(t) {
@@ -2450,20 +2450,29 @@ export default function App() {
                       <option value="daily:09:00">Her gün 09:00</option>
                       <option value="daily:18:00">Her gün 18:00</option>
                     </select>
+                    <select className="kb-title sched-sel" value={schedForm.ws} onChange={(e)=>setSchedForm(f=>({...f,ws:e.target.value}))}>
+                      <option value="">Kişisel</option>
+                      {wss.filter(w => w.role === "admin" || w.role === "editor").map(w => (
+                        <option key={w.id} value={w.id}>{w.name} (paylaşımlı)</option>
+                      ))}
+                    </select>
                     <button className="kb-add" onClick={createSchedTask} disabled={schedBusy || !schedForm.title.trim() || schedForm.prompt.trim().length<3}>{schedBusy ? "Ekleniyor…" : "Görev Ekle"}</button>
                   </div>
                 </div>
                 {schedTasks.length > 0 && (
                   <div className="kb-list">
-                    {schedTasks.map(t => (
+                    {schedTasks.map(t => {
+                      const ws = t.workspace_id ? wss.find(w => w.id === t.workspace_id) : null;
+                      return (
                       <div key={t.id} className="kb-row" style={{opacity: t.enabled ? 1 : 0.5}}>
                         <Workflow size={13} />
                         <span className="kb-name" title={t.last_result || t.prompt}>{t.title}</span>
+                        {t.workspace_id && <span className="kb-meta" style={{color:"var(--cyan)"}}>{ws ? ws.name : "paylaşımlı"}</span>}
                         <span className="kb-meta">{t.schedule}{t.last_status ? " · " + t.last_status : ""}</span>
                         <button className="kb-del" title={t.enabled ? "Duraklat" : "Etkinleştir"} onClick={()=>toggleSchedTask(t)}>{t.enabled ? <CircleDot size={13}/> : <Check size={13}/>}</button>
                         <button className="kb-del" title="Sil" onClick={()=>deleteSchedTask(t.id)}><Trash2 size={13} /></button>
                       </div>
-                    ))}
+                    );})}
                   </div>
                 )}
               </div>
