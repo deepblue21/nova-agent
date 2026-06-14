@@ -975,6 +975,7 @@ export default function App() {
   const [wsInvite, setWsInvite] = useState({ email: "", role: "viewer" });
   const [mcpInfo, setMcpInfo] = useState(null);          // { servers, tools } — MCP introspection
   const [mcpBusy, setMcpBusy] = useState(false);
+  const [agentRuns, setAgentRuns] = useState([]);        // ajan çalışma geçmişi
   const docFileRef = useRef(null);
 
   const [providers, setProviders] = useState({
@@ -1282,6 +1283,16 @@ export default function App() {
       else { let m = "Kıyas başarısız"; try { m = (await r.json()).error || m; } catch (e) {} setEvalResults([{ model: "—", ok: false, error: m }]); }
     } catch (e) { setEvalResults([{ model: "—", ok: false, error: (e && e.message) || "Kıyas başarısız" }]); }
     finally { setEvalRunning(false); }
+  }
+  // ---- ajan çalışma geçmişi ----
+  async function loadAgentRuns() {
+    const k = providers.gateway.apiKey; if (!k) return;
+    try { const r = await fetch(kbBase() + "/v1/agent/runs", { headers: { Authorization: "Bearer " + k } }); if (r.ok) setAgentRuns((await r.json()).data || []); } catch (e) {}
+  }
+  useEffect(() => { if (showSettings) loadAgentRuns(); }, [showSettings, providers.gateway.apiKey]);
+  async function delAgentRun(id) {
+    const k = providers.gateway.apiKey; if (!k) return;
+    try { await fetch(kbBase() + "/v1/agent/runs/" + id, { method: "DELETE", headers: { Authorization: "Bearer " + k } }); await loadAgentRuns(); } catch (e) {}
   }
   // ---- MCP araçları (introspection) ----
   async function loadMcp() {
@@ -2441,6 +2452,24 @@ export default function App() {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {providers.gateway.apiKey && agentRuns.length > 0 && (
+              <div className="m-section">
+                <div className="ms-label">Ajan Çalışma Geçmişi</div>
+                <div className="kb-hint">Geçmiş <b>Ajan</b> ve <b>Takım</b> koşumları — kullanılan araçlar ve sonuç özeti.</div>
+                <div className="kb-list">
+                  {agentRuns.map(run => (
+                    <div key={run.id} className="kb-row" title={run.result || ""}>
+                      {run.mode === "team" ? <Sparkles size={13} /> : <Workflow size={13} />}
+                      <span className="kb-name">{run.prompt || "(boş)"}</span>
+                      {run.tools && <span className="kb-meta" style={{color:"var(--cyan)"}}>{run.tools}</span>}
+                      <span className="kb-meta">{run.mode}</span>
+                      <button className="kb-del" onClick={()=>delAgentRun(run.id)}><Trash2 size={13} /></button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

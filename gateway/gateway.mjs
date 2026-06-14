@@ -51,6 +51,8 @@ import { memory } from "./routes/memory.mjs";
 import { withMemory } from "./lib/memory_store.mjs";
 import { getMcpTools, describeTools, parseServers } from "./lib/mcp.mjs";
 import { workspaces } from "./routes/workspaces.mjs";
+import { agentRuns as agentRunsRoute } from "./routes/agent_runs.mjs";
+import * as agentRunStore from "./lib/agent_runs_store.mjs";
 import * as schedStore from "./lib/scheduled_store.mjs";
 import { nextRunAt as schedNextRunAt } from "./lib/scheduler.mjs";
 import { createErrorReporter } from "./lib/errors.mjs";
@@ -327,6 +329,7 @@ if (MULTI_USER) {
   app.use(scheduled);   // /v1/scheduled — zamanlanmış/otomatik ajan görevleri
   app.use(memory);      // /v1/memory — kişisel uzun-dönem hafıza (oto-hatırlama)
   app.use(workspaces);  // /v1/workspaces — çalışma alanı + RBAC (3 rol)
+  app.use(agentRunsRoute); // /v1/agent/runs — ajan çalışma geçmişi
 }
 
 // ---------- Endpoints ----------
@@ -464,6 +467,7 @@ app.post("/v1/chat/completions", async (req, res) => {
       else res.json({ choices: [{ message: { role: "assistant", content: text } }], nova_team: subtasks.map(s => s.role) });
       assistantText = text;
       await recordChatCompletion(req, { route: full + " (team)", model, messages, assistantText, usage });
+      if (req.principal) agentRunStore.recordRun(req.principal.userId, { mode: "team", model: full, prompt: task, tools: subtasks.map((s) => s.role).join(", "), result: text, rounds: subtasks.length }).catch(() => {});
       return;
     }
     if (agent && provider === "ollama" && !hasImageContent(messages)) {
@@ -493,6 +497,7 @@ app.post("/v1/chat/completions", async (req, res) => {
       else res.json({ choices: [{ message: { role: "assistant", content: text } }], nova_tools: r.toolsUsed });
       assistantText = text;
       await recordChatCompletion(req, { route: full + " (agent)", model, messages, assistantText, usage });
+      if (req.principal) agentRunStore.recordRun(req.principal.userId, { mode: "agent", model: full, prompt: messageText(messages[messages.length - 1]) || "", tools: agentRunStore.formatRunTools(r.toolsUsed), result: text, rounds: r.rounds }).catch(() => {});
       return;
     }
     const providerMessages = (provider === "ollama" || provider === "gemini" || provider === "anthropic")
