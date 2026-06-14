@@ -310,6 +310,7 @@ Tüm gateway ayarları ortam değişkenidir (tam liste için `gateway/.env.examp
 | `TTS_MAX_INPUT_CHARS` | `8000` | maks TTS girdi uzunluğu |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` / `_TRACES_ENDPOINT` / `OTEL_SERVICE_NAME` | *(unset)* / *(unset)* / `nova-gateway` | opt-in OTLP/HTTP trace |
 | `TEAM_CONCURRENCY` | `3` | team modunda paralel alt-ajan |
+| `AUTO_AGENT_ENABLED` | `1` | canlı-veri sorgularında (hava/haber/fiyat) ajan araçlarını oto-aç; SearXNG + tool-calling model gerekir |
 | `MEMORY_ENABLED` / `MEMORY_MAX_ITEMS` / `MEMORY_MAX_CHARS` | `1` / `60` / `500` | kişisel hafıza + limitler |
 | `EVAL_CONCURRENCY` / `EVAL_MAX_MODELS` | `3` / `6` | model-kıyas paralelliği + üst sınır |
 | `MCP_SERVERS` / `MCP_CACHE_MS` | *(unset)* / `300000` | harici MCP araç sunucuları (opt-in) + araç-listesi cache |

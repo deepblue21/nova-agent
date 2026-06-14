@@ -34,7 +34,7 @@ import { requestLogger, logger } from "./lib/observability.mjs";
 import { metricsMiddleware, metricsHandler, llmTokens } from "./lib/metrics.mjs";
 import { flushUsage } from "./lib/billing.mjs";
 import { makeUsageAccumulator } from "./lib/tokens.mjs";
-import { runAgent } from "./lib/agent.mjs";
+import { runAgent, needsLiveData } from "./lib/agent.mjs";
 import { hasImageContent, pickDynamicModel } from "./lib/routing.mjs";
 import { normalizeSttPayload, normalizeTtsPayload, synthesizeSpeech, transcribeAudio, voiceLimitsFromEnv } from "./lib/voice.mjs";
 import { createVoiceQueue } from "./lib/voice_queue.mjs";
@@ -116,6 +116,7 @@ const tracer = createTracer();   // opt-in OTLP tracing; no-op unless OTEL_* env
 const errorReporter = createErrorReporter();   // opt-in; no-op unless ERROR_WEBHOOK_URL set
 const TEAM_CONCURRENCY = parseInt(process.env.TEAM_CONCURRENCY || "3", 10);   // çoklu ajan paralel alt-görev sınırı
 const TIMEOUT_MS    = parseInt(process.env.REQ_TIMEOUT_MS || "60000", 10);
+const AUTO_AGENT    = process.env.AUTO_AGENT_ENABLED !== "0";          // auto-enable tools for live-data queries
 const MAX_RETRIES   = parseInt(process.env.MAX_RETRIES || "2", 10);    // on 429/5xx/network error
 const ALLOW         = (process.env.ALLOW_MODELS || "").split(",").map(s => s.trim()).filter(Boolean);
 const BODY_LIMIT    = process.env.BODY_LIMIT || "25mb";
@@ -438,6 +439,13 @@ app.post("/v1/chat/completions", async (req, res) => {
     let assistantText;
     // kişisel uzun-dönem hafızayı sistem prompt'una otomatik kat (multi-user; hata-toleranslı)
     if (req.principal) messages = await withMemory(messages, req.principal.userId);
+    // canlı/güncel veri sorgularında (hava durumu, haber, fiyat…) araçlar çalışsın diye
+    // ajan modunu otomatik aç — yoksa model uydurur. AUTO_AGENT_ENABLED=0 ile kapatılır.
+    if (AUTO_AGENT && !agent && !team && provider === "ollama" && !hasImageContent(messages)
+        && needsLiveData(messageText(messages[messages.length - 1]))) {
+      agent = true;
+      res.setHeader("x-nova-auto-agent", "1");
+    }
     // --- AJAN MODU: yerel modelle araç çağırma döngüsü (web arama, hesap, saat) ---
     // --- ÇOKLU AJAN (TEAM): planla → paralel alt-ajanlar → sentez ---
     if (team && provider === "ollama" && !hasImageContent(messages)) {

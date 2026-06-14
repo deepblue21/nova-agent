@@ -9,7 +9,7 @@ import { TOOL_SPECS, runTool } from "../lib/tools.mjs";
 import { chunkText, toVectorLiteral } from "../lib/embed.mjs";
 import { DOC_TYPES, normalizeKnowledgeInput } from "../lib/doc_extract.mjs";
 import { runJavaScriptSandbox } from "../lib/code_sandbox.mjs";
-import { runAgent } from "../lib/agent.mjs";
+import { runAgent, needsLiveData } from "../lib/agent.mjs";
 import { registry } from "../lib/metrics.mjs";
 
 function xmlEscape(s) {
@@ -192,6 +192,18 @@ test("code_sandbox: boş ve fazla uzun kodu reddeder", async () => {
     () => runJavaScriptSandbox({ code: "x".repeat(7000) }),
     /code çok uzun/,
   );
+});
+
+test("needsLiveData: detects weather/news/finance/time-sensitive (TR + EN)", () => {
+  for (const q of [
+    "Manisa hava durumu yarın nasıl?", "bugünün haberleri neler",
+    "son dakika gündem", "dolar kuru kaç", "altın fiyatı bugün",
+    "what's the weather tomorrow", "latest news headlines", "current stock price",
+  ]) assert.equal(needsLiveData(q), true, "should detect: " + q);
+  for (const q of [
+    "fibonacci fonksiyonu yaz", "bu kodu açıkla", "merhaba nasılsın",
+    "write a poem about the sea",
+  ]) assert.equal(needsLiveData(q), false, "should NOT detect: " + q);
 });
 
 // ── runAgent orchestration (mocked Ollama + SearXNG, no live infra) ──────────

@@ -2640,7 +2640,7 @@ export default function App() {
 
 function ThinkTrace({ text, live }) {
   const [stage, setStage] = useState(0);
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);   // varsayılan kapalı — muhakeme istenince açılır
   const hasReal = !!(text && text.trim());
   useEffect(() => {
     if (hasReal) return;            // gerçek düşünce akışı varsa sahte adımları çalıştırma
@@ -2653,7 +2653,7 @@ function ThinkTrace({ text, live }) {
     return (
       <div className="think-trace">
         <div className="think-head" style={{ cursor: "pointer" }} onClick={() => setOpen(o => !o)}>
-          <Brain size={13} /> {live ? "Düşünülüyor…" : "Muhakeme"} {!live && <ChevronDown size={12} style={{ transform: open ? "none" : "rotate(-90deg)" }} />}
+          <Brain size={13} /> {live ? "Düşünülüyor…" : "Muhakeme"} <ChevronDown size={12} style={{ transform: open ? "none" : "rotate(-90deg)", opacity: 0.7 }} />
         </div>
         {open && <div className="think-real">{text}</div>}
       </div>

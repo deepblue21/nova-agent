@@ -6,6 +6,19 @@ import { agentRuns, agentToolCalls, agentToolDuration } from "./metrics.mjs";
 
 const MAX_ROUNDS = parseInt(process.env.AGENT_MAX_ROUNDS || "4", 10);
 
+// Canlı/güncel veri gerektiren sorgular: bu durumda gateway ajan modunu otomatik
+// açar ki web_search çalışsın (yoksa model uydurur). Pure → test edilebilir.
+const LIVE_PATTERNS = [
+  /hava\s*durum|hava\s*nas[ıi]l|s[ıi]cakl[ıi]k|ya[ğg]mur|ya[ğg][ıi]ş|ka[çc]\s*derece|rüzg[âa]r/i,
+  /haber|son\s*dakika|g[üu]ndem|g[üu]ncel|bug[üu]n|yar[ıi]n|şu\s*an|şimdi|en\s*son|bu\s*hafta/i,
+  /borsa|d[öo]viz|dolar|euro|alt[ıi]n|kur\b|fiyat|maç|skor|puan\s*durum/i,
+  /\b(weather|forecast|temperature|news|today|tomorrow|tonight|current|latest|right now|price|stock|score|headlines)\b/i,
+];
+export function needsLiveData(text) {
+  const s = String(text || "");
+  return LIVE_PATTERNS.some((re) => re.test(s));
+}
+
 // ollama mesaj normalize (multimodal değil, ajan turu düz metin)
 function toOllama(messages) {
   return messages.map(m => {

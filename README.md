@@ -311,6 +311,7 @@ All gateway settings are environment variables (see `gateway/.env.example` for t
 | `TTS_MAX_INPUT_CHARS` | `8000` | max TTS input length |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` / `_TRACES_ENDPOINT` / `OTEL_SERVICE_NAME` | *(unset)* / *(unset)* / `nova-gateway` | opt-in OTLP/HTTP tracing |
 | `TEAM_CONCURRENCY` | `3` | parallel sub-agents in team mode |
+| `AUTO_AGENT_ENABLED` | `1` | auto-enable agent tools for live-data queries (weather/news/prices); needs SearXNG + a tool-calling model |
 | `MEMORY_ENABLED` / `MEMORY_MAX_ITEMS` / `MEMORY_MAX_CHARS` | `1` / `60` / `500` | personal memory recall + limits |
 | `EVAL_CONCURRENCY` / `EVAL_MAX_MODELS` | `3` / `6` | model-comparison parallelism + cap |
 | `MCP_SERVERS` / `MCP_CACHE_MS` | *(unset)* / `300000` | external MCP tool servers (opt-in) + tool-list cache |
