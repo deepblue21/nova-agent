@@ -931,6 +931,9 @@ export default function App() {
   const [schedTasks, setSchedTasks] = useState([]);      // zamanlanmış/otomatik ajan görevleri
   const [schedForm, setSchedForm] = useState({ title: "", prompt: "", schedule: "daily:09:00" });
   const [schedBusy, setSchedBusy] = useState(false);
+  const [mems, setMems] = useState([]);                  // kişisel uzun-dönem hafıza notları
+  const [memText, setMemText] = useState("");
+  const [memBusy, setMemBusy] = useState(false);
   const docFileRef = useRef(null);
 
   const [providers, setProviders] = useState({
@@ -1199,6 +1202,28 @@ export default function App() {
   async function deleteDoc(id) {
     const k = providers.gateway.apiKey; if (!k) return;
     try { await fetch(kbBase() + "/v1/knowledge/" + id, { method: "DELETE", headers: { Authorization: "Bearer " + k } }); await loadDocs(); } catch (e) {}
+  }
+  // ---- kişisel uzun-dönem hafıza ----
+  async function loadMems() {
+    const k = providers.gateway.apiKey; if (!k) return;
+    try { const r = await fetch(kbBase() + "/v1/memory", { headers: { Authorization: "Bearer " + k } }); if (r.ok) setMems((await r.json()).data || []); } catch (e) {}
+  }
+  useEffect(() => { if (showSettings) loadMems(); }, [showSettings, providers.gateway.apiKey]);
+  async function addMem() {
+    const k = providers.gateway.apiKey; const content = memText.trim();
+    if (!k || memBusy || content.length < 2) return;
+    setMemBusy(true);
+    try {
+      const r = await fetch(kbBase() + "/v1/memory", {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + k },
+        body: JSON.stringify({ content }),
+      });
+      if (r.ok) { setMemText(""); await loadMems(); }
+    } catch (e) {} finally { setMemBusy(false); }
+  }
+  async function deleteMem(id) {
+    const k = providers.gateway.apiKey; if (!k) return;
+    try { await fetch(kbBase() + "/v1/memory/" + id, { method: "DELETE", headers: { Authorization: "Bearer " + k } }); await loadMems(); } catch (e) {}
   }
   // ---- zamanlanmış / otomatik ajan görevleri ----
   async function loadSchedTasks() {
@@ -2188,6 +2213,30 @@ export default function App() {
                         <span className="kb-name">{d.title}</span>
                         <span className="kb-meta">{d.chunks} parça</span>
                         <button className="kb-del" onClick={()=>deleteDoc(d.id)}><Trash2 size={13} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {providers.gateway.apiKey && (
+              <div className="m-section">
+                <div className="ms-label">Hafıza (Kişisel · Otomatik Hatırlama)</div>
+                <div className="kb-hint">Hakkında kalıcı notlar ekle (tercih, isim, bağlam); NOVA her sohbette bunları otomatik hatırlar.</div>
+                <div className="kb-upload">
+                  <textarea className="kb-text" value={memText} onChange={(e)=>setMemText(e.target.value)} placeholder="Örn: Beni Salih diye çağır. Kotlin/Compose ile çalışıyorum. Kısa ve net cevap severim." rows={2} />
+                  <div className="kb-actions">
+                    <button className="kb-add" onClick={addMem} disabled={memBusy || memText.trim().length<2}>{memBusy ? "Ekleniyor…" : "Hafızaya Ekle"}</button>
+                  </div>
+                </div>
+                {mems.length > 0 && (
+                  <div className="kb-list">
+                    {mems.map(m => (
+                      <div key={m.id} className="kb-row">
+                        <Sparkles size={13} />
+                        <span className="kb-name">{m.content}</span>
+                        <button className="kb-del" onClick={()=>deleteMem(m.id)}><Trash2 size={13} /></button>
                       </div>
                     ))}
                   </div>

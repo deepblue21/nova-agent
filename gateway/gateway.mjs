@@ -47,6 +47,8 @@ import { usage as usageRoutes } from "./routes/usage.mjs";
 import { knowledge } from "./routes/knowledge.mjs";
 import { createTracer } from "./lib/tracing.mjs";
 import { scheduled } from "./routes/scheduled.mjs";
+import { memory } from "./routes/memory.mjs";
+import { withMemory } from "./lib/memory_store.mjs";
 import * as schedStore from "./lib/scheduled_store.mjs";
 import { nextRunAt as schedNextRunAt } from "./lib/scheduler.mjs";
 import { createErrorReporter } from "./lib/errors.mjs";
@@ -319,6 +321,7 @@ if (MULTI_USER) {
   app.use(usageRoutes); // GET /v1/usage — kendi kullanım/kota görünümü
   app.use(knowledge);   // /v1/knowledge — RAG belge yükle/listele/sil
   app.use(scheduled);   // /v1/scheduled — zamanlanmış/otomatik ajan görevleri
+  app.use(memory);      // /v1/memory — kişisel uzun-dönem hafıza (oto-hatırlama)
 }
 
 // ---------- Endpoints ----------
@@ -365,7 +368,7 @@ async function planSubtasks(model, task, signal) {
 }
 
 app.post("/v1/chat/completions", async (req, res) => {
-  const { messages = [], stream = false, think = false, effort, agent = false, team = false } = req.body || {};
+  let { messages = [], stream = false, think = false, effort, agent = false, team = false } = req.body || {};
   // input validation
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: "messages must be a non-empty array" });
@@ -425,6 +428,8 @@ app.post("/v1/chat/completions", async (req, res) => {
   const ctx = { signal: up.signal, think, params: pickParams(req.body), retries: MAX_RETRIES, usage };
   try {
     let assistantText;
+    // kişisel uzun-dönem hafızayı sistem prompt'una otomatik kat (multi-user; hata-toleranslı)
+    if (req.principal) messages = await withMemory(messages, req.principal.userId);
     // --- AJAN MODU: yerel modelle araç çağırma döngüsü (web arama, hesap, saat) ---
     // --- ÇOKLU AJAN (TEAM): planla → paralel alt-ajanlar → sentez ---
     if (team && provider === "ollama" && !hasImageContent(messages)) {
