@@ -1,5 +1,7 @@
 # NOVA Agent
 
+**English** · [Türkçe](./README.tr.md)
+
 A voice + chat interface for talking to many LLM providers through **one endpoint**.
 The browser UI (React) sends OpenAI-style requests to a small Node **gateway** that
 routes them to Anthropic, Google Gemini, OpenAI, local **Ollama**, or an **OpenClaw**
@@ -16,321 +18,173 @@ agent — and also proxies speech-to-text and text-to-speech.
                                      Anthropic         Gemini           OpenAI      Ollama        OpenClaw   Whisper/TTS
 ```
 
-## Public Kullanım Durumu
+## Local-use status
 
-Evet, bu repo public yapılırsa insanlar projeyi **kendi bilgisayarlarında yerel
-olarak** kullanabilir. Bu projenin public paylaşım hedefi şimdilik **local-first /
-self-hosted geliştirme deneyimi**dir; merkezi bir production servis olarak
-yayınlama hedeflenmiyor.
+If this repo is made public, people can run it **locally on their own machines**. The
+sharing goal is a **local-first / self-hosted developer experience** — not a hosted,
+centrally-operated production service. The production/security notes below exist to
+keep you from accidentally exposing the gateway to the internet.
 
-İki ana kullanım yolu hazır: hızlı bare-metal deneme ve Docker ile tam yerel stack.
-README'deki production/güvenlik uyarıları, projeyi yanlışlıkla internete açık
-servis gibi çalıştırmayı önlemek içindir.
+### Minimum requirements
 
-### Minimum Gereksinimler
-
-| Kullanım tipi | Minimum gereksinim | Not |
+| Use type | Minimum | Note |
 | --- | --- | --- |
-| Bare-metal deneme | Git, Node.js 20.19+, npm, modern tarayıcı | Sadece `gateway` + `web`; tek kullanıcı/dev kullanım için en hızlı yol. |
-| Model erişimi | En az bir provider API key'i **veya** yerel Ollama | OpenAI/Anthropic/Gemini key girilebilir; yerel kullanımda Ollama önerilir. |
-| Docker tam stack | Docker Engine + Docker Compose; Windows'ta WSL Ubuntu önerilir | Postgres, Redis, Keycloak, MinIO, SearXNG, Grafana, voice servisleri dahil. |
-| Donanım | 8 GB RAM minimum; 16 GB RAM önerilir | Yerel LLM kullanılırsa model boyutuna göre GPU/VRAM performansı belirler. |
-| Portlar | `80`, `443`, `3001`, `8080`, `8081`, `8088`, `9000`, `9001`, `9090` boş olmalı | Docker stack'te bazı paneller bu portlardan açılır. |
+| Bare-metal trial | Git, Node.js 20.19+, npm, a modern browser | Just `gateway` + `web`; fastest path for single-user/dev. |
+| Model access | At least one provider API key **or** local Ollama | OpenAI/Anthropic/Gemini keys work; Ollama recommended for local. |
+| Docker full stack | Docker Engine + Docker Compose; WSL Ubuntu on Windows | Postgres, Redis, Keycloak, MinIO, SearXNG, Grafana, voice services. |
+| Hardware | 8 GB RAM minimum; 16 GB recommended | With a local LLM, GPU/VRAM and model size drive performance. |
+| Ports | `80`/`443` for the entry proxy | Internal panels bind to `127.0.0.1` only (see Security). |
 
-### Local Kullanım İçin Public Repo Checklist
+### Public-repo checklist
 
-- MIT lisansı eklidir; kullanıcılar kodu kullanabilir, değiştirebilir ve dağıtabilir.
-  Lisans metni ve telif bildirimi kopyalarda korunmalıdır.
-- Gerçek `.env` dosyası, API key, token, admin parolası veya kullanıcı verisi commit etme.
-- Local demo parolalarının yalnızca geliştirme amaçlı olduğunu açık tut; dışarıdan erişime
-  açılacak bir ortamda `SECURITY.md` listesini uygulamadan devam etme.
-- `gateway/.env.example` güncel kalsın; gerçek değerler kullanıcı tarafından kendi
-  makinesinde oluşturulmalı.
-- Mevcut git geçmişiyle public açmadan önce history'yi ayrıca kontrol et. Eski
-  commit'lerde kişisel test verisi veya geçici build dosyası kaldıysa temiz bir
-  başlangıç/squash/history rewrite yap.
-- Hosted/production servis bu repo paylaşımının kapsamı değildir. İnternete açılacaksa
-  ayrıca TLS, domain, secret rotasyonu, `ALLOW_ORIGINS`, Keycloak production ayarı ve
-  kapalı internal portlar gerekir.
+- MIT licensed; users may use, modify and distribute. Keep the license + copyright notice.
+- Never commit a real `.env`, API key, token, admin password or user data.
+- Keep local demo passwords clearly dev-only; do not expose externally without applying
+  the [`SECURITY.md`](./SECURITY.md) checklist.
+- Keep `gateway/.env.example` current; real values are created per-machine by the user.
+- A hosted/production service is out of scope. Exposing to the internet additionally
+  requires TLS, a domain, secret rotation, `ALLOW_ORIGINS`, Keycloak production mode and
+  closed internal ports.
 
-Hızlı kurulum adımları aşağıda. Public kullanıcı için en kısa yol **Yol B**,
-tam ürün deneyimi için **Yol A**.
+## 🚀 Quick start
 
-## 🚀 Hızlı Kurulum (GitHub'dan klonlayıp çalıştırma)
+Two paths: **Docker (recommended — full stack)** or **bare-metal (gateway + web only)**.
 
-İki yol var: **Docker (önerilen — tam stack)** veya **bare-metal (sadece gateway + web)**.
+### Path A — Docker full stack (Postgres, Redis, Keycloak, SearXNG, MinIO, Grafana, voice)
 
-### Yol A — Docker ile tam stack (Postgres, Redis, Keycloak, SearXNG, MinIO, Grafana, voice)
-
-Gerekenler: Docker + docker compose, ve yerel LLM için [Ollama](https://ollama.com).
+Needs Docker + docker compose, and [Ollama](https://ollama.com) for local LLMs.
 
 ```bash
-# 1) Klonla
+# 1) Clone
 git clone <repo-url> nova && cd nova
 
-# 2) Gateway .env oluştur (token üret + en az bir provider key VEYA Ollama)
+# 2) Create the gateway .env (generate a token + at least one provider key OR Ollama)
 cp gateway/.env.example gateway/.env
 node -e "console.log('GATEWAY_TOKEN='+require('crypto').randomBytes(32).toString('hex'))" >> gateway/.env
-# gateway/.env'i aç; ALLOW_ORIGINS, provider key veya OLLAMA_URL'i ayarla
+# edit gateway/.env: set ALLOW_ORIGINS, a provider key or OLLAMA_URL
 
-# 3) Web arayüzünü derle (Caddy web/dist'i servis eder)
+# 3) Build the web UI (Caddy serves web/dist)
 npm --prefix web ci && npm --prefix web run build
 
-# 4) (Yerel LLM için) Ollama'yı container'lara aç + model çek
-#    WSL/Linux'ta: OLLAMA_HOST=0.0.0.0 ile çalıştır, sonra:
-ollama pull gemma4:latest && ollama pull qwen3.5:9b && ollama pull nomic-embed-text
-# (Görsel anlama için; tag ortamına göre değişebilir)
+# 4) (For local LLMs) expose Ollama to the containers + pull models
+#    On WSL/Linux run with OLLAMA_HOST=0.0.0.0, then:
+ollama pull qwen3:14b && ollama pull qwen3:8b && ollama pull nomic-embed-text
+# (For vision; tag varies by setup)
 ollama pull qwen3.5-omni:latest
 
-# 5) Tüm stack'i kaldır (ilk açılışta imajlar iner, birkaç dk)
+# 5) Bring the stack up (first run pulls images, a few minutes)
 docker compose -f docker-compose.yml -f docker-compose.faz2.yml up -d --build
 
-# 6) İlk kullanıcı + API key (multi-user modunda)
+# 6) First user + API key (multi-user mode)
 docker compose exec gateway node scripts/bootstrap-user.mjs you@example.com 5
 ```
 
-Aç: **http://localhost** → ⚙ Ayarlar → **Keycloak ile Giriş** (veya API key yapıştır) → sohbet.
-Diğer paneller: Grafana `localhost:3001`, Prometheus `localhost:9090`, MinIO `localhost:9001`, SearXNG `localhost:8080`, Keycloak `localhost:8081`.
+Open **http://localhost** → ⚙ Settings → **Sign in with Keycloak** (or paste an API key) → chat.
+Internal panels are loopback-only by default (reach them from the host machine): Grafana
+`127.0.0.1:3001`, Prometheus `:9090`, MinIO `:9001`, SearXNG `:8080`, Keycloak `:8081`.
 
-> ⚠️ Tüm varsayılan parolalar **yalnızca yerel geliştirme içindir.** Yayına almadan önce **[`SECURITY.md`](./SECURITY.md)**'i oku ve hepsini değiştir. Windows + WSL kurulumu: **[`WSL_DOCKER.md`](./WSL_DOCKER.md)**.
+> ⚠️ All default passwords are **for local development only.** Before going public, read
+> **[`SECURITY.md`](./SECURITY.md)** and change them all. Windows + WSL setup:
+> **[`WSL_DOCKER.md`](./WSL_DOCKER.md)**.
 
-### Yol B — Bare-metal (sadece tek kullanıcılı gateway + web, DB yok)
+### Path B — Bare-metal (single-user gateway + web, no DB)
 
 ```bash
 git clone <repo-url> nova && cd nova
-npm run install:all                       # gateway + web bağımlılıkları
-cp gateway/.env.example gateway/.env      # GATEWAY_TOKEN + bir provider key ya da Ollama
+npm run install:all                       # gateway + web deps
+cp gateway/.env.example gateway/.env      # GATEWAY_TOKEN + a provider key or Ollama
 npm run gateway                           # terminal A → http://localhost:8088/v1
 npm run web                               # terminal B → http://localhost:5173
 ```
 
-Ajan modu (web araması + belgelerle sohbet) ve çok kullanıcı/geçmiş/kota için **Yol A** gerekir.
+Agent mode (web search + chat-with-docs) and multi-user/history/quota need **Path A**.
 
-## Proje durumu ve yol haritası
+## Project status & roadmap
 
-Production'a (herkese açık, çok kullanıcılı) taşıma çalışması sürüyor. Nerede kaldığımızı
-ve sıradaki adımı görmek için **[`PROGRESS.md`](./PROGRESS.md)** dosyasına bak. İlgili dokümanlar:
+Work toward a public, multi-user deployment is ongoing. See [`PROGRESS.md`](./PROGRESS.md)
+for the live status and next step. Related docs:
 
-> **Devam kuralı:** Her oturum sonunda `PROGRESS.md` VE bu README'nin
-> "Yapılan fazlar / Kalan işler" bölümleri güncel kalmalı. Yeni oturumda önce
-> `PROGRESS.md` içindeki "Oturum Hafızası / Handoff" ve "SIRADAKİ ADIM" bölümleri okunur.
+- [`PROGRESS.md`](./PROGRESS.md) — current status + next step (start here)
+- [`NOVA_Mimari_Inceleme.md`](./NOVA_Mimari_Inceleme.md) — full architecture review, as-is/to-be, phase map
+- [`DEPLOY.md`](./DEPLOY.md) — Phase 0 deploy runbook (Docker + Caddy/TLS + CI)
+- [`PHASE1.md`](./PHASE1.md) — Phase 1 (multi-user: auth, history, quota)
+- [`PHASE2.md`](./PHASE2.md) — Phase 2 (observability, object storage, billing, K8s/HPA, voice)
+- [`nova-android/README.md`](./nova-android/README.md) — the Android client
 
-- [`PROGRESS.md`](./PROGRESS.md) — güncel durum + sıradaki adım (buradan başla)
-- [`NOVA_Mimari_Inceleme.md`](./NOVA_Mimari_Inceleme.md) — tam mimari inceleme, as-is/to-be, faz yol haritası
-- [`DEPLOY.md`](./DEPLOY.md) — Faz 0 deploy runbook'u (Docker + Caddy/TLS + CI)
-- [`PHASE1.md`](./PHASE1.md) — Faz 1 (çok kullanıcı: auth, geçmiş, kota) + `gateway.mjs` entegrasyon patch'i
-- [`PHASE2.md`](./PHASE2.md) — Faz 2 (gözlemlenebilirlik, object storage, billing, K8s/HPA, voice)
-- [`nova-android/README.md`](./nova-android/README.md) — Android istemciyi Android Studio ile açma ve test etme
+### Phase board
 
-### Faz panosu — nerede kaldık?
+| Phase | Status | Highlights |
+| --- | --- | --- |
+| -1 — Review | ✅ Done | Architecture report, as-is/to-be diagrams, risk + phase map. |
+| 0 — Shippable base | ✅ Done | Dockerfile, Caddy/TLS, production token guard, CI skeleton, deploy runbook. |
+| 1 — Multi-user | ✅ Done | Postgres/Redis, OIDC/JWT, API keys, distributed rate limit, persistent history, quota. |
+| 2 — Scale + product | ✅ Core done | Prometheus `/metrics`, pino logs, object storage `/v1/media`, Stripe billing, K8s/HPA, voice. |
+| 3 — Agent + RAG | ✅ Done | Tool/function calling, SearXNG web search, `doc_search`, pgvector RAG, source badges. |
+| 4A — Artifacts/export | ✅ Done | HTML/SVG/Mermaid preview, artifact download, Markdown/JSON/PDF export, local share link. |
+| 4B — Tools/docs/persona | ✅ Done | PDF/DOCX extraction, opt-in QuickJS `code_run`, persona/prompt library. |
+| 4C — Multimodal + voice queue | ✅ Done | `auto` image routing + `VISION_MODEL`, opt-in remote images, BullMQ voice jobs. |
+| 4D — Repo hygiene + security | ✅ Done | Personal traces removed, CSP/JWT/media/admin hardening, clean git history. |
+| 5A — CI & security automation | ✅ Done | CI Node 20.19+22 matrix, secret scan, npm audit, live smoke; one-command `npm run security`. |
+| 5B — Observability + hardening | ✅ Done | Prometheus agent metrics, opt-in OTLP traces, Grafana auto-provisioning, error webhook, `npm run prod-check`. |
+| 6 — Advanced product + Android | ✅ Done | Scheduled agent tasks · team mode + live progress · personal memory · model eval · PWA · MCP · Aurora UI redesign · workspaces + RBAC · Android Gradle wrapper bundled. |
+| 7 — Collaboration (shared resources) | ✅ Core done | Workspace-scoped knowledge base, memory and scheduled tasks (write = editor/admin). Optional: shared conversations. |
+| 8 — Production hardening + deploy + agent deepening | 🟡 In progress | ✅ Hardened `prod-check` (weak token/default secrets/MCP-TLS) + preflight, loopback-bound panels, `docker-compose.prod.yml`. ✅ Agent deepening: MCP tool introspection, opt-in SSRF-guarded `fetch_url`, agent run history. Next: live-deploy prep. |
 
-**Şu anki işaretçi:** **Faz 5 phase olarak kapandı** (5A CI/güvenlik + 5B gözlemlenebilirlik: metrik + OTLP trace + Grafana auto-provisioning + opt-in hata webhook'u + K8s configmap + `npm run prod-check`; prod toggle'ları deploy-zamanı). **Faz 6 sürüyor** — eklendi: **zamanlanmış/otomatik ajan görevleri** + **çoklu ajan (team mode)**. Bu oturum ayrıca: UI tasarım (hero/sohbet/voice/önizleme), effort→params+model (`ROUTE_*`), TTS wav, gözlemlenebilirlik. Hepsi commit + rebuild bekliyor. Sıradaki Faz 6 adayları: MCP entegrasyonu, Android wrapper.
+### Recent changes
 
-| Faz | Durum | Yaptıklarımız | Kalan / çıkış kriteri |
-| --- | --- | --- | --- |
-| Faz -1 — İnceleme | ✅ Tamam | Mimari rapor, as-is/to-be diyagramları, risk ve faz haritası çıkarıldı. | Yok. |
-| Faz 0 — Gönderilebilir taban | ✅ Tamam | Dockerfile, Caddy/TLS, production token guard, CI iskeleti, deploy runbook'u. | Public release öncesi CI hattı güncellenecek. |
-| Faz 1 — Çok kullanıcı | ✅ Tamam | Postgres/Redis, OIDC/JWT, API key, dağıtık rate limit, kalıcı geçmiş, kota/ölçüm; canlı doğrulandı. | Production için gerçek `ADMIN_USER_IDS`, secret rotation ve Keycloak prod mode. |
-| Faz 2 — Ölçek + ürün | ✅ Temel tamam | Prometheus `/metrics`, pino log, object storage `/v1/media`, Stripe billing, K8s/HPA, voice servisleri. | Full Docker stack smoke testi tekrar yapılacak. |
-| Faz 3 — Ajan + RAG | ✅ Tamam | Tool/function calling, SearXNG web araması, `doc_search`, pgvector RAG, kaynak rozetleri. | Ajan/RAG uçtan uca smoke testleri CI'a eklenecek. |
-| Faz 4A — Artifacts/export | ✅ Tamam | HTML/SVG/Mermaid önizleme, artifact indirme, Markdown/JSON/PDF export, local paylaşım linki. | Yok; ileride UX iyileştirmeleri opsiyonel. |
-| Faz 4B — Araçlar/belge/persona | ✅ Tamam | PDF/DOCX text extraction, default kapalı QuickJS `code_run`, persona/prompt kütüphanesi. | `code_run` sadece local ve bilinçli opt-in kalacak. |
-| Faz 4C — Çok modlu + ses kuyruğu | ✅ Yapıldı (canlı) | `auto` görsel yönlendirme + `VISION_MODEL`, remote image opt-in, BullMQ voice job. **Canlı smoke:** görsel→vision routing + model görseli tarif etti (gemma4); async TTS job ses üretti (Redis+TTS). | `VISION_MODEL`'i kurulu bir vision tag'ine ayarla (default `qwen3.5-omni` çoğu kurulumda yok). |
-| Faz 4D — Public repo hijyeni + güvenlik | ✅ Yapıldı | Kişisel izler temizlendi (nova-agent.jsx default prompt generic), CSP/JWT/media/image/admin/history sertleştirildi, audit 0; git history clean-start ile tek temiz commit'e indirildi ve force-push edildi (`35d7d37`). | Opsiyonel: public öncesi repo'yu silip-yeniden-oluştur (da8bece full-SHA GC garantisi). |
-| Faz 5A — CI & güvenlik otomasyonu | ✅ Tamam | CI Node 20.19+22 matris, secret scan, gateway/web `npm audit`, canlı smoke adımı; `scripts/secret-scan.mjs` + `smoke-live.mjs` + `security-check.mjs`; mock'lu ajan-döngüsü testleri (suite 39). | Birleşik `npm test` / `npm run security` Windows'ta yeşil doğrulanacak. |
-| Faz 5B — Gözlemlenebilirlik + sertleştirme | ✅ Tamam | Prometheus ajan metrikleri + opt-in OTLP trace + Grafana auto-provisioning + opt-in hata webhook'u; K8s configmap güncellendi; `npm run prod-check`. | Prod toggle'ları (Keycloak prod, port kapatma, secret rotation) deploy-zamanı kararı — `SECURITY.md`. |
-| Faz 6 — İleri ürün + Android | ✅ Tamam | ✅ Zamanlanmış/otomatik ajan görevleri · ✅ Çoklu ajan / team mode · ✅ **Team modu canlı ilerleme akışı** (alt-görev+sentez adımları) · ✅ **Kişisel uzun-dönem hafıza** (`/v1/memory`, oto-hatırlama) · ✅ **Model kıyas/eval** (`/v1/eval`) · ✅ **PWA** (manifest + offline service worker) · ✅ **MCP entegrasyonu** (`gateway/lib/mcp.mjs`, `MCP_SERVERS` ile harici araç sunucuları) · ✅ **Aurora UI redesign** (indigo/cyan palet, cam yüzeyler, reduced-motion) · ✅ **Çalışma alanı + RBAC** (`/v1/workspaces`, admin/editör/izleyici) · ✅ **Android Gradle wrapper paketlendi** (`nova-android/`, JDK 17 + Android SDK ile derlenir). | APK derleme kullanıcının makinesinde (JDK 17 + Android SDK). |
-| Faz 7 — İşbirliği (paylaşımlı kaynaklar) | ✅ Temel tamam | RBAC üstüne workspace kapsamı: ✅ **Bilgi tabanı/RAG** (paylaşımlı belgeler, üye araması) · ✅ **Kişisel hafıza** (ortak takım notları) · ✅ **Zamanlanmış görevler** (paylaşımlı otomasyonlar). Hepsi: yazma editör/admin gerektirir, listeleme/arama üye workspace'leri kapsar. | Opsiyonel (sonraya bırakıldı): sohbet/konuşma paylaşımı + global aktif-workspace seçici. |
+A condensed changelog; full per-session detail lives in git history and `PROGRESS.md`.
 
-### Son çalışma özeti — 14 Haziran 2026 (Faz 7 — işbirliği: paylaşımlı kaynaklar)
+- **Phase 8 (hardening + agent):** strengthened `npm run prod-check` (token strength,
+  default/weak infra secrets, multi-user DB/admins, cleartext MCP); gateway refuses to
+  start in production with a too-short `GATEWAY_TOKEN`; internal panels bind `127.0.0.1`
+  only; `docker-compose.prod.yml` overlay (Keycloak `start` mode, required-secret guards).
+  Agent deepening: `GET /v1/mcp/tools` introspection + UI, opt-in `fetch_url` web-page
+  reader (SSRF-guarded), agent run history (`/v1/agent/runs` + UI).
+- **Phase 7 (collaboration):** `documents`/`user_memory`/`scheduled_tasks` gained
+  `workspace_id`; list/search span personal + member workspaces; writes require write role.
+- **Phase 6:** per-model cost in the usage panel, live team-mode progress streaming,
+  personal long-term memory, model eval/comparison, PWA, MCP integration, Aurora UI
+  redesign, workspaces + 3-role RBAC, Android Gradle wrapper.
 
-RBAC (Faz 6) temeli üzerine kaynaklar workspace kapsamına taşındı:
+### Hardware note (local LLM performance)
 
-1. **Bilgi tabanı / RAG:** `documents.workspace_id`; yükleme yazma yetkisi (editör/admin) ister, listeleme + `doc_search` kişisel + üye-workspace belgelerini kapsar, silme sahiplik/rol kontrolü yapar. UI: yükleme hedefi seçici + paylaşım rozeti.
-2. **Kişisel hafıza:** `user_memory.workspace_id` (007); ortak takım notları her sohbette üyelere oto-hatırlatılır; paylaşımlı not yazma/silme yazma yetkisi ister.
-3. **Zamanlanmış görevler:** `scheduled_tasks.workspace_id` (007); paylaşımlı otomasyonlar üyelerce görülür, değişiklik yazma yetkisi ister (`getTaskMeta` + RBAC).
-4. **Doğrulama:** gateway **76/76** test, web build yeşil, secret-scan temiz. Faz 7 temel kapsam (paylaşımlı kaynaklar) kapatıldı; sohbet/konuşma paylaşımı + global aktif-workspace seçici opsiyonel olarak sonraya bırakıldı.
+On a GPU with **8 GB VRAM (e.g. RTX 3070)**, a 14B model at Q4_K_M (~10 GB) does not fully
+fit and Ollama splits it across CPU+GPU, so answers are slower — this is a hardware limit,
+not a NOVA issue. For full-GPU speed pick an 8B-class model; for more capability accept the
+split. Verify placement with `ollama ps` (the `PROCESSOR` column: `100% GPU` vs split).
 
-### Son çalışma özeti — 14 Haziran 2026 (Faz 6 — ürün özellikleri + RBAC + redesign)
-
-Bu oturumda Faz 6 büyük ölçüde kapatıldı (kalan tek madde Android wrapper):
-
-1. **Kullanım panosu (C):** Ayarlar'daki kullanım panelinde model başına maliyet gösterimi.
-2. **Team modu canlı akış (D):** `runTeam` artık `onResult`/`onSynthesize` callback'leri yayar; gateway alt-görev-bitti ve sentez adımlarını SSE `tool_step` olarak stream'ler; UI adımları role bazlı eşleştirir.
-3. **Aurora UI redesign (G):** indigo/cyan palet (token + tüm sabit-kodlu renk literalleri), glassmorphism paneller (sol panel/dock/modal/artifact/AI baloncuk), zenginleşmiş animasyonlu aurora, layout ritmi/yüzen composer/hero, `prefers-reduced-motion`.
-4. **Kişisel uzun-dönem hafıza (E):** `user_memory` tablosu (006) + `/v1/memory` CRUD + her sohbette sistem prompt'una oto-enjeksiyon (hata-toleranslı, `MEMORY_ENABLED`); Ayarlar'da Hafıza paneli. Pure helper'lar test edildi.
-5. **Model kıyas/eval (F):** `POST /v1/eval` aynı promptu birden çok modele paralel koşar (provider client yeniden kullanılır), gecikme/token/maliyet ile döner; kota/rate uygulanır; Ayarlar'da Model Kıyas paneli.
-6. **PWA (A):** web manifest + SVG ikon + same-origin offline service worker (API çağrılarına dokunmaz, sadece prod'da kayıtlı).
-7. **MCP entegrasyonu (B):** zero-dep MCP client (`lib/mcp.mjs`, Streamable-HTTP JSON-RPC, `initialize`→`tools/list`→`tools/call`, SSE/JSON ayrıştırma, `mcp__<server>__<tool>` adlandırma, önbellekli keşif); `runAgent` `extraTools`/`extraDispatch` kabul eder; `MCP_SERVERS` ile ajan+team modunda harici araçlar. Kapalı sunucu ajanı kırmaz.
-8. **Çalışma alanı + RBAC:** `workspaces`/`workspace_members` (006) + saf izin matrisi (`lib/rbac.mjs`: admin>editör>izleyici × read/write/manage) + `/v1/workspaces` yönetim route'ları (son-admin koruması, e-posta daveti, self-leave) + Ayarlar'da çalışma alanı/üye yönetim paneli.
-9. **Doğrulama:** gateway testleri **76/76** (yeni: hafıza, MCP, RBAC ve team-callback pure testleri), web build yeşil, secret-scan temiz (118 dosya). Not: DB/MCP/Ollama gerektiren uçtan-uca akışlar canlı stack'te ayrıca smoke edilmeli; redesign tarayıcıda gözle doğrulanmalı.
-
-### Son çalışma özeti — 13 Haziran 2026 (Faz 5A — CI & güvenlik otomasyonu)
-
-Bu oturumda CI ve güvenlik otomasyonu hattı (Faz 5A) tamamlandı:
-
-1. **CI sertleştirildi** (`.github/workflows/ci.yml`): Node sürüm matrisi `["20.19","22"]`; lockfile'dan `npm ci`; yeni adımlar **secret scan**, **gateway+web `npm audit`** ve **canlı smoke** (`scripts/smoke-live.mjs`); production preflight-fail ve docker imaj job'u korundu.
-2. **Secret scanner** (`scripts/secret-scan.mjs`): sıfır bağımlılık, `git ls-files` ile izlenen dosyalar; sağlayıcı/cloud anahtarları + private key + entropi tabanlı `secret = <değer>` sezgisi; dev placeholder allowlist. Temiz ağaçta 0 bulgu, planted secret'lar yakalanıyor.
-3. **Canlı smoke** (`scripts/smoke-live.mjs`): çalışan gateway'e karşı `/health`, auth zorlaması, `/v1/models` (zorunlu) + `chat`/`agent`/`rag` (opsiyonel). Bare-metal gateway'de doğrulandı.
-4. **Tek komut güvenlik kapısı** (`scripts/security-check.mjs` → `npm run security`): syntax + gateway test + secret-scan + gateway/web audit + web build.
-5. **Ajan/RAG CI-smoke (mock'lu)**: `gateway/test/agent.test.mjs`'e 3 `runAgent` testi — `fetch` mock'u ile araç-çağrı döngüsü, kaynak taşıma; canlı altyapı gerekmez. Suite 36 → **39**.
-6. **Root script'ler**: `test:gateway`, `secret-scan`, `audit`, `security`, `smoke:live`.
-7. **Doğrulama:** sandbox'ta units 21/21, yeni ajan-döngüsü 3/3, secret-scan 0 bulgu, smoke-live canlı OK, `ci.yml` YAML geçerli. Birleşik `npm test` (39) + `npm run security` + `npm run build` **Windows'ta** çalıştırılmalı (web esbuild + mount bayatlığı).
-
-### Son çalışma özeti — 13 Haziran 2026
-
-Bu oturumda public/local paylaşım ve güvenlik sertleştirme hattı kapatıldı:
-
-1. **Public repo hijyeni:** current tree içinde kişisel e-posta/kullanıcı adı/path izleri temizlendi; Keycloak demo kullanıcısı generic `demo@example.local` değerlerine alındı.
-2. **Artifact temizliği:** Vite timestamp dosyaları, kökteki kopya Android dosyası, `README (2).md` ve `nova-android.zip` kaldırıldı; Android kaynakları gerçek `nova-android/` klasörü olarak bırakıldı.
-3. **Dependency güvenliği:** web tarafındaki Vite/esbuild audit açığı `vite@8.0.16` ve `@vitejs/plugin-react@6.0.2` yükseltmesiyle kapatıldı; gateway/web audit sonucu 0 vulnerability.
-4. **Gateway sertleştirme:** public `/health` minimal hale getirildi, production preflight sıkılaştırıldı, JSON/body-limit hataları maskelendi, JWT `sub` kontrolü ve route parametre doğrulamaları eklendi.
-5. **Dosya/görsel güvenliği:** remote image fetch opt-in kalır; private/localhost hedefler, redirect/byte limitleri, image data URL base64 doğrulaması ve `/v1/media` MIME allowlist eklendi.
-6. **Frontend güvenliği:** CSP wildcard kaldırıldı; markdown linkleri yalnız `http`, `https`, `mailto` şemalarıyla tıklanabilir.
-7. **Doğrulama:** `npm.cmd --prefix gateway test` → 36/36, `npm.cmd --prefix gateway audit` → 0 vulnerability, `npm.cmd --prefix web audit` → 0 vulnerability, `npm.cmd run build` geçti.
-
-Kalan önemli not: current tree temiz; fakat eski git commit geçmişinde kişisel test verisi/path izleri bulundu. Public release mevcut history ile yapılmamalı; önce temiz başlangıç/squash/history rewrite seçilmeli.
-
-### Sıradaki faz planı — adım adım
-
-**Faz 4D çıkışı — public release temizliği** (runbook hazır: [`HISTORY_CLEANUP.md`](./HISTORY_CLEANUP.md))
-
-1. ✅ Strateji seçildi: **clean-start (orphan)** — tek commit `da8bece` hem içerik hem author e-postası (kişisel gmail adresi) açısından düşürülmeli.
-2. ✅ Tree ek-temizlendi (nova-agent.jsx default prompt generic); timestamp dosyaları zaten silinmiş, clean-start onları almaz.
-3. **Kullanıcı (Windows/WSL):** `bash scripts/clean-history.sh` (veya `clean-history.ps1`) — backup + `CONFIRM` + secret-scan kapısı + orphan tek-commit; push öncesi durur.
-4. **Kullanıcı:** `git push --force origin main` **veya** GitHub repo'yu silip yeniden oluşturup push (da8bece cache/fork/PR'da kalabilir).
-5. **Doğrula:** `da8bece` commit URL'i 404 + `npm run secret-scan` temiz; ardından repo public yapılabilir.
-
-**Faz 4C çıkışı — çok modlu ve ses canlı doğrulama**
-
-1. WSL/Docker ortamında compose stack'i kaldır.
-2. Migrate, Keycloak login, `/v1/models`, chat, RAG belge yükleme ve `/v1/media` smoke testlerini yap.
-3. Ollama vision modeli (`qwen3.5-omni` veya Qwen 3.6 sınıfı) ile data URL görsel testini yap.
-4. `REMOTE_IMAGE_URLS_ENABLED=1` ile güvenli remote image URL senaryosunu test et; private/localhost bloklarının çalıştığını doğrula.
-5. Redis + Whisper + TTS servisleri ayaktayken `VOICE_QUEUE_ENABLED=1` ile async STT/TTS job oluşturma, polling ve audio indirme akışını test et.
-
-**Faz 5A — CI ve güvenlik otomasyonu ✅ (tamamlandı)**
-
-1. ✅ CI Node 20.19+ üstüne taşındı (matris: `20.19`, `22`).
-2. ✅ CI'a gateway test, web build, gateway/web `npm audit` ve secret scan adımları eklendi.
-3. ✅ Ajan/RAG smoke: mock'lu `runAgent` testleri CI'da koşuyor; ayrıca canlı stack için `scripts/smoke-live.mjs`.
-4. ✅ Tek komut güvenlik kontrol listesi: `npm run security` (`scripts/security-check.mjs`).
-
-Kalan doğrulama: Windows'ta `npm.cmd run security` ve `npm.cmd --prefix gateway test` (39) yeşil çalıştır.
-
-**Faz 5B — production sertleştirme kararı**
-
-1. Local-first/self-hosted kapsamını README ve SECURITY içinde koru.
-2. İnternete açılacak kurulumlar için Keycloak prod mode, TLS, secret rotation, port kapatma ve `ALLOW_MODELS` checklistini ayrı tut.
-3. Sentry/OpenTelemetry trace ve sürümlü Grafana dashboardlarını planla.
-4. K8s/HPA manifestlerini ajan, RAG ve voice servisleriyle güncelle.
-
-**Faz 6 — Android ve ileri ürün**
-
-1. `nova-android/` içinde Gradle wrapper jar üret.
-2. Android Studio/Gradle test-build smoke yap.
-3. Android sonucu README/PROGRESS'e işle.
-4. Sonra çoklu ajan, otomasyon, takım/çalışma alanı paylaşımı ve RBAC fikir havuzundan seçerek ilerle.
-
-### Donanım notu (yerel LLM performansı)
-
-Bu makinede GPU **RTX 3070 (8 GB VRAM)**. Modellerin yerleşimi (`ollama ps` → PROCESSOR sütunu):
-
-| Model | Boyut | Yerleşim | Tipik hız |
+| Model | Footprint | Placement | Speed |
 |---|---|---|---|
-| `gemma4:e2b` | 7.2 GB | **%100 GPU** | en hızlı |
-| `gemma4:e4b` | 9.6 GB | çoğunlukla GPU (hafif taşar) | hızlı |
-| `gemma4:latest` (varsayılan) | 10 GB | **~%32 GPU / %68 CPU** | ~19 sn / orta |
-
-`gemma4:latest` 8 GB VRAM'e tam sığmadığı için Ollama modeli CPU+GPU böler — bu yüzden VRAM tam dolmaz ve cevap görece yavaştır. **Bu bir yazılım/NOVA sorunu değil, donanım sınırıdır.** Hız önemliyse menüden `gemma4:e2b` seç (tamamen GPU'da koşar). Doğrulama: bir istek atarken `ollama ps` çalıştır; `100% GPU` = tam GPU, `XX%/YY% CPU/GPU` = bölünmüş.
-
-## 🗺️ Yol Haritası (Roadmap)
-
-### Faz 3 — Ajan yetenekleri ✅ (11 Haz 2026 canlı doğrulandı)
-- ✅ **Tool/function calling döngüsü** — gateway `agent:true` ile yerel modelin araç çağrılarını yürütür (`lib/agent.mjs` + `lib/tools.mjs`). Araçlar: `web_search`, `doc_search`, `calculator`, `current_time`; opsiyonel `code_run` QuickJS sandbox (`CODE_TOOL_ENABLED=1`). UI'da alt bardaki **Ajan** toggle + araç-kullanım kartı. (Qwen/Titus araç çağırır; Gemma zayıf.)
-- ✅ **Web araması (SearXNG)** — self-hosted meta arama (`searxng/`); model güncel bilgiye kaynak linkleriyle erişir. Test: "Ankara hava durumu" → `web_search` çağrıldı, MGM kaynaklı cevap.
-- ✅ **RAG / belgelerle sohbet** — `pgvector` (migration `003_knowledge.sql`) + `nomic-embed-text` embeddings (`lib/embed.mjs`, `lib/rag.mjs`, `routes/knowledge.mjs`). Ayarlar'dan belge yükle (metin/.txt/.md/.pdf/.docx), ajan `doc_search` ile kaynak göstererek cevaplar. Test: gizli kod "ZÜMRÜT-7" belgeden bulundu.
-
-### Sıradaki (Faz 4 — ürünleşme & üretkenlik)
-- ✅ **Araç genişletme / Faz 4B** — kaynak rozetleri + `doc_search` için PDF/DOCX metin çıkarımı + default kapalı QuickJS `code_run` sandbox + persona/prompt kütüphanesi tamamlandı.
-- ✅ **Artifacts paneli** — HTML/SVG/Mermaid önizleme + indirme hazır; Mermaid CDN'siz yerel render ediliyor; hata/boş içerik fallback'i ve scriptsiz sandbox doğrulandı.
-- ✅ **Sohbet dışa aktarma + paylaşım** — Markdown/JSON indirme, PDF olarak yazdır/kaydet ve hash tabanlı local paylaşım/import linki hazır.
-- ✅ **Persona/prompt kütüphanesi** — Ayarlar'da Genel NOVA, Kod İnceleyici, SOC Analisti, Mimari Planlayıcı, Yerel LLM Koçu ve Özel Persona kartları var; seçim header'a yansır ve IndexedDB'de kalıcıdır.
-- ✅ **Çok modlu + ses kuyruğu** — gateway `auto` görsel yönlendirme (`VISION_MODEL`, `ROUTE_VISION`); remote image URL fetch opt-in; BullMQ ses job endpoint'i + UI kuyruk modu. **Canlı doğrulandı (13 Haz):** görsel istek vision modele yönlendi ve model görseli doğru tarif etti; async TTS job kuyruğa girip ses üretti. (`scripts/smoke-live.mjs` ile `SMOKE_VISION=1`/`SMOKE_VOICE=1`.)
-
-### Olgunlaştırma (Faz 5 — prod sertleştirme & güvenlik)
-- 🟡 **Güvenlik:** ✅ `npm run prod-check` (prod env doğrulaması) + SECURITY.md checklist. Deploy-zamanı kararları: Keycloak prod modu (`start`), varsayılan parolaları rotate, portları iç ağa kapat, `ALLOW_MODELS`, OIDC issuer env/config. (Bkz. [`SECURITY.md`](./SECURITY.md).)
-- ✅ **Gözlemlenebilirlik:** ajan/araç Prometheus metrikleri (`nova_agent_runs_total`, `nova_agent_tool_calls_total{tool,status}`, `nova_agent_tool_duration_seconds{tool}`) + Grafana panelleri (`monitoring/grafana-nova-gw.json`) + **opt-in zero-dep OpenTelemetry (OTLP/HTTP) trace exporter** (`OTEL_EXPORTER_OTLP_ENDPOINT`; chat başına span) + **Grafana auto-provisioning** (datasource + dashboard otomatik yüklenir) + **opt-in hata raporlama webhook'u** (`ERROR_WEBHOOK_URL` — Sentry relay/Slack/collector).
-- 🟡 **Kod kalitesi:** ✅ ajan-döngüsü smoke testleri (mock'lu) CI'da koşuyor + tek komut `npm run security`; kalan: provider modülü için daha geniş integration testleri.
-- ✅ **Dağıtım:** CI'da secret scan + audit + canlı smoke; K8s configmap ajan/RAG/voice/scheduler/OTEL/routing knob'larıyla güncellendi (prod'da voice/searxng managed veya ayrı manifest).
-- ✅ **Android istemci:** kaynaklar `nova-android/` klasöründe; Gradle wrapper (jar + `gradlew`, 8.9) paketlendi → JDK 17 + Android SDK ile `./gradlew assembleDebug` derler (APK build kullanıcının makinesinde).
-
-### Fikir havuzu (Faz 6+)
-- ✅ **Zamanlanmış/otomatik ajan görevleri** — eklendi: `gateway/lib/scheduler.mjs` + `/v1/scheduled` (CRUD) + opt-in in-process runner (`SCHEDULER_ENABLED`) + Ayarlar paneli. Tekrarlayan ajan görevleri (`every:30m` / `daily:09:00`) due olunca `runAgent` ile çalışır, son sonuç saklanır.
-- ✅ **Çoklu ajan iş birliği (team mode)** — eklendi: `gateway/lib/multiagent.mjs` (`runTeam`/`mapLimit`/`parsePlan`) + `team:true` chat dalı (planla → paralel alt-ajan → sentez) + dock'ta **Takım** toggle. `TEAM_CONCURRENCY` ile paralellik.
-- ✅ **MCP entegrasyonu** — `gateway/lib/mcp.mjs` (Streamable-HTTP JSON-RPC client, `initialize`→`tools/list`→`tools/call`, sunucu-kapsamlı araç adları `mcp__<server>__<tool>`, önbellekli keşif). `MCP_SERVERS` ile opt-in; ajan ve team modunda harici araçlar otomatik kullanılabilir. Kapalı sunucu ajanı kırmaz.
-- ✅ **Kişisel uzun-dönem hafıza** — `user_memory` tablosu + `/v1/memory` + her sohbette sistem prompt'una oto-enjeksiyon (`MEMORY_ENABLED`); Ayarlar'da Hafıza paneli.
-- ✅ **Model kıyas/eval** — `POST /v1/eval` aynı promptu birden çok modele paralel gönderir, gecikme/token/maliyet ile döner; Ayarlar'da Model Kıyas paneli.
-- ✅ **PWA** — yüklenebilir uygulama (manifest + same-origin offline service worker; API çağrılarına dokunmaz).
-- ✅ **Aurora UI redesign** — indigo/cyan palet, glassmorphism paneller, animasyonlu aurora, `prefers-reduced-motion`.
-- ✅ **Çalışma alanı + RBAC** — `workspaces`/`workspace_members` + saf izin matrisi (`lib/rbac.mjs`, admin/editör/izleyici) + `/v1/workspaces` yönetim route'ları + Ayarlar paneli. Paylaşılan bilgi tabanı (RAG) için `documents.workspace_id` kolonu hazır.
-- Sırada: sohbet/konuşma paylaşımı (opsiyonel), üretim sertleştirme + canlı deploy, ajan derinleştirme.
-
-> Reboot sonrası: bir WSL penceresi aç ve `docker compose -f docker-compose.yml -f docker-compose.faz2.yml up -d` çalıştır (docker servisi otomatik başlar, compose native kurulu). WSL kurulum runbook'u: [`WSL_DOCKER.md`](./WSL_DOCKER.md).
+| `qwen3:8b` | ~5.2 GB | **100% GPU** | fast |
+| `qwen3:14b` | ~10 GB | split CPU/GPU | medium, strongest tool-calling |
+| `gemma4:e2b` | ~7.2 GB | **100% GPU** | fastest |
 
 ## Repository layout
 
 ```
 Nova_Agent_AI/
 ├── package.json            # convenience scripts that drive both packages
-├── .gitignore
-├── gateway.mjs             # thin redirect → gateway/gateway.mjs (kept for old commands)
+├── docker-compose.yml      # base stack (Postgres, Redis, gateway, Caddy)
+├── docker-compose.faz2.yml # phase-2 add-ons (Keycloak, MinIO, SearXNG, Prometheus, Grafana, voice)
+├── docker-compose.prod.yml # production hardening overlay
 ├── gateway/                # the API gateway (Node, no build step)
-│   ├── gateway.mjs         # hardened server: auth, CORS allowlist, rate limit, .env
-│   ├── package.json
+│   ├── gateway.mjs         # hardened server: auth, CORS allowlist, rate limit
+│   ├── lib/                # agent loop, mcp, rag, memory, rbac, prodcheck, …
+│   ├── routes/             # knowledge, memory, scheduled, workspaces, agent runs, …
+│   ├── migrations/         # SQL migrations (001…008)
 │   └── .env.example        # copy to .env and fill in
-└── web/                    # the browser UI (Vite + React)
-    ├── index.html
-    ├── vite.config.js
-    ├── package.json
-    └── src/
-        ├── main.jsx        # React entry — mounts <App/>
-        └── nova-agent.jsx  # the full UI component
+├── web/                    # the browser UI (Vite + React + PWA)
+│   └── src/nova-agent.jsx  # the full UI component
+└── nova-android/           # native Android client (Kotlin + Compose)
 ```
 
 ## Prerequisites
 
-- **Node.js 20.19 or newer** (`node -v`). The web build uses Vite 8, whose engine requirement is `^20.19.0 || >=22.12.0`.
+- **Node.js 20.19 or newer** (`node -v`). The web build uses Vite 8 (`^20.19.0 || >=22.12.0`).
 - At least one model backend:
-  - **Local, no key:** [Ollama](https://ollama.com) running on `http://localhost:11434`.
+  - **Local, no key:** [Ollama](https://ollama.com) on `http://localhost:11434`.
   - **Cloud:** an API key for Anthropic, Gemini, and/or OpenAI.
 - (Optional) OpenAI-compatible **Whisper** (STT) and **TTS** servers for real voice mode.
-
-## Quick start
-
-From the project root (`Nova_Agent_AI/`):
-
-```bash
-# 1. Install dependencies for both packages
-npm run install:all
-
-# 2. Configure the gateway
-cd gateway
-cp .env.example .env
-# open .env and set GATEWAY_TOKEN + at least one provider key (or run Ollama)
-cd ..
-
-# 3. Start the gateway (terminal A)
-npm run gateway        # → http://localhost:8088/v1
-
-# 4. Start the UI (terminal B)
-npm run web            # → http://localhost:5173
-```
-
-Open <http://localhost:5173>, click the gear icon, choose the **Gateway** provider
-(base URL `http://localhost:8088/v1`), paste your `GATEWAY_TOKEN` into the key field,
-and start chatting. Leave the model as **`auto`** to let the gateway pick a model based
-on effort and context length.
 
 ### Build for production
 
@@ -368,83 +222,62 @@ with `ROUTE_FAST` / `ROUTE_BALANCED` / `ROUTE_DEEP` / `ROUTE_MAX` in `.env`.
 | `POST` | `/v1/eval` | run one prompt against several models; returns output + latency/tokens/cost | token |
 | `GET/POST/DELETE` | `/v1/memory` | personal long-term memory notes (auto-recalled into the system prompt) | token |
 | `GET/POST/PATCH/DELETE` | `/v1/workspaces[...]` | workspaces + RBAC (admin/editor/viewer) + member management | token |
+| `GET/DELETE` | `/v1/agent/runs` | agent/team run history | token |
+| `GET` | `/v1/mcp/tools` | configured MCP servers + discovered tools | token |
 | `GET/POST/PATCH/DELETE` | `/v1/scheduled` | scheduled/automated agent tasks | token |
 | `GET/POST/DELETE` | `/v1/knowledge` | RAG knowledge base (upload/list/delete) | token |
-| `POST` | `/stt` | speech-to-text (`{audio, mime, language}` base64) | token |
-| `POST` | `/tts` | text-to-speech (returns audio bytes) | token |
+| `POST` | `/stt` · `/tts` | speech-to-text / text-to-speech | token |
 
 ## Security
 
 This project handles API keys and arbitrary upstream calls, so the gateway ships with
-several protections. **Review these before exposing it beyond `localhost`.**
+several protections. **Review these before exposing it beyond `localhost`** — and read
+[`SECURITY.md`](./SECURITY.md) in full.
 
 - **Keep keys on the server.** Prefer the **Gateway** provider in the UI so provider keys
-  live only in `gateway/.env` and never reach the browser. The UI *can* call Anthropic/Gemini/OpenAI
-  directly with a key you type in, but that key is then stored in the browser and sent from the
-  client — use that mode only for local experimentation.
+  live only in `gateway/.env` and never reach the browser.
 - **`GATEWAY_TOKEN` (bearer auth).** When set, every request except `/health` must send
-  `Authorization: Bearer <token>`. The comparison is constant-time. **It is blank by default,
-  which leaves the gateway open** — generate one and set it:
+  `Authorization: Bearer <token>` (constant-time compare). Blank by default = open. In
+  production the gateway refuses to start without it (or a too-short one). Generate one:
   ```bash
   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
   ```
-- **CORS allowlist (`ALLOW_ORIGINS`).** Only the listed origins may call the gateway from a
-  browser (defaults to the Vite dev/preview origins). `*` allows any origin and is for local dev only.
-- **Rate limiting (`RATE_MAX` / `RATE_WINDOW_MS`).** Per-IP fixed window (120 req/min by default);
-  set `RATE_MAX=0` to disable.
-- **Model allowlist (`ALLOW_MODELS`).** Restrict which providers/models can be invoked,
-  e.g. `ollama/*,gemini/gemini-2.5-flash`.
-- **Input limits.** `BODY_LIMIT` caps request size (25 MB by default, to allow image data URLs),
-  `MAX_MESSAGES` caps message count, `MAX_MESSAGE_CHARS` caps total text size, and
-  `REQ_TIMEOUT_MS` aborts slow upstreams.
-- **Media/image validation.** `/v1/media` accepts only allowlisted MIME types and valid base64;
-  remote image URL fetch is opt-in, blocks private/localhost targets, enforces redirects and byte limits,
-  and validates data URLs before sending them to vision providers.
-- **Minimal health output.** `/health` is public but returns only `{ ok: true }` unless
-  `HEALTH_DETAILS_ENABLED=1` is set outside production.
-- **Frontend CSP/link safety.** The hosted UI ships with a restrictive CSP; markdown links only allow
-  `http:`, `https:` and `mailto:` schemes.
-- **Hardening defaults.** `X-Powered-By` is disabled, baseline security headers are sent,
-  and in `NODE_ENV=production` upstream error details are hidden from clients.
-- **Secrets hygiene.** `.gitignore` excludes `.env` and `node_modules`. Never commit a real `.env`.
-- **`TRUST_PROXY`.** Leave at `0` unless the gateway sits behind a trusted reverse proxy
-  (only then should `X-Forwarded-For` be honored for rate-limit IPs).
+- **CORS allowlist (`ALLOW_ORIGINS`).** Only listed origins may call the gateway. `*` = dev only.
+- **Rate limiting (`RATE_MAX` / `RATE_WINDOW_MS`)** — per-IP + per-user; `RATE_MAX=0` disables.
+- **Model allowlist (`ALLOW_MODELS`)** — e.g. `ollama/*,gemini/gemini-2.5-flash`.
+- **Input limits** — `BODY_LIMIT`, `MAX_MESSAGES`, `MAX_MESSAGE_CHARS`, `REQ_TIMEOUT_MS`.
+- **Media/image validation** — `/v1/media` MIME allowlist + base64 check; remote image fetch
+  is opt-in and blocks private/localhost targets with redirect/byte limits.
+- **Agent tools** — `web_search` hits internal SearXNG only; `calculator` is a strict-allowlist
+  safe eval; `code_run` (QuickJS) and `fetch_url` (SSRF-guarded) are off by default.
+- **Minimal health output** — `/health` returns only `{ ok: true }` in production.
+- **Frontend CSP/link safety** — restrictive CSP; markdown links only `http`/`https`/`mailto`.
+- **Hardening defaults** — `X-Powered-By` off, baseline security headers, upstream error
+  details hidden in production. `TRUST_PROXY=1` only behind a trusted TLS proxy.
 
-### Recommended production checklist
+### Production checklist (one command)
 
-1. Set a strong `GATEWAY_TOKEN`.
-2. Set `ALLOW_ORIGINS` to your exact UI origin(s) — never `*`.
-3. Set `NODE_ENV=production`.
-4. Put the gateway behind TLS (a reverse proxy such as Caddy/Nginx) and set `TRUST_PROXY=1` there.
-5. Consider an `ALLOW_MODELS` allowlist to control cost and exposure.
-
-### Security & quality checks (one command)
-
-Run the full gate before opening a PR or a public release:
+Source your prod `.env`, then:
 
 ```bash
+npm run prod-check    # validates token strength, CORS, default/weak secrets, MCP-TLS, …
 npm run security      # syntax + gateway tests + secret scan + gateway/web audit + web build
 ```
 
-Individual checks are also available:
+For production, layer the hardening overlay (Keycloak `start` mode, required-secret guards):
 
 ```bash
-npm run secret-scan   # scan tracked files for leaked keys/tokens (also a CI step)
+docker compose -f docker-compose.yml -f docker-compose.faz2.yml -f docker-compose.prod.yml up -d
+```
+
+Other checks:
+
+```bash
+npm run secret-scan   # scan tracked files for leaked keys/tokens
 npm run audit         # npm audit for gateway + web (moderate level)
-npm --prefix gateway test   # gateway unit + agent-loop tests (69)
-npm run smoke:live    # end-to-end smoke against a RUNNING gateway (see below)
+npm --prefix gateway test   # gateway unit + agent-loop tests
+npm run smoke:live    # end-to-end smoke against a RUNNING gateway
 ```
-
-`smoke:live` checks `/health`, auth enforcement and `/v1/models` against a live gateway, with
-optional chat/agent/RAG checks:
-
-```bash
-GATEWAY_URL=http://localhost:8088 GATEWAY_TOKEN=<token> \
-  SMOKE_AGENT=1 SMOKE_RAG=1 npm run smoke:live
-```
-
-CI (`.github/workflows/ci.yml`) runs install → secret scan → tests → build → audit → live smoke
-on Node 20.19 and 22, plus the production-preflight guard and the gateway Docker image build.
 
 ## Configuration reference
 
@@ -458,68 +291,46 @@ All gateway settings are environment variables (see `gateway/.env.example` for t
 | `RATE_MAX` / `RATE_WINDOW_MS` | `120` / `60000` | per-IP rate limit |
 | `ALLOW_MODELS` | *(all)* | model allowlist, supports `provider/*` |
 | `BODY_LIMIT` | `25mb` | max JSON body size |
-| `MAX_MESSAGE_CHARS` | `100000` | max total text bytes per chat request |
-| `MAX_DOC_BYTES` | `1048576` | max extracted knowledge text size |
-| `MAX_DOC_FILE_BYTES` | `10485760` | max raw PDF/DOCX/text upload size for knowledge ingest |
-| `MAX_MEDIA_BYTES` | `26214400` | max `/v1/media` upload size |
-| `ALLOWED_MEDIA_MIME_TYPES` | image/audio/video/pdf allowlist | comma-separated MIME allowlist for `/v1/media` |
-| `HEALTH_DETAILS_ENABLED` | `0` | expose non-production `/health` runtime details when set to `1` |
-| `CODE_TOOL_ENABLED` | `0` | enable optional local-only QuickJS `code_run` tool (`1` to enable) |
-| `CODE_TOOL_TIMEOUT_MS` | `1000` | max code sandbox runtime per call |
-| `CODE_TOOL_MEMORY_MB` | `16` | max QuickJS sandbox heap |
-| `CODE_TOOL_MAX_CODE_CHARS` / `CODE_TOOL_MAX_OUTPUT_CHARS` | `6000` / `4000` | code and output limits |
-| `MAX_MESSAGES` | `400` | max messages per request |
-| `REQ_TIMEOUT_MS` | `60000` | upstream timeout |
-| `MAX_RETRIES` | `2` | retries on 429/5xx/network errors |
+| `MAX_MESSAGE_CHARS` / `MAX_MESSAGES` | `100000` / `400` | per-request text + message caps |
+| `MAX_DOC_BYTES` / `MAX_DOC_FILE_BYTES` | `1048576` / `10485760` | knowledge text + raw upload caps |
+| `MAX_MEDIA_BYTES` / `ALLOWED_MEDIA_MIME_TYPES` | `26214400` / allowlist | `/v1/media` caps |
+| `HEALTH_DETAILS_ENABLED` | `0` | expose non-prod `/health` details when `1` |
+| `CODE_TOOL_ENABLED` (+`_TIMEOUT_MS`/`_MEMORY_MB`/`_MAX_*`) | `0` | opt-in QuickJS `code_run` tool + limits |
+| `FETCH_TOOL_ENABLED` / `FETCH_TOOL_MAX_BYTES` | `0` / `2000000` | opt-in SSRF-guarded `fetch_url` tool |
+| `REQ_TIMEOUT_MS` / `MAX_RETRIES` | `60000` / `2` | upstream timeout + retries |
 | `TRUST_PROXY` | `0` | trust reverse-proxy headers (`1` to enable) |
 | `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` / `OPENAI_API_KEY` | *(empty)* | provider keys |
 | `OLLAMA_URL` | `http://localhost:11434` | local Ollama base URL |
 | `DEFAULT_MODEL` | `ollama/qwen3:14b` | what `auto` falls back to |
-| `VISION_MODEL` | `ollama/qwen3.5-omni:latest` | image-containing `auto` requests route here; set to the exact local Qwen 3.5/3.6 tag you installed |
-| `ROUTE_VISION` | *(unset)* | optional override for image-containing `auto` requests |
-| `REMOTE_IMAGE_URLS_ENABLED` | `0` | fetch remote image URLs for local/non-OpenAI vision providers; private hosts are blocked |
-| `REMOTE_IMAGE_MAX_BYTES` | `10485760` | max remote image download size |
+| `VISION_MODEL` / `ROUTE_VISION` | `ollama/qwen3.5-omni:latest` / *(unset)* | image-request routing |
+| `REMOTE_IMAGE_URLS_ENABLED` / `REMOTE_IMAGE_MAX_BYTES` | `0` / `10485760` | remote image fetch (private hosts blocked) |
 | `ROUTE_FAST/BALANCED/DEEP/MAX` | *(unset)* | per-effort model overrides |
 | `OPENCLAW_URL` / `OPENCLAW_TOKEN` / `OPENCLAW_PATH` | localhost defaults | OpenClaw agent layer |
-| `WHISPER_URL` / `WHISPER_MODEL` | localhost defaults | speech-to-text |
-| `TTS_URL` / `TTS_MODEL` / `TTS_VOICE` | localhost defaults | text-to-speech |
-| `VOICE_QUEUE_ENABLED` | `0` | enable BullMQ/Redis async STT/TTS jobs |
-| `VOICE_QUEUE_CONCURRENCY` | `2` | async voice worker concurrency |
-| `VOICE_QUEUE_RESULT_TTL_SEC` | `3600` | how long completed voice job results stay available |
-| `VOICE_QUEUE_MAX_AUDIO_BYTES` | `26214400` | max queued STT audio payload size |
+| `WHISPER_URL` / `TTS_URL` / `TTS_MODEL` / `TTS_VOICE` | localhost defaults | voice STT/TTS |
+| `VOICE_QUEUE_ENABLED` (+`_CONCURRENCY`/`_RESULT_TTL_SEC`/`_MAX_AUDIO_BYTES`) | `0` | async BullMQ/Redis voice jobs |
 | `TTS_MAX_INPUT_CHARS` | `8000` | max TTS input length |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | *(unset)* | opt-in OTLP/HTTP trace export base URL (traces sent to `…/v1/traces`); unset = tracing off |
-| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | *(unset)* | full traces URL (overrides the base above) |
-| `OTEL_SERVICE_NAME` | `nova-gateway` | `service.name` on exported spans |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` / `_TRACES_ENDPOINT` / `OTEL_SERVICE_NAME` | *(unset)* / *(unset)* / `nova-gateway` | opt-in OTLP/HTTP tracing |
 | `TEAM_CONCURRENCY` | `3` | parallel sub-agents in team mode |
-| `MEMORY_ENABLED` | `1` | personal memory recall + writes (`0` disables) |
-| `MEMORY_MAX_ITEMS` / `MEMORY_MAX_CHARS` | `60` / `500` | max notes recalled / max chars per note |
-| `EVAL_CONCURRENCY` / `EVAL_MAX_MODELS` | `3` / `6` | model-comparison parallelism / max models per request |
-| `MCP_SERVERS` | *(unset)* | external MCP tool servers (JSON array or `name=url` list); opt-in |
-| `MCP_CACHE_MS` | `300000` | how long each MCP server's tool list is cached |
+| `MEMORY_ENABLED` / `MEMORY_MAX_ITEMS` / `MEMORY_MAX_CHARS` | `1` / `60` / `500` | personal memory recall + limits |
+| `EVAL_CONCURRENCY` / `EVAL_MAX_MODELS` | `3` / `6` | model-comparison parallelism + cap |
+| `MCP_SERVERS` / `MCP_CACHE_MS` | *(unset)* / `300000` | external MCP tool servers (opt-in) + tool-list cache |
 
 ## Voice mode
 
 The UI supports browser speech recognition out of the box. For higher-quality real STT/TTS,
 run OpenAI-compatible servers and point `WHISPER_URL` / `TTS_URL` at them (the UI calls
-`/stt` and `/tts` on the gateway, which proxies to those servers). Enable "real voice" in the
-UI settings and set the STT/TTS URLs to `http://localhost:8088/stt` and `http://localhost:8088/tts`.
-
-For longer local voice jobs, set `VOICE_QUEUE_ENABLED=1` with Redis available. The gateway then
-exposes `POST /v1/voice/jobs`, `GET /v1/voice/jobs/:id`, and `GET /v1/voice/jobs/:id/audio`.
-In the UI, enable **Gerçek ses** and **Kuyruk**; the default job endpoint is `/v1/voice/jobs`.
+`/stt` and `/tts` on the gateway, which proxies to those servers). For longer local voice
+jobs, set `VOICE_QUEUE_ENABLED=1` with Redis available; the gateway then exposes
+`POST /v1/voice/jobs`, `GET /v1/voice/jobs/:id`, and `GET /v1/voice/jobs/:id/audio`.
 
 ## Troubleshooting
 
-- **`401 unauthorized`** — `GATEWAY_TOKEN` is set on the gateway but the UI isn't sending it.
-  Paste the token into the Gateway provider's key field in the UI settings.
-- **CORS error in the browser console** — the UI origin isn't in `ALLOW_ORIGINS`. Add it
-  (e.g. `http://localhost:5173`) and restart the gateway.
-- **Ollama "connection refused"** — start it with browser access allowed:
-  `OLLAMA_ORIGINS=* ollama serve`.
-- **`429 rate limit exceeded`** — you hit `RATE_MAX`; raise it or wait for the window to reset.
-- **Empty/garbled stream** — confirm the chosen provider's key is set in `gateway/.env`
-  and the model id exists for that provider.
+- **`401 unauthorized`** — `GATEWAY_TOKEN` is set but the UI isn't sending it. Paste the token
+  into the Gateway provider's key field in Settings.
+- **CORS error** — the UI origin isn't in `ALLOW_ORIGINS`. Add it and restart the gateway.
+- **Ollama "connection refused"** — start it with `OLLAMA_ORIGINS=* ollama serve`.
+- **`429 rate limit exceeded`** — you hit `RATE_MAX`; raise it or wait for the window.
+- **Empty/garbled stream** — confirm the provider key is set and the model id exists.
 
 ## License
 
