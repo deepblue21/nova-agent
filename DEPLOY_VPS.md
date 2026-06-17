@@ -51,6 +51,8 @@ Export the deploy-time variables consumed by compose / Caddy (put these in a roo
 ```ini
 DOMAIN=nova.example.com
 KC_HOSTNAME=https://auth.example.com
+KC_HOSTNAME_HOST=auth.example.com
+CSP_CONNECT_SRC='self'
 KEYCLOAK_ADMIN=novaadmin
 KEYCLOAK_ADMIN_PASSWORD=<STRONG>
 POSTGRES_PASSWORD=<STRONG_PG_PW>
@@ -79,20 +81,12 @@ default/weak secrets (Postgres/Keycloak/MinIO), multi-user DB/admins, and cleart
 npm --prefix web ci && npm --prefix web run build   # → web/dist (Caddy serves it)
 ```
 
-## 4. Add the Keycloak route to Caddy
+## 4. Verify the Keycloak route
 
-Append an auth-subdomain block to `Caddyfile` so the browser can reach Keycloak over
-TLS (Keycloak itself stays loopback-only on the host):
-
-```caddy
-{$KC_HOSTNAME_HOST:auth.localhost} {
-	encode gzip
-	reverse_proxy keycloak:8081
-}
-```
-
-Set `KC_HOSTNAME_HOST=auth.example.com` in the root `.env`. (Caddy reaches `keycloak:8081`
-over the internal Docker network; the public `127.0.0.1:8081` host bind is only for admin.)
+`Caddyfile` already includes an auth-subdomain route. Set
+`KC_HOSTNAME_HOST=auth.example.com` in the root `.env` (host only, no `https://`).
+Caddy reaches `keycloak:8081` over the internal Docker network; the public
+`127.0.0.1:8081` host bind is only for local/admin access.
 
 ## 5. Bring up the hardened stack
 
@@ -110,26 +104,29 @@ Encrypt) on first start — make sure DNS already resolves to the VPS.
 
 ## 6. First admin user
 
+Run the bootstrap command, note the printed user id, put it in `ADMIN_USER_IDS` in
+`gateway/.env`, then restart the gateway.
+
 ```bash
 docker compose exec gateway node scripts/bootstrap-user.mjs you@example.com 1000
-# note the printed user id → put it in ADMIN_USER_IDS in gateway/.env, then:
 docker compose up -d gateway
 ```
 
-In Keycloak admin (`https://auth.example.com`, the bootstrap admin you set): create real
-users / configure the `nova` realm, and **delete the demo user** (`demo@example.local`)
-shipped in `keycloak/nova-realm.json`.
+In Keycloak admin (`https://auth.example.com`, the bootstrap admin you set), create real
+users and configure the `nova` realm before exposing the service. The tracked realm import
+does not include a default user or password.
 
 ## 7. Verify
 
 ```bash
 curl -fsS https://nova.example.com/health
 curl -fsS https://nova.example.com/v1/models -H "Authorization: Bearer <token-or-skip-if-OIDC>"
-docker compose ps         # all healthy
+docker compose ps
 docker compose logs -f gateway
 ```
 
-Open `https://nova.example.com` → ⚙ Settings → Sign in with Keycloak → chat.
+Confirm that every service is healthy. Then open `https://nova.example.com`, go to
+Settings, sign in with Keycloak, and chat.
 
 ## 8. Operations
 

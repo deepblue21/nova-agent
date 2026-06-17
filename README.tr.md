@@ -39,13 +39,13 @@ gateway'i yanlışlıkla internete açmanı önlemek içindir.
 
 - MIT lisanslı; kullanıcılar kullanabilir, değiştirebilir ve dağıtabilir. Lisans + telif bildirimini koru.
 - Gerçek `.env`, API key, token, admin parolası veya kullanıcı verisi asla commit etme.
-- Yerel demo parolalarının yalnızca dev amaçlı olduğunu açık tut; [`SECURITY.md`](./SECURITY.md)
+- Yerel varsayılan parolaların yalnızca dev amaçlı olduğunu açık tut; [`SECURITY.md`](./SECURITY.md)
   listesini uygulamadan dışarı açma.
 - `gateway/.env.example` güncel kalsın; gerçek değerler kullanıcı tarafından kendi makinesinde üretilir.
 - Hosted/production servis kapsam dışıdır. İnternete açmak ayrıca TLS, domain, secret rotasyonu,
   `ALLOW_ORIGINS`, Keycloak production modu ve kapalı iç portlar gerektirir.
 
-## 🚀 Hızlı kurulum
+## Hızlı kurulum
 
 İki yol: **Docker (önerilen — tam stack)** veya **bare-metal (sadece gateway + web)**.
 
@@ -53,47 +53,85 @@ gateway'i yanlışlıkla internete açmanı önlemek içindir.
 
 Docker + docker compose ve yerel LLM için [Ollama](https://ollama.com) gerekir.
 
-```bash
-# 1) Klonla
-git clone <repo-url> nova && cd nova
+1. Repoyu klonla.
 
-# 2) Gateway .env oluştur (token üret + en az bir provider key VEYA Ollama)
+```bash
+git clone <repo-url> nova && cd nova
+```
+
+2. Gateway `.env` dosyasını oluştur. Token üret ve `gateway/.env` içinde
+   `ALLOW_ORIGINS` ile en az bir provider key veya `OLLAMA_URL` ayarla.
+
+```bash
 cp gateway/.env.example gateway/.env
 node -e "console.log('GATEWAY_TOKEN='+require('crypto').randomBytes(32).toString('hex'))" >> gateway/.env
-# gateway/.env'i düzenle: ALLOW_ORIGINS, bir provider key veya OLLAMA_URL ayarla
+```
 
-# 3) Web arayüzünü derle (Caddy web/dist'i servis eder)
+3. Web arayüzünü derle. Caddy `web/dist` klasörünü servis eder.
+
+```bash
 npm --prefix web ci && npm --prefix web run build
+```
 
-# 4) (Yerel LLM için) Ollama'yı container'lara aç + model çek
-#    WSL/Linux'ta OLLAMA_HOST=0.0.0.0 ile çalıştır, sonra:
-ollama pull qwen3:14b && ollama pull qwen3:8b && ollama pull nomic-embed-text
-# (Görsel için; tag kuruluma göre değişir)
+4. Yerel LLM için Ollama'yı container'lara aç ve modelleri çek. WSL/Linux'ta önce
+   Ollama'yı `OLLAMA_HOST=0.0.0.0` ile çalıştır.
+
+```bash
+ollama pull qwen3:14b && ollama pull gemma4:e2b && ollama pull nomic-embed-text
+```
+
+Makinen kaldırıyorsa en güçlü yerel tool-calling modeli:
+
+```bash
+ollama pull qwen3.6:35b
+```
+
+Görsel kullanım için tag kuruluma göre değişir:
+
+```bash
 ollama pull qwen3.5-omni:latest
+```
 
-# 5) Stack'i kaldır (ilk açılışta imajlar iner, birkaç dakika)
+5. Stack'i kaldır. İlk açılışta imajlar iner ve birkaç dakika sürebilir.
+
+```bash
 docker compose -f docker-compose.yml -f docker-compose.faz2.yml up -d --build
+```
 
-# 6) İlk kullanıcı + API key (multi-user modu)
+6. Multi-user modu için ilk kullanıcıyı ve API key'i oluştur.
+
+```bash
 docker compose exec gateway node scripts/bootstrap-user.mjs you@example.com 5
 ```
 
-Aç: **http://localhost** → ⚙ Ayarlar → **Keycloak ile Giriş** (veya API key yapıştır) → sohbet.
+Aç: **http://localhost**, **Ayarlar** bölümüne gir, sonra Keycloak admin içinde kullanıcı
+oluşturduysan Keycloak ile giriş yap veya oluşturulan API key'i yapıştır.
 İç paneller varsayılan olarak loopback-only'dir (host makinesinden erişilir): Grafana
 `127.0.0.1:3001`, Prometheus `:9090`, MinIO `:9001`, SearXNG `:8080`, Keycloak `:8081`.
 
-> ⚠️ Tüm varsayılan parolalar **yalnızca yerel geliştirme içindir.** Public'e açmadan önce
-> **[`SECURITY.md`](./SECURITY.md)**'i oku ve hepsini değiştir. Windows + WSL kurulumu:
-> **[`WSL_DOCKER.md`](./WSL_DOCKER.md)**.
+> Önemli: tüm varsayılan parolalar **yalnızca yerel geliştirme içindir.** Public'e
+> açmadan önce **[`SECURITY.md`](./SECURITY.md)**'i oku ve hepsini değiştir. Windows +
+> WSL kurulumu: **[`WSL_DOCKER.md`](./WSL_DOCKER.md)**.
 
 ### Yol B — Bare-metal (tek kullanıcılı gateway + web, DB yok)
 
+Bağımlılıkları kur ve gateway env dosyasını oluştur:
+
 ```bash
 git clone <repo-url> nova && cd nova
-npm run install:all                       # gateway + web bağımlılıkları
-cp gateway/.env.example gateway/.env      # GATEWAY_TOKEN + bir provider key ya da Ollama
-npm run gateway                           # terminal A → http://localhost:8088/v1
-npm run web                               # terminal B → http://localhost:5173
+npm run install:all
+cp gateway/.env.example gateway/.env
+```
+
+`gateway/.env` içinde `GATEWAY_TOKEN` ve bir provider key ya da Ollama ayarı yap.
+Sonra gateway'i bir terminalde, web arayüzünü başka terminalde başlat:
+
+```bash
+npm run gateway
+```
+
+```bash
+npm run web
 ```
 
 Ajan modu (web araması + belgelerle sohbet) ve çok kullanıcı/geçmiş/kota için **Yol A** gerekir.
@@ -114,20 +152,21 @@ Public, çok kullanıcılı dağıtıma taşıma çalışması sürüyor. Günce
 
 | Faz | Durum | Öne çıkanlar |
 | --- | --- | --- |
-| -1 — İnceleme | ✅ Tamam | Mimari rapor, as-is/to-be diyagramları, risk + faz haritası. |
-| 0 — Gönderilebilir taban | ✅ Tamam | Dockerfile, Caddy/TLS, production token guard, CI iskeleti, deploy runbook. |
-| 1 — Çok kullanıcı | ✅ Tamam | Postgres/Redis, OIDC/JWT, API key, dağıtık rate limit, kalıcı geçmiş, kota. |
-| 2 — Ölçek + ürün | ✅ Temel tamam | Prometheus `/metrics`, pino log, object storage `/v1/media`, Stripe billing, K8s/HPA, ses. |
-| 3 — Ajan + RAG | ✅ Tamam | Tool/function calling, SearXNG web araması, `doc_search`, pgvector RAG, kaynak rozetleri. |
-| 4A — Artifacts/export | ✅ Tamam | HTML/SVG/Mermaid önizleme, artifact indirme, Markdown/JSON/PDF export, yerel paylaşım linki. |
-| 4B — Araç/belge/persona | ✅ Tamam | PDF/DOCX çıkarımı, opt-in QuickJS `code_run`, persona/prompt kütüphanesi. |
-| 4C — Çok modlu + ses kuyruğu | ✅ Tamam | `auto` görsel yönlendirme + `VISION_MODEL`, opt-in remote görsel, BullMQ ses job'ları. |
-| 4D — Repo hijyeni + güvenlik | ✅ Tamam | Kişisel izler temizlendi, CSP/JWT/media/admin sertleştirme, temiz git history. |
-| 5A — CI & güvenlik otomasyonu | ✅ Tamam | CI Node 20.19+22 matris, secret scan, npm audit, canlı smoke; tek komut `npm run security`. |
-| 5B — Gözlemlenebilirlik + sertleştirme | ✅ Tamam | Prometheus ajan metrikleri, opt-in OTLP trace, Grafana auto-provisioning, hata webhook, `npm run prod-check`. |
-| 6 — İleri ürün + Android | ✅ Tamam | Zamanlanmış görevler · team mode + canlı ilerleme · kişisel hafıza · model eval · PWA · MCP · Aurora UI redesign · workspace + RBAC · Android Gradle wrapper paketlendi. |
-| 7 — İşbirliği (paylaşımlı kaynaklar) | ✅ Temel tamam | Workspace-kapsamlı bilgi tabanı, hafıza ve zamanlanmış görevler (yazma = editör/admin). Opsiyonel: paylaşımlı sohbetler. |
-| 8 — Üretim sertleştirme + deploy + ajan derinleştirme | 🟡 Sürüyor | ✅ Güçlendirilmiş `prod-check` (zayıf token/varsayılan secret/MCP-TLS) + preflight, loopback-bound paneller, `docker-compose.prod.yml`. ✅ Ajan derinleştirme: MCP araç görünürlüğü, opt-in SSRF-korumalı `fetch_url`, ajan çalışma geçmişi. Sırada: canlı deploy hazırlığı. |
+| -1 — İnceleme | Tamam | Mimari rapor, as-is/to-be diyagramları, risk + faz haritası. |
+| 0 — Gönderilebilir taban | Tamam | Dockerfile, Caddy/TLS, production token guard, CI iskeleti, deploy runbook. |
+| 1 — Çok kullanıcı | Tamam | Postgres/Redis, OIDC/JWT, API key, dağıtık rate limit, kalıcı geçmiş, kota. |
+| 2 — Ölçek + ürün | Temel tamam | Prometheus `/metrics`, pino log, object storage `/v1/media`, Stripe billing, K8s/HPA, ses. |
+| 3 — Ajan + RAG | Tamam | Tool/function calling, SearXNG web araması, `doc_search`, pgvector RAG, kaynak rozetleri. |
+| 4A — Artifacts/export | Tamam | HTML/SVG/Mermaid önizleme, artifact indirme, Markdown/JSON/PDF export, yerel paylaşım linki. |
+| 4B — Araç/belge/persona | Tamam | PDF/DOCX çıkarımı, opt-in QuickJS `code_run`, persona/prompt kütüphanesi. |
+| 4C — Çok modlu + ses kuyruğu | Tamam | `auto` görsel yönlendirme + `VISION_MODEL`, opt-in remote görsel, BullMQ ses job'ları. |
+| 4D — Repo hijyeni + güvenlik | Tamam | Kişisel izler temizlendi, CSP/JWT/media/admin sertleştirme, temiz git history. |
+| 5A — CI & güvenlik otomasyonu | Tamam | CI Node 20.19+22 matris, secret scan, npm audit, canlı smoke; tek komut `npm run security`. |
+| 5B — Gözlemlenebilirlik + sertleştirme | Tamam | Prometheus ajan metrikleri, opt-in OTLP trace, Grafana auto-provisioning, hata webhook, `npm run prod-check`. |
+| 6 — İleri ürün + Android | Tamam | Zamanlanmış görevler, team mode + canlı ilerleme, kişisel hafıza, model eval, PWA, MCP, Aurora UI redesign, workspace + RBAC, Android Gradle wrapper paketlendi. |
+| 7 — İşbirliği (paylaşımlı kaynaklar) | Temel tamam | Workspace-kapsamlı bilgi tabanı, hafıza ve zamanlanmış görevler (yazma = editör/admin). Opsiyonel: paylaşımlı sohbetler. |
+| 8 — Üretim sertleştirme + deploy + ajan derinleştirme | Kod/config tamam; runtime smoke bekliyor | Güçlendirilmiş `prod-check` + preflight, loopback-bound paneller, `docker-compose.prod.yml`, Caddy `/health` proxy, Keycloak public host rotası, production `CSP_CONNECT_SRC`. Ajan derinleştirme: MCP araç görünürlüğü, opt-in SSRF-korumalı `fetch_url`, ajan çalışma geçmişi, Ollama `think`/effort passthrough, scheduled runner fix, hava durumu edge testleri. Bekleyen: canlı WSL/Ollama/Docker smoke. |
+| 9 — Public release handoff + first-run reliability | Başlamadı | Faz 8 smoke geçtikten sonraki aday: public-local kurulum polish, ilk çalıştırma diagnostikleri, net release checklist ve kullanıcı troubleshooting. |
 
 ### Son değişiklikler
 
@@ -139,6 +178,26 @@ Public, çok kullanıcılı dağıtıma taşıma çalışması sürüyor. Günce
   `docker-compose.prod.yml` overlay'i (Keycloak `start` modu, zorunlu-secret guard'ları).
   Ajan derinleştirme: `GET /v1/mcp/tools` görünürlüğü + UI, opt-in `fetch_url` web sayfası
   okuyucu (SSRF-korumalı), ajan çalışma geçmişi (`/v1/agent/runs` + UI).
+- **Son Faz 8 kapanışı:** Ollama agent/team çağrıları artık `think` ve effort ayarlarını
+  (`temperature`, `top_p`, `num_predict`) gateway üzerinden gerçekten geçiriyor; zamanlanmış
+  görevlerde `agent:false` doğrudan provider chat yolunu kullanıyor; hava durumu fallback'i
+  ve eksik-veri yolları negatif/edge testlerle korunuyor; Caddy artık `/health` proxy ediyor;
+  Keycloak public auth host'u `KC_HOSTNAME_HOST` ile compose'a bağlandı ve `prod-check`
+  tarafından doğrulanıyor.
+  **Neden:** bunlar dokümante edilen davranış ile gerçek deploy yolu arasındaki runtime
+  boşluklardı. Kapatılmaları sessiz model-yönlendirme hatalarını, zamanlanmış görevlerin
+  yanlış execution path'e girmesini, hava çıktısında bozulmayı, public health check kırılmasını
+  ve yarım ayarlanmış auth subdomain riskini önler.
+  Production CSP `CSP_CONNECT_SRC` ile daraltıldı: base compose local/dev origin'leri
+  korur, production overlay `connect-src 'self'` varsayar ve `prod-check` wildcard/local
+  dev origin görürse hard fail verir.
+  İzlenen Keycloak realm artık varsayılan kullanıcı/parola import etmiyor; public web
+  client'ta password grant kapalı, giriş PKCE browser flow üzerinden kalıyor.
+  **Doğrulandı:** gateway testleri `99/99`, web testleri `3/3`, `npm run security`,
+  production compose config ve güçlü-env `prod-check` geçti. Kalan iş: Faz 8'i kapatmadan
+  önce canlı WSL/Ollama/Docker smoke.
+- **Sonraki faz adayı:** Faz 9 public release handoff + first-run reliability. Gerçek
+  Docker/Ollama/WSL stack üzerinde Faz 8 live smoke geçmeden başlanmayacak.
 - **Faz 7 (işbirliği):** `documents`/`user_memory`/`scheduled_tasks` `workspace_id` aldı;
   listeleme/arama kişisel + üye workspace'leri kapsar; yazma işlemleri yazma rolü ister.
 - **Faz 6:** kullanım panelinde model başına maliyet, canlı team-mode ilerleme akışı, kişisel
@@ -155,27 +214,44 @@ kabul et. Yerleşimi `ollama ps` ile doğrula (`PROCESSOR` sütunu: `100% GPU` v
 | Model | Boyut | Yerleşim | Hız |
 |---|---|---|---|
 | `qwen3:8b` | ~5.2 GB | **%100 GPU** | hızlı |
-| `qwen3:14b` | ~10 GB | bölünmüş CPU/GPU | orta, en güçlü tool-calling |
-| `gemma4:e2b` | ~7.2 GB | **%100 GPU** | en hızlı |
+| `qwen3.6:35b` | ~24 GB | yüksek VRAM/RAM veya bölünme gerekir | en güçlü yerel tool-calling |
+| `qwen3:14b` | ~10 GB | bölünmüş CPU/GPU | orta, dengeli tool-calling |
+| `gemma4:e2b` | ~7.2 GB | **%100 GPU** | en hızlı native tools |
 
 ## Depo yapısı
 
 ```
 Nova_Agent_AI/
-├── package.json            # her iki paketi süren yardımcı script'ler
-├── docker-compose.yml      # temel stack (Postgres, Redis, gateway, Caddy)
-├── docker-compose.faz2.yml # faz-2 eklentileri (Keycloak, MinIO, SearXNG, Prometheus, Grafana, ses)
-├── docker-compose.prod.yml # production sertleştirme overlay'i
-├── gateway/                # API gateway (Node, build adımı yok)
-│   ├── gateway.mjs         # sertleştirilmiş sunucu: auth, CORS allowlist, rate limit
-│   ├── lib/                # ajan döngüsü, mcp, rag, memory, rbac, prodcheck, …
-│   ├── routes/             # knowledge, memory, scheduled, workspaces, agent runs, …
-│   ├── migrations/         # SQL migration'lar (001…008)
-│   └── .env.example        # .env'e kopyala ve doldur
-├── web/                    # tarayıcı arayüzü (Vite + React + PWA)
-│   └── src/nova-agent.jsx  # tam UI bileşeni
-└── nova-android/           # native Android istemci (Kotlin + Compose)
+├── package.json
+├── docker-compose.yml
+├── docker-compose.faz2.yml
+├── docker-compose.prod.yml
+├── gateway/
+│   ├── gateway.mjs
+│   ├── lib/
+│   ├── routes/
+│   ├── migrations/
+│   └── .env.example
+├── web/
+│   └── src/nova-agent.jsx
+└── nova-android/
 ```
+
+| Yol | Amaç |
+| --- | --- |
+| `package.json` | Her iki paketi süren yardımcı script'ler. |
+| `docker-compose.yml` | Temel stack: Postgres, Redis, gateway, Caddy. |
+| `docker-compose.faz2.yml` | Faz-2 eklentileri: Keycloak, MinIO, SearXNG, Prometheus, Grafana, ses. |
+| `docker-compose.prod.yml` | Production sertleştirme overlay'i. |
+| `gateway/` | API gateway; Node runtime, build adımı yok. |
+| `gateway/gateway.mjs` | Sertleştirilmiş sunucu: auth, CORS allowlist, rate limit. |
+| `gateway/lib/` | Ajan döngüsü, MCP, RAG, memory, RBAC, prodcheck ve yardımcılar. |
+| `gateway/routes/` | Knowledge, memory, scheduled tasks, workspaces, agent runs ve API route'ları. |
+| `gateway/migrations/` | SQL migration'lar `001` ile `008` arası. |
+| `gateway/.env.example` | `.env` olarak kopyalanır ve makineye göre doldurulur. |
+| `web/` | Vite, React ve PWA destekli tarayıcı arayüzü. |
+| `web/src/nova-agent.jsx` | Ana tarayıcı UI bileşeni. |
+| `nova-android/` | Kotlin ve Compose ile native Android istemci. |
 
 ## Önkoşullar
 
@@ -187,9 +263,12 @@ Nova_Agent_AI/
 
 ### Production için derleme
 
+Build komutu statik dosyaları `web/dist/` içine üretir; preview bu build'i yerelde
+`http://localhost:4173` adresinde servis eder.
+
 ```bash
-npm run build          # statik dosyaları web/dist/'e üretir
-npm run preview        # build'i yerelde http://localhost:4173'te servis eder
+npm run build
+npm run preview
 ```
 
 `web/dist/`'i herhangi bir statik host'tan servis et, gateway'i arkasında çalışır tut.
@@ -200,6 +279,7 @@ Model string'ini `"<provider>/<model>"` olarak yolla:
 
 | Örnek | Gider |
 | --- | --- |
+| `ollama/qwen3.6:35b` | yerel Ollama |
 | `ollama/qwen3:14b` | yerel Ollama |
 | `gemini/gemini-2.5-flash` | Google Gemini |
 | `anthropic/claude-sonnet-4-20250514` | Anthropic |
@@ -249,8 +329,11 @@ korumalarla gelir. **`localhost` dışına açmadan önce bunları gözden geçi
   opt-in, private/localhost hedefleri engellenir, redirect/byte limitleri.
 - **Ajan araçları** — `web_search` yalnız iç SearXNG'e gider; `calculator` sıkı-allowlist güvenli
   eval; `code_run` (QuickJS) ve `fetch_url` (SSRF-korumalı) varsayılan kapalı.
+- **Keycloak varsayılanları** — izlenen realm varsayılan kullanıcı veya parola import etmez;
+  web client PKCE authorization-code akışını kullanır ve password grant kapalıdır.
 - **Minimal health** — `/health` production'da yalnız `{ ok: true }` döner.
-- **Frontend CSP/link güvenliği** — sıkı CSP; markdown linkleri yalnız `http`/`https`/`mailto`.
+- **Frontend CSP/link güvenliği** — sıkı CSP; production `CSP_CONNECT_SRC` yalnız `'self'`
+  veya tam güvenilir origin'ler olmalı; markdown linkleri yalnız `http`/`https`/`mailto`.
 - **Sertleştirme varsayılanları** — `X-Powered-By` kapalı, temel güvenlik başlıkları, production'da
   upstream hata detayları gizli. `TRUST_PROXY=1` yalnız güvenilir TLS proxy arkasında.
 
@@ -258,9 +341,11 @@ korumalarla gelir. **`localhost` dışına açmadan önce bunları gözden geçi
 
 Prod `.env`'i source et, sonra:
 
+Production hazırlık kontrolünü ve tam security kapısını çalıştır:
+
 ```bash
-npm run prod-check    # token gücü, CORS, varsayılan/zayıf secret'lar, MCP-TLS, … doğrular
-npm run security      # syntax + gateway test + secret scan + gateway/web audit + web build
+npm run prod-check
+npm run security
 ```
 
 Production için sertleştirme overlay'ini ekle (Keycloak `start` modu, zorunlu-secret guard'ları):
@@ -271,12 +356,12 @@ docker compose -f docker-compose.yml -f docker-compose.faz2.yml -f docker-compos
 
 Diğer kontroller:
 
-```bash
-npm run secret-scan   # izlenen dosyalarda sızmış key/token taraması
-npm run audit         # gateway + web için npm audit (moderate)
-npm --prefix gateway test   # gateway birim + ajan-döngüsü testleri
-npm run smoke:live    # ÇALIŞAN gateway'e karşı uçtan uca smoke
-```
+| Komut | Amaç |
+| --- | --- |
+| `npm run secret-scan` | İzlenen dosyalarda sızmış key veya token taraması. |
+| `npm run audit` | Gateway ve web için moderate seviyede npm audit. |
+| `npm --prefix gateway test` | Gateway birim ve ajan-döngüsü testleri. |
+| `npm run smoke:live` | Çalışan gateway'e karşı uçtan uca smoke. |
 
 ## Yapılandırma referansı
 
@@ -287,6 +372,7 @@ Tüm gateway ayarları ortam değişkenidir (tam liste için `gateway/.env.examp
 | `PORT` | `8088` | gateway portu |
 | `GATEWAY_TOKEN` | *(boş)* | bearer token; boş = auth kapalı |
 | `ALLOW_ORIGINS` | Vite dev/preview origin'leri | CORS allowlist (virgül listesi, `*` = herhangi) |
+| `CSP_CONNECT_SRC` | local/dev + provider-direct origin'leri | Caddy browser `connect-src`; production'da `'self'` veya tam güvenilir origin'ler |
 | `RATE_MAX` / `RATE_WINDOW_MS` | `120` / `60000` | IP bazlı rate limit |
 | `ALLOW_MODELS` | *(hepsi)* | model allowlist, `provider/*` destekler |
 | `BODY_LIMIT` | `25mb` | maks JSON gövde boyutu |

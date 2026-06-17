@@ -14,7 +14,7 @@
 // Usage:  node scripts/security-check.mjs   (or: npm run security)
 
 import { spawnSync } from "node:child_process";
-import { readdirSync, statSync, existsSync } from "node:fs";
+import { readdirSync, statSync, existsSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -63,7 +63,33 @@ run("gateway unit tests", "npm", ["--prefix", "gateway", "test"], { shell: true 
 // 3) Secret scan
 run("secret scan", NODE, [join(ROOT, "scripts", "secret-scan.mjs")]);
 
-// 4) Audits
+// 4) Static security config checks
+(() => {
+  process.stdout.write("\n▶ static security config\n");
+  let ok = true;
+  try {
+    const realmPath = join(ROOT, "keycloak", "nova-realm.json");
+    const realm = JSON.parse(readFileSync(realmPath, "utf8"));
+    const users = Array.isArray(realm.users) ? realm.users : [];
+    const clients = Array.isArray(realm.clients) ? realm.clients : [];
+    const directGrantClients = clients.filter((c) => c.publicClient && c.directAccessGrantsEnabled);
+    if (users.length > 0) {
+      ok = false;
+      process.stderr.write("  ✗ keycloak/nova-realm.json must not import default users\n");
+    }
+    if (directGrantClients.length > 0) {
+      ok = false;
+      process.stderr.write("  ✗ public Keycloak clients must not enable directAccessGrantsEnabled\n");
+    }
+    if (ok) process.stdout.write("  ✓ Keycloak realm imports no users and public clients use PKCE flow only\n");
+  } catch (e) {
+    ok = false;
+    process.stderr.write(`  ✗ failed to validate keycloak/nova-realm.json: ${e.message}\n`);
+  }
+  results.push({ name: "static security config", ok, code: ok ? 0 : 1 });
+})();
+
+// 5) Audits
 if (process.env.SKIP_AUDIT === "1") {
   results.push({ name: "gateway audit", ok: true, code: "skipped" });
   results.push({ name: "web audit", ok: true, code: "skipped" });
@@ -72,7 +98,7 @@ if (process.env.SKIP_AUDIT === "1") {
   run("web audit", "npm", ["--prefix", "web", "audit", `--audit-level=${AUDIT_LEVEL}`], { shell: true });
 }
 
-// 5) Web build (catches breakage; optional)
+// 6) Web build (catches breakage; optional)
 if (process.env.SKIP_BUILD === "1") {
   results.push({ name: "web build", ok: true, code: "skipped" });
 } else {

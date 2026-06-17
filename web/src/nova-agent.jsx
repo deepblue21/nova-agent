@@ -128,13 +128,20 @@ a.tt-source:hover{transform:translateY(-1px);}
 .bubble{padding:13px 17px;border-radius:16px;font-size:14.5px;line-height:1.65;max-width:78%;white-space:pre-wrap;word-wrap:break-word;}
 .bubble.ai{background:var(--surface);border:1px solid var(--line);border-top-left-radius:5px;color:var(--text);}
 .bubble.me{background:linear-gradient(135deg,rgba(34,211,238,0.16),rgba(99,102,241,0.16));border:1px solid rgba(34,211,238,0.22);border-top-right-radius:5px;}
-.think-trace{background:rgba(255,255,255,0.025);border:1px solid var(--line);border-radius:13px;padding:11px 14px;margin-bottom:10px;max-width:78%;}
-.think-head{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--cyan);font-family:'JetBrains Mono',monospace;letter-spacing:0.4px;}
+.think-trace{background:rgba(255,255,255,0.025);border:1px solid var(--line);border-radius:13px;padding:0;margin-bottom:10px;max-width:78%;overflow:hidden;}
+.think-head{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--cyan);font-family:'JetBrains Mono',monospace;letter-spacing:0.4px;padding:11px 14px;cursor:pointer;user-select:none;}
+.think-head:hover{background:rgba(34,211,238,0.035);}
+.think-head .think-title{flex:1;}
+.think-head .think-meta{font-size:10.5px;color:var(--muted-2);}
+.think-head .think-chevron{transition:transform .15s;opacity:.75;}
+.think-head.open .think-chevron{transform:rotate(0deg);}
+.think-head.closed .think-chevron{transform:rotate(-90deg);}
 .think-step{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--muted);margin-top:8px;opacity:0;animation:stepIn .4s forwards;}
 @keyframes stepIn{to{opacity:1;}}
 .think-step .sc{width:15px;height:15px;border-radius:50%;border:1.5px solid var(--muted-2);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .think-step.done .sc{border-color:var(--cyan);background:rgba(34,211,238,0.15);color:var(--cyan);}
-.think-real{margin-top:8px;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.55;color:var(--muted);white-space:pre-wrap;max-height:220px;overflow-y:auto;padding-right:4px;}
+.think-real{font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.55;color:var(--muted);white-space:pre-wrap;max-height:220px;overflow-y:auto;padding:0 14px 12px;}
+.think-steps{padding:0 14px 12px;}
 .think-real::-webkit-scrollbar{width:6px;}
 .think-real::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:6px;}
 .typing{display:flex;gap:5px;padding:6px 2px;}
@@ -359,8 +366,9 @@ a.tt-source:hover{color:var(--cyan);border-color:var(--line-bright);}
 .rail-empty{color:var(--muted-2);font-size:12.5px;text-align:center;padding:18px 0;}
 .rail-settings{display:flex;align-items:center;gap:8px;background:transparent;border:1px solid var(--line);border-radius:11px;padding:10px 12px;color:var(--muted);font-size:13px;font-family:'Sora',sans-serif;cursor:pointer;transition:all .15s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .rail-settings:hover{color:var(--text);border-color:var(--line-bright);background:var(--surface);}
-.rail-export{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted-2);padding:0 2px 2px;}
-.rail-export button{display:inline-flex;align-items:center;gap:4px;background:transparent;border:1px solid var(--line);border-radius:8px;padding:5px 9px;color:var(--muted);font-size:11px;font-family:'Sora',sans-serif;cursor:pointer;}
+.rail-export{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted-2);padding:0 2px 2px;flex-wrap:wrap;}
+.rail-export span{flex:1 0 100%;line-height:1.2;}
+.rail-export button{display:inline-flex;align-items:center;justify-content:center;gap:4px;flex:1 1 calc(50% - 4px);min-width:0;background:transparent;border:1px solid var(--line);border-radius:8px;padding:5px 7px;color:var(--muted);font-size:11px;font-family:'Sora',sans-serif;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .rail-export button:hover{color:var(--cyan);border-color:var(--line-bright);}
 /* üçüncü parti eklenti rozetlerini (Grammarly vb.) kompozerden uzak tut */
 grammarly-extension,grammarly-popups,grammarly-card,div[data-grammarly-part]{display:none!important;}
@@ -462,6 +470,8 @@ const MODELS = [
     { id: "gpt", name: "GPT-4o mini", desc: "openai uyumlu", icon: Cloud, provider: "openai", model: "gpt-4o-mini" },
   ]},
   { group: "Yerel · Ollama", items: [
+    { id: "qwen36", name: "Qwen3.6 35B", desc: "qwen3.6:35b · güçlü ajan", icon: Cpu, provider: "ollama", model: "qwen3.6:35b" },
+    { id: "qwen3627", name: "Qwen3.6 27B", desc: "qwen3.6:27b · tool-calling", icon: Cpu, provider: "ollama", model: "qwen3.6:27b" },
     { id: "qwen14", name: "Qwen3 14B", desc: "qwen3:14b", icon: Cpu, provider: "ollama", model: "qwen3:14b" },
     { id: "qwen9", name: "Qwen3.5 9B", desc: "qwen3.5:9b", icon: Cpu, provider: "ollama", model: "qwen3.5:9b" },
     { id: "gemma4", name: "Gemma 4", desc: "gemma4:latest", icon: Cpu, provider: "ollama", model: "gemma4:latest" },
@@ -739,6 +749,16 @@ const ndjsonHandler = (onObj) => (line) => {
 
 const trim = (s) => (s || "").replace(/\/+$/, "");
 
+function needsLiveTool(text) {
+  const s = String(text || "");
+  return [
+    /hava\s*durum|hava\s*nas[ıi]l|s[ıi]cakl[ıi]k|ya[ğg]mur|ya[ğg][ıi]ş|ka[çc]\s*derece|rüzg[âa]r/i,
+    /haber|son\s*dakika|g[üu]ndem|g[üu]ncel|bug[üu]n|yar[ıi]n|şu\s*an|şimdi|en\s*son|bu\s*hafta/i,
+    /internette|internet(?:ten)?|web(?:'|’)?de|web\s*arama|ara[şs]t[ıi]r|kaynakl[ıi]|kaynak\s+göster|link(?:li)?/i,
+    /\b(weather|forecast|temperature|news|today|tomorrow|current|latest|web search|search the web|research online|sources?|citations?)\b/i,
+  ].some(re => re.test(s));
+}
+
 // ---- çoklu-medya yardımcıları (m.images: data URL dizisi) ----
 function dataUrlParts(u) { const mm = /^data:([^;]+);base64,(.*)$/.exec(u) || []; return { mime: mm[1] || "image/png", b64: mm[2] || "" }; }
 function oaContent(m) { // OpenAI-tarzı içerik
@@ -823,7 +843,7 @@ async function streamChat({ prov, model, system, history, think, onToken, signal
     const d = o.choices && o.choices[0] && o.choices[0].delta;
     if (d && d.reasoning_content && onThought) onThought(d.reasoning_content); // gateway think relay
     if (d && d.tool_step && onTool) {                                          // ajan: yapısal araç adımı
-      const ts = d.tool_step; const q = ts.args && (ts.args.query || ts.args.expression || ts.args.role || "");
+      const ts = d.tool_step; const q = ts.args && (ts.args.query || ts.args.location || ts.args.expression || ts.args.role || "");
       onTool({ name: ts.name, q, done: !!ts.done, sources: ts.sources || [] });
     }
     const t = d && d.content; if (t) onToken(t);
@@ -836,6 +856,8 @@ function errHint(e, prov) {
   const net = /Failed to fetch|NetworkError|TypeError|load failed/i.test(m);
   if (prov.kind === "ollama")
     return "⚠️ Ollama'ya ulaşılamadı (" + prov.baseUrl + "). Açık mı? Tarayıcı erişimi için `OLLAMA_ORIGINS=* ollama serve`. Detay: " + m;
+  if (/HTTP 401|unauthorized/i.test(m))
+    return "⚠️ Gateway yetki hatası. Canlı web/hava araçları için Ayarlar → Gateway → Anahtar alanına `gateway/.env` içindeki `GATEWAY_TOKEN` değerini yapıştır. Detay: " + m;
   if (net)
     return "⚠️ Bağlantı/CORS engeli. Tarayıcıdan doğrudan çağrı kapalı olabilir — Gateway'i çalıştırıp 'Dinamik Yönlendirme' (gateway) sağlayıcısını seç. Detay: " + m;
   return "⚠️ Hata: " + m;
@@ -965,7 +987,7 @@ export default function App() {
   const [memWs, setMemWs] = useState("");                // hafıza hedefi: "" = kişisel
   const [memBusy, setMemBusy] = useState(false);
   const [evalPrompt, setEvalPrompt] = useState("");      // model kıyas (eval)
-  const [evalModelsText, setEvalModelsText] = useState("ollama/gemma4:e2b, ollama/qwen3.5-9b-agent:latest");
+  const [evalModelsText, setEvalModelsText] = useState("ollama/gemma4:e2b, ollama/qwen3.6:35b");
   const [evalRunning, setEvalRunning] = useState(false);
   const [evalResults, setEvalResults] = useState(null);
   const [wss, setWss] = useState([]);                    // workspaces (RBAC)
@@ -1508,13 +1530,22 @@ export default function App() {
     let full = "", route = null, thoughts = "", toolSteps = [];
     const t0 = performance.now();
     let firstAt = 0;                            // ilk token'a kadar geçen süre (TTFT)
+    const lastText = (historyMsgs[historyMsgs.length - 1] || {}).content || "";
+    const liveTool = needsLiveTool(lastText);
+    const forceGatewayTools = curItem.provider === "ollama" && !!providers.gateway.baseUrl && (agentMode || teamMode || liveTool);
+    const sendProv = forceGatewayTools ? providers.gateway : curProv;
+    const sendModel = forceGatewayTools ? ("ollama/" + curApiModel) : curApiModel;
+    const sendExtra = (curItem.provider === "gateway" || forceGatewayTools)
+      ? { effort, think: reasoning, ...((agentMode || (forceGatewayTools && liveTool)) ? { agent: true } : {}), ...(teamMode ? { team: true } : {}) }
+      : {};
     const convId = await ensureServerConv();   // sunucu geçmişi (varsa)
+    if (convId && (curItem.provider === "gateway" || forceGatewayTools)) sendExtra.conversation_id = convId;
     try {
       await streamChat({
-        prov: curProv, model: curApiModel, system: buildSystem(),
+        prov: sendProv, model: sendModel, system: buildSystem(),
         history: historyMsgs.map(m => ({ role: m.role, content: m.content, images: m.images })),
         think: reasoning, signal: ctrl.signal,
-        extra: curItem.provider === "gateway" ? { effort, think: reasoning, ...(agentMode ? { agent: true } : {}), ...(teamMode ? { team: true } : {}), ...(convId ? { conversation_id: convId } : {}) } : {},
+        extra: sendExtra,
         onRoute: (r) => { route = r; },
         onThought: (t) => { thoughts += t; updateLast({ thoughts }); },
         onTool: (s) => {
@@ -1534,11 +1565,11 @@ export default function App() {
       });
       const ms = Math.round(performance.now() - t0);
       const tok = Math.max(1, Math.round((full.length + thoughts.length) / 4)); // ~4 krktr/token
-      updateLast({ content: full.trim() || "(boş yanıt)", route, stats: { ms, ttft: Math.round(firstAt), tok, model: route || curApiModel } });
+      updateLast({ content: full.trim() || "(boş yanıt)", route, stats: { ms, ttft: Math.round(firstAt), tok, model: route || sendModel } });
       const site = extractWebsite(full);
       if (site) openArtifact({ type: "html", code: site, lang: "html" });   // tam HTML sayfası → canlı önizlemeyi otomatik aç
     } catch (e) {
-      const h = errHint(e, curProv);
+      const h = errHint(e, sendProv);
       updateLast({ content: full + (h ? (full ? "\n\n" : "") + h : ""), route });
     } finally { setBusy(false); abortRef.current = null; }
   }
@@ -1796,16 +1827,24 @@ export default function App() {
     const hist = [...messages, { role: "user", content: text }];
     setMessages(hist);
     let full = "";
+    const liveTool = needsLiveTool(text);
+    const forceGatewayTools = curItem.provider === "ollama" && !!providers.gateway.baseUrl && (agentMode || teamMode || liveTool);
+    const sendProv = forceGatewayTools ? providers.gateway : curProv;
+    const sendModel = forceGatewayTools ? ("ollama/" + curApiModel) : curApiModel;
+    const sendExtra = (curItem.provider === "gateway" || forceGatewayTools)
+      ? { effort, think: reasoning, ...((agentMode || (forceGatewayTools && liveTool)) ? { agent: true } : {}), ...(teamMode ? { team: true } : {}) }
+      : {};
     const vConvId = await ensureServerConv();   // sunucu geçmişi (varsa)
+    if (vConvId && (curItem.provider === "gateway" || forceGatewayTools)) sendExtra.conversation_id = vConvId;
     try {
       await streamChat({
-        prov: curProv, model: curApiModel, system: buildSystem(),
+        prov: sendProv, model: sendModel, system: buildSystem(),
         history: hist.map(m => ({ role: m.role, content: m.content, images: m.images })),
         think: reasoning,
-        extra: curItem.provider === "gateway" ? { effort, think: reasoning, ...(agentMode ? { agent: true } : {}), ...(teamMode ? { team: true } : {}), ...(vConvId ? { conversation_id: vConvId } : {}) } : {},
+        extra: sendExtra,
         onToken: (t) => { full += t; },
       });
-    } catch (e) { full = errHint(e, curProv) || "Yanıt alınamadı."; }
+    } catch (e) { full = errHint(e, sendProv) || "Yanıt alınamadı."; }
     const reply = full.trim() || "Yanıt alınamadı.";
     setMessages(prev => [...prev, { role: "assistant", content: reply }]);
     speak(reply);
@@ -2060,8 +2099,8 @@ export default function App() {
                             <div className="tt-head"><Waves size={13} /> Araç kullanıldı</div>
                             {m.tools.map((s, ti) => (
                               <div key={ti} className="tt-step">
-                                <span className="tt-ic">{s.name === "web_search" ? <GitBranch size={12} /> : s.name === "calculator" ? <Activity size={12} /> : s.name === "code_run" ? <Code2 size={12} /> : s.name === "fetch_url" ? <Link2 size={12} /> : s.name === "subtask" ? <Sparkles size={12} /> : s.name === "synthesis" ? <Waves size={12} /> : <Check size={12} />}</span>
-                                <span className="tt-name">{s.name === "web_search" ? "Web araması" : s.name === "calculator" ? "Hesaplama" : s.name === "current_time" ? "Saat" : s.name === "code_run" ? "Kod sandbox" : s.name === "fetch_url" ? "Web sayfası" : s.name === "subtask" ? "Alt-ajan" : s.name === "synthesis" ? "Sentez" : (s.name && s.name.startsWith("mcp__") ? s.name.replace(/^mcp__/, "").replace("__", " · ") : s.name)}</span>
+                                <span className="tt-ic">{s.name === "web_search" ? <GitBranch size={12} /> : s.name === "weather_forecast" ? <Cloud size={12} /> : s.name === "calculator" ? <Activity size={12} /> : s.name === "code_run" ? <Code2 size={12} /> : s.name === "fetch_url" ? <Link2 size={12} /> : s.name === "subtask" ? <Sparkles size={12} /> : s.name === "synthesis" ? <Waves size={12} /> : <Check size={12} />}</span>
+                                <span className="tt-name">{s.name === "web_search" ? "Web araması" : s.name === "weather_forecast" ? "Hava tahmini" : s.name === "calculator" ? "Hesaplama" : s.name === "current_time" ? "Saat" : s.name === "code_run" ? "Kod sandbox" : s.name === "fetch_url" ? "Web sayfası" : s.name === "subtask" ? "Alt-ajan" : s.name === "synthesis" ? "Sentez" : (s.name && s.name.startsWith("mcp__") ? s.name.replace(/^mcp__/, "").replace("__", " · ") : s.name)}</span>
                                 {s.q && <span className="tt-q">{s.q}</span>}
                                 {s.sources && s.sources.length > 0 && (
                                   <div className="tt-sources">
@@ -2225,7 +2264,7 @@ export default function App() {
           <button className={"reason-toggle" + (reasoning?" on":"")} onClick={()=>setReasoning(!reasoning)} title="Düşünme modu">
             <span className="rt-switch" /> Düşünme
           </button>
-          <button className={"reason-toggle agent" + (agentMode?" on":"")} onClick={()=>setAgentMode(!agentMode)} title="Ajan: web araması + araçlar (yalnız Gateway+yerel model)">
+          <button className={"reason-toggle agent" + (agentMode?" on":"")} onClick={()=>setAgentMode(!agentMode)} title="Ajan: native tool-calling ile web araması + araçlar (Gateway + Qwen3.6/Qwen3/Gemma4)">
             <Waves size={13} /> Ajan
           </button>
           <button className={"reason-toggle agent" + (teamMode?" on":"")} onClick={()=>setTeamMode(!teamMode)} title="Takım: görevi paralel alt-ajanlara böl, sonra sentezle (Gateway+yerel model)">

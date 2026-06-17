@@ -77,7 +77,7 @@ docker compose logs migrate
 ## 5. İlk kullanıcı + API key (bootstrap)
 
 ```bash
-docker compose exec gateway node scripts/bootstrap-user.mjs demo@example.local 5
+docker compose exec gateway node scripts/bootstrap-user.mjs you@example.com 5
 # Çıktıdaki "user id"yi gateway/.env'de ADMIN_USER_IDS'e yaz, API key'i kaydet (bir kez gösterilir)
 docker compose restart gateway
 ```

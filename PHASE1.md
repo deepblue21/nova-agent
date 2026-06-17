@@ -103,7 +103,7 @@ console.log(newApiKey());   // { full: "nv_xxxxxx_...", prefix, token_hash }
 ```
 ```sql
 -- kullanıcı + key + aylık 5$ kota:
-INSERT INTO users (email, name) VALUES ('demo@example.local','Demo User') RETURNING id;
+INSERT INTO users (email, name) VALUES ('you@example.com','Local User') RETURNING id;
 INSERT INTO api_keys (user_id, prefix, token_hash) VALUES ('<user_id>','<prefix>','<token_hash>');
 INSERT INTO quotas (subject_id, period, limit_micros, resets_at)
   VALUES ('<user_id>','month', 5000000, date_trunc('month', now()) + interval '1 month');

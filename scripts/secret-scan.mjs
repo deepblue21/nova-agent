@@ -46,7 +46,7 @@ const SKIP_PATH_RE = [
 const ALLOW_SUBSTR = [
   "example", "changeme", "change-me", "change_me", "placeholder", "dummy",
   "your-", "your_", "yourkey", "redacted", "<your", "<token", "<secret",
-  "demo@example.local", "nova-local-dev", "randombytes", "process.env",
+  "randombytes", "process.env",
   "import.meta.env", "0123456789", "abcdef0123", "deadbeef", "xxxxxxxx",
   "0000000000", "1234567890", "sample", "fake", "test-token", "notarealkey",
   "replace-with", "replace_me", "insert-your", "<api", "<key", "******",

@@ -100,6 +100,8 @@ services:
       - "443:443"
     environment:
       DOMAIN: ${DOMAIN:-localhost}
+      KC_HOSTNAME_HOST: ${KC_HOSTNAME_HOST:-auth.localhost}
+      CSP_CONNECT_SRC: "${CSP_CONNECT_SRC:-'self' http://localhost:* http://127.0.0.1:* http://10.0.2.2:* https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./web/dist:/srv/web:ro

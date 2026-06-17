@@ -58,6 +58,7 @@ import { nextRunAt as schedNextRunAt } from "./lib/scheduler.mjs";
 import { createErrorReporter } from "./lib/errors.mjs";
 import { runTeam, parsePlan, mapLimit } from "./lib/multiagent.mjs";
 import { estimateCostMicros } from "./lib/pricing.mjs";
+import { runScheduledTask } from "./lib/scheduled_runner.mjs";
 
 // ---------- zero-dependency .env loader ----------
 // Loads KEY=VALUE pairs from ./.env into process.env WITHOUT overwriting
@@ -352,6 +353,7 @@ app.get("/v1/models", (_req, res) => {
     { id: "ollama/qwen3.5-9b-agent:latest" },
     { id: "ollama/titus-cyber:latest" },
     { id: "ollama/gemma4:latest" }, { id: "ollama/gemma4:e4b" }, { id: "ollama/gemma4:e2b" },
+    { id: "ollama/qwen3.6:35b" }, { id: "ollama/qwen3.6:27b" },
     { id: "ollama/qwen3.5-omni:latest" },
     { id: "ollama/qwen3:14b" }, { id: "ollama/qwen3.5:9b" },
     { id: "gemini/gemini-2.5-pro" }, { id: "gemini/gemini-2.5-flash" },
@@ -459,8 +461,8 @@ app.post("/v1/chat/completions", async (req, res) => {
       const baseSys = (sysMsg && sysMsg.content) || "Sen NOVA'nın bir alt-ajanısın; verilen alt-görevi net ve eksiksiz yerine getir.";
       const uid = req.principal && req.principal.userId;
       const mcp = await getMcpTools(up.signal);
-      const runOne = (prompt) => runAgent({ ollamaBase: OLLAMA, model, messages: [{ role: "system", content: baseSys }, { role: "user", content: prompt }], signal: up.signal, userId: uid, extraTools: mcp.specs, extraDispatch: mcp.dispatch });
-      const synthesize = (synthPrompt) => runAgent({ ollamaBase: OLLAMA, model, messages: [{ role: "user", content: synthPrompt }], signal: up.signal, userId: uid });
+      const runOne = (prompt) => runAgent({ ollamaBase: OLLAMA, model, messages: [{ role: "system", content: baseSys }, { role: "user", content: prompt }], signal: up.signal, userId: uid, extraTools: mcp.specs, extraDispatch: mcp.dispatch, think, params: ctx.params });
+      const synthesize = (synthPrompt) => runAgent({ ollamaBase: OLLAMA, model, messages: [{ role: "user", content: synthPrompt }], signal: up.signal, userId: uid, think, params: ctx.params });
       const teamOut = await runTeam({
         task, subtasks, runOne, synthesize, concurrency: TEAM_CONCURRENCY,
         onResult: (out) => { if (stream) res.write("data: " + JSON.stringify({ choices: [{ delta: { tool_step: { name: "subtask", args: { role: out.role }, done: true } } }] }) + "\n\n"); },
@@ -485,6 +487,7 @@ app.post("/v1/chat/completions", async (req, res) => {
         ollamaBase: OLLAMA, model, messages, signal: up.signal,
         userId: req.principal && req.principal.userId,
         extraTools: mcp.specs, extraDispatch: mcp.dispatch,
+        think, params: ctx.params,
         onStep: (ev) => {
           if (!stream) return;
           if (ev.type === "tool_call")
@@ -678,30 +681,19 @@ if (process.env.STRIPE_SECRET_KEY && process.env.DATABASE_URL && BILLING_FLUSH_M
 // ---------- Scheduled / automated agent tasks (Faz 6) ----------
 // Opt-in: SCHEDULER_ENABLED=1 + multi-user + DATABASE_URL. In-process poller runs
 // due tasks through the agent loop (tools available) and stores the last result.
-async function runScheduledTask(task) {
-  const { provider, model } = routeModel(task.model || DEFAULT, DEFAULT);
-  if (provider !== "ollama") return { status: "error", result: "zamanlanmış görevler yerel (ollama) model gerektirir" };
-  const messages = [
-    { role: "system", content: "Sen NOVA'nın otomatik görev ajanısın. Görevi kısa, net ve eksiksiz yerine getir; gerekiyorsa araçları kullan." },
-    { role: "user", content: task.prompt },
-  ];
-  const ctrl = new AbortController();
-  const to = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-  try {
-    const r = await runAgent({ ollamaBase: OLLAMA, model, messages, signal: ctrl.signal, userId: task.user_id });
-    return { status: "ok", result: r.content || "" };
-  } catch (e) {
-    return { status: "error", result: String(e.message || e) };
-  } finally { clearTimeout(to); }
-}
-
 if (MULTI_USER && process.env.SCHEDULER_ENABLED === "1" && process.env.DATABASE_URL) {
   const tickMs = parseInt(process.env.SCHEDULER_TICK_MS || "30000", 10);
   const tick = async () => {
     try {
       const due = await schedStore.listDue(Date.now(), 20);
       for (const task of due) {
-        const out = await runScheduledTask(task);
+        const out = await runScheduledTask(task, {
+          defaultModel: DEFAULT,
+          ollamaBase: OLLAMA,
+          providerClient,
+          timeoutMs: TIMEOUT_MS,
+          maxRetries: MAX_RETRIES,
+        });
         await schedStore.markRun(task.id, { ...out, nextRunAt: schedNextRunAt(task.schedule, Date.now()) });
         logger.info({ taskId: task.id, status: out.status }, "scheduled task ran");
       }

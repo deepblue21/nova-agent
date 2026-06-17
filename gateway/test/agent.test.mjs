@@ -48,7 +48,7 @@ test("search.formatResults: numaralı kaynak biçimi", () => {
 
 test("tools.TOOL_SPECS: beklenen araçlar + JSON şema", () => {
   const names = TOOL_SPECS.map(t => t.function.name);
-  for (const n of ["web_search", "doc_search", "calculator", "current_time"])
+  for (const n of ["web_search", "weather_forecast", "doc_search", "calculator", "current_time"])
     assert.ok(names.includes(n), "eksik araç: " + n);
   assert.ok(!names.includes("code_run"), "code_run varsayılan kapalı olmalı");
   for (const t of TOOL_SPECS) {
@@ -208,7 +208,7 @@ test("needsLiveData: detects weather/news/finance/time-sensitive (TR + EN)", () 
 
 // ── runAgent orchestration (mocked Ollama + SearXNG, no live infra) ──────────
 // Routes fetch by URL: /api/chat → queued Ollama messages, /search → SearXNG.
-function mockFetch({ ollama = [], searx = [] } = {}) {
+function mockFetch({ ollama = [], searx = [], geocode = null, forecast = null } = {}) {
   const prev = globalThis.fetch;
   let oi = 0;
   const calls = [];
@@ -221,7 +221,15 @@ function mockFetch({ ollama = [], searx = [] } = {}) {
       const message = ollama[oi++] ?? { content: "" };
       return { ok: true, status: 200, async json() { return { message }; }, async text() { return ""; } };
     }
-    if (u.includes("/search")) {
+    if (u.includes("geocoding-api.open-meteo.com")) {
+      const data = geocode ?? { results: [] };
+      return { ok: true, status: 200, async json() { return data; }, async text() { return JSON.stringify(data); } };
+    }
+    if (u.includes("api.open-meteo.com")) {
+      const data = forecast ?? { daily: { time: [] } };
+      return { ok: true, status: 200, async json() { return data; }, async text() { return JSON.stringify(data); } };
+    }
+    if (u.includes("/search?")) {
       return { ok: true, status: 200, async json() { return { results: searx }; }, async text() { return ""; } };
     }
     return { ok: false, status: 404, async json() { return {}; }, async text() { return "not mocked: " + u; } };
@@ -241,6 +249,23 @@ test("runAgent: araç çağrısı olmadan doğrudan cevap döner", async () => {
     assert.deepEqual(out.toolsUsed, []);
     assert.equal(out.rounds, 0);
     assert.equal(fx.calls.length, 1);
+  } finally { fx.restore(); }
+});
+
+test("runAgent: think ve effort parametrelerini Ollama'ya geçirir", async () => {
+  const fx = mockFetch({ ollama: [{ content: "ok" }] });
+  try {
+    const out = await runAgent({
+      ollamaBase: "http://ollama-test:11434",
+      model: "test-model",
+      messages: [{ role: "user", content: "merhaba" }],
+      think: true,
+      params: { max_tokens: 321, temperature: 0.25, top_p: 0.8 },
+    });
+    assert.equal(out.content, "ok");
+    assert.equal(fx.calls.length, 1);
+    assert.equal(fx.calls[0].body.think, true);
+    assert.deepEqual(fx.calls[0].body.options, { temperature: 0.25, top_p: 0.8, num_predict: 321 });
   } finally { fx.restore(); }
 });
 
@@ -268,6 +293,46 @@ test("runAgent: araç çağrısını çalıştırır ve sonucu modele geri besle
     // Akış event'leri tool_call + tool_result üretmeli.
     assert.ok(steps.some(s => s.type === "tool_call" && s.name === "calculator"));
     assert.ok(steps.some(s => s.type === "tool_result" && s.text === "4"));
+  } finally { fx.restore(); }
+});
+
+test("runAgent: canlı hava sorusunda model araç çağırmazsa weather fallback çalışır", async () => {
+  const fx = mockFetch({
+    ollama: [
+      { content: "eski bilgiyle cevap veremem" },
+      { content: "Yarın Manisa için kısa tahmin hazır." },
+    ],
+    geocode: { results: [{ name: "Manisa", admin1: "Manisa", country: "Türkiye", latitude: 38.61, longitude: 27.43 }] },
+    forecast: {
+      daily: {
+        time: ["2026-06-16", "2026-06-17"],
+        weather_code: [0, 61],
+        temperature_2m_min: [18.2, 19.1],
+        temperature_2m_max: [29.8, 30.4],
+        precipitation_probability_max: [5, 40],
+        wind_speed_10m_max: [14, 21],
+      },
+      current: { temperature_2m: 28.1, weather_code: 0, wind_speed_10m: 8 },
+    },
+  });
+  try {
+    const steps = [];
+    const out = await runAgent({
+      ollamaBase: "http://ollama-test:11434",
+      model: "test-model",
+      messages: [{ role: "user", content: "Manisa hava durumu yarın nasıl?" }],
+      onStep: (e) => steps.push(e),
+    });
+    assert.equal(out.content, "Yarın Manisa için kısa tahmin hazır.");
+    assert.ok(out.toolsUsed.includes("weather_forecast"));
+    assert.ok(out.sources.some(s => s.url === "https://open-meteo.com/"));
+    assert.ok(steps.some(s => s.type === "fallback" && s.count === 1));
+    assert.ok(steps.some(s => s.type === "tool_call" && s.name === "weather_forecast"));
+    const chatCalls = fx.calls.filter(c => c.url.includes("/api/chat"));
+    assert.equal(chatCalls.length, 2);
+    const fedBack = chatCalls[1].body.messages.find(m => m.role === "tool");
+    assert.match(fedBack.content, /Manisa/);
+    assert.match(fedBack.content, /Yağış olasılığı: %40/);
   } finally { fx.restore(); }
 });
 

@@ -129,7 +129,7 @@ async function relay(res, stream, body, lineToToken) {
     finish(res);
     return full;
   }
-  res.json({ choices: [{ message: { role: "assistant", content: full } }] });
+  if (res) res.json({ choices: [{ message: { role: "assistant", content: full } }] });
   return full;
 }
 
@@ -154,9 +154,12 @@ export function createProviderClient({
           attempt++;
           continue;
         }
-        throw new Error(r.status + " " + (await r.text()).slice(0, 200));
+        const httpErr = new Error(r.status + " " + (await r.text()).slice(0, 200));
+        httpErr.httpStatus = r.status;   // 429/5xx already retried above; 4xx must NOT be retried
+        throw httpErr;
       } catch (e) {
         if (e && e.name === "AbortError") throw e;
+        if (e && e.httpStatus) throw e;   // HTTP-status error: retry decision already made above
         if (attempt < retries) {
           lastErr = e;
           await sleep(backoff(attempt));
@@ -325,7 +328,7 @@ export function createProviderClient({
       finish(res);
       return text;
     }
-    res.json({ choices: [{ message: { role: "assistant", content: text } }] });
+    if (res) res.json({ choices: [{ message: { role: "assistant", content: text } }] });
     return text;
   }
 

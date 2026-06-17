@@ -1,12 +1,32 @@
 # NOVA — Durum & Sonraki Adımlar
 
 > Bu dosya "nereden devam edeceğiz"i tutar. Her oturum sonunda güncellenir.
-> **Son güncelleme:** 13 Haziran 2026.
+> **Son güncelleme:** 17 Haziran 2026.
 
 ## Oturum Hafızası / Handoff
 
 Bu dosya yeni oturuma başlarken ilk okunacak hafıza dosyasıdır. Her çalışma sonunda
 bu bölüm veya "SIRADAKİ ADIM" bölümü güncel bırakılmalı.
+
+### Oturum — 16 Haziran 2026 (README/kod inceleme + Faz 8 durum kontrolü)
+- Kullanıcı "Nerede kaldık, README oku, tüm kodu incele ve öneri sun" dedi. README/README.tr/SECURITY/compose/gateway ana akışı/agent-tools/MCP/RBAC/knowledge/memory/scheduled/agent-runs/script yüzeyleri tarandı.
+- **Durum:** README phase board'a göre Faz 8 hâlâ `Production hardening + deploy + agent deepening` aşamasında. Kod tarafında prod-check, loopback paneller, `docker-compose.prod.yml`, MCP introspection, `fetch_url`, agent run history ve workspace-scoped kaynaklar mevcut. Sıradaki ana iş: live-deploy hazırlığı + canlı smoke.
+- **Doğrulama:** `npm.cmd --prefix gateway test` -> 89/89; `npm.cmd --prefix web test` -> 3/3; `node scripts/secret-scan.mjs` temiz; `npm.cmd run build` geçti. İlk build, eksik Vite/Rolldown optional native paketinden (`@rolldown/binding-win32-x64-msvc`) düştü; `npm.cmd --prefix web install` sonrasında düzeldi. `npm.cmd run security` sandbox'ta audit/log erişimi yüzünden düştü, sandbox dışı tekrar koşuda tüm kapılar geçti: syntax, gateway tests, secret scan, gateway audit 0 vuln, web audit 0 vuln, web build.
+- **Beklenen prod-check notu:** mevcut shell'de `npm.cmd run prod-check` 4 hard fail verdi (`GATEWAY_TOKEN`, token-strength, `NODE_ENV=production`, `ALLOW_ORIGINS`) çünkü prod env yüklenmemişti. Bu kod hatası değil; gerçek prod/local-public `.env` source edildikten sonra koşulmalı.
+- **Kapatıldı:** `gateway/lib/agent.mjs` artık agent/team modunda `think` ve effort parametrelerini Ollama `/api/chat` body'sine geçiriyor (`options.temperature`, `options.top_p`, `options.num_predict`). Regresyon testi eklendi.
+- **Kapatıldı:** `weather_forecast` aracı için fallback davranışı mock Open-Meteo ile test edildi; geocode boş sonuç, forecast 5xx ve eksik numeric alanlarda `NaN` üretmeme edge testleri eklendi.
+- **Kapatıldı:** scheduled task runner `gateway/lib/scheduled_runner.mjs` modülüne çıkarıldı. `agent:false` artık direkt provider chat yolunu, `agent:true`/varsayılan ise `runAgent` yolunu kullanıyor; unit testlerle korundu.
+- **Kapatıldı:** Caddy doküman/gerçek davranış uyumsuzluğu düzeltildi. `Caddyfile` artık `/health`, `/v1/*`, `/stt`, `/tts` isteklerini gateway/voice servislerine yönlendiriyor; DEPLOY dokümanları buna göre güncellendi.
+- **Kapatıldı:** public Keycloak host rotası compose/Caddy/prod-check tarafında tamamlandı. `KC_HOSTNAME_HOST` eklendi, prod overlay'de zorunlu hale getirildi ve `prod-check` artık `KC_HOSTNAME` varsa Caddy host değerini de hard check olarak doğruluyor.
+- **Kapatıldı:** public CSP origin daraltması koda alındı. `CSP_CONNECT_SRC` Caddy/compose/prod overlay'e eklendi; prod overlay varsayılanı `'self'`. `prod-check` artık production'da `CSP_CONNECT_SRC` yoksa veya wildcard/local dev origin içeriyorsa hard fail veriyor.
+- **Doğrulama güncellemesi:** son koşuda `npm.cmd --prefix gateway test` 99/99, `npm.cmd --prefix web test` 3/3 geçti. Güçlü örnek prod env ile `npm.cmd run prod-check` tüm required check'leri geçti (`CSP_CONNECT_SRC` dahil). `docker compose -f docker-compose.yml -f docker-compose.faz2.yml -f docker-compose.prod.yml config -q` geçti. Sandbox dışı `npm.cmd run security` tamamen geçti: syntax, gateway tests, secret scan, gateway audit 0 vuln, web audit 0 vuln, web build.
+- **Canlı smoke durumu:** Faz 8'in tek kalan gerçek kapısı canlı WSL/Ollama/Docker smoke. Bu oturumda çalıştırılamadı: Windows Docker daemon `dockerDesktopLinuxEngine` bulunamadı, Windows tarafında `ollama` komutu yok, `wsl --list --verbose` kayıtlı distro göstermiyor ve `wsl -d Ubuntu` `WSL_E_DISTRO_NOT_FOUND` döndü.
+- **Faz kararı:** Faz 8 kod/config/dokümantasyon tarafı tamamlandı; Faz 8 **tam bitmiş sayılmaz** çünkü runtime smoke dış ortam eksikleri nedeniyle bekliyor. Sonraki faz adayı **Faz 9 — public release handoff + first-run reliability**, ancak canlı smoke geçmeden Faz 9'a başlanmamalı.
+- **Dokümantasyon temizliği:** `README.md`, `README.tr.md` ve `nova-android/README.md` içindeki komut bloğu yorumları kaldırıldı; gerekli açıklamalar normal metin veya tablo olarak korundu. Kontrol: kod bloklarında `#` yorum satırı kalmadı, sadece Markdown başlıkları kaldı.
+- **Profesyonel README eşitlemesi:** `README.md` ve `README.tr.md` aynı bölüm yapısına getirildi (22 başlık), hızlı kurulum/faz panosu/güvenlik bölümleri aynı kararları içeriyor; kök README'lerde emoji tabanlı durum göstergeleri kaldırıldı.
+- **Güvenlik kapanışı:** `keycloak/nova-realm.json` artık varsayılan kullanıcı/parola import etmiyor ve public client için `directAccessGrantsEnabled=false`. `scripts/security-check.mjs` buna statik kontrol ekledi; ileride realm'e default kullanıcı veya password grant eklenirse security gate kırılacak. Eski demo credential referansları dokümanlardan ve `secret-scan` allowlist'inden kaldırıldı.
+- **Son doğrulama:** `node scripts/secret-scan.mjs --all` temiz; `npm.cmd --prefix gateway test` 99/99 geçti; `npm.cmd --prefix web test` 3/3 geçti; güçlü örnek prod env ile `npm.cmd run prod-check` geçti; prod compose config geçti. Sandbox içi `npm.cmd run security` syntax, gateway tests, secret scan, yeni static security config ve web build adımlarını geçirdi; npm audit adımları registry/cache erişimi nedeniyle düştü. Sandbox dışı tekrar koşu kullanım limiti nedeniyle reddedildi, bu yüzden audit'li tam security gate son kez dış ortamda tekrar koşulmalı.
+- **Commit/push durumu:** `git update-index --chmod=+x nova-android/gradlew` ile Android wrapper executable bit'i korunmak istendi, ancak `.git` yazımı sandbox'ta izin hatasına düştü. Sandbox dışı izin denemesi Codex kullanım limiti nedeniyle reddedildi; bu yüzden commit/push bekliyor. Tekrar açıldığında önce `git add -A`, `git add --chmod=+x nova-android/gradlew`, commit ve push yapılmalı.
 
 ### Oturum — 14 Haziran 2026 (Faz 6 — çoklu ajan / team mode)
 - **Saf çekirdek:** `gateway/lib/multiagent.mjs` — `mapLimit` (eşzamanlılık sınırı), `buildSynthesisPrompt`, `runTeam` (fan-out → paralel alt-ajan → sentez; `runOne`/`synthesize` enjekte → test edilebilir), `parsePlan` (planlayıcı JSON çıktısından alt-görevler). `gateway/test/multiagent.test.mjs` (core 4/4 sandbox; parsePlan inline 5 assert).
@@ -101,7 +121,7 @@ bu bölüm veya "SIRADAKİ ADIM" bölümü güncel bırakılmalı.
 ### Oturum — 13 Haziran 2026 (public repo hijyeni / sanitization)
 - Kullanıcı "devam et" dedi; önceki public repo risk değerlendirmesinden devam edildi. Canlı WSL/Ollama smoke ortam görünürlüğüne bağlı kaldığı için kodlanabilir sıradaki iş olarak public paylaşım hijyeni seçildi.
 - Repo tarandı: gerçek provider API key veya `.env` içeriği bulunmadı; kişisel e-posta/kullanıcı adı ve yerel path izleri temizlendi.
-- `keycloak/nova-realm.json` demo kullanıcısı generic hale getirildi: `demo` / `demo@example.local` / `nova-local-dev`. `SECURITY.md`, `WSL_DOCKER.md`, `PHASE1.md` ve eski `PROGRESS.md` notları aynı demo değerlere güncellendi.
+- `keycloak/nova-realm.json` daha önce generic bir yerel test kullanıcısı içeriyordu; public riskini azaltmak için daha sonra varsayılan kullanıcı/parola import'u kaldırıldı.
 - Yanlışlıkla izlenen Vite timestamp çıktıları (`web/vite.config.js.timestamp-*.mjs`) kaldırıldı; bu dosyalar eski sandbox absolute path'leri içeriyordu. `.gitignore` içine `*.timestamp-*.mjs` eklendi.
 - `searxng/settings.yml` içindeki random görünümlü sabit secret, açıkça dev placeholder olan `change-me-searxng-dev-secret` değerine çekildi.
 - Android artifact düzeni toparlandı: `nova-android.zip` arşivi gerçek `nova-android/` klasörüne çıkarıldı; kökteki kopya `MainActivity.kt` ve `README (2).md` kaldırıldı; README doküman listesi Android klasörüne bağlandı; `.gitignore` arşiv/timestamp artifact'lerini engelleyecek şekilde güncellendi.
@@ -270,7 +290,7 @@ bu bölüm veya "SIRADAKİ ADIM" bölümü güncel bırakılmalı.
 - Kullanıcının WSL Ubuntu 24.04'ünde (native Docker Engine 29.1.3 + Compose v5.1.4) **tam Faz 2 stack'i kaldırıldı ve uçtan uca doğrulandı**:
   - 9 servis ayakta: postgres(healthy), redis(healthy), gateway(production modda, Caddy arkasında), caddy(80/443), minio, prometheus(9090), grafana(3001), whisper(8000), tts(8001).
   - Migrate one-shot: `applied 001_init.sql` + `applied 002_billing.sql` ✅
-  - Bootstrap: demo kullanıcı, $5/ay kota; üretilen user id `.env`'de `ADMIN_USER_IDS`'e yazıldı. API key kullanıcıda.
+  - Bootstrap: yerel test kullanıcısı, $5/ay kota; üretilen user id `.env`'de `ADMIN_USER_IDS`'e yazıldı. API key kullanıcıda.
   - HTTPS üzerinden (Caddy, self-signed): token'sız 401 ✅ · API key ile models 200 ✅ · admin key listesi 200 ✅ · konuşma oluşturma 201 ✅ · **`/v1/media` 201 + MinIO imzalı URL** ✅ · **Redis dağıtık rate limit: RATE_MAX=3 ile 4. chat isteği 429** ✅ (test sonrası 120'ye geri alındı).
 - **Öğrenilen ders:** `docker compose restart` `env_file`'ı yeniden OKUMAZ — `.env` değişince `docker compose up -d gateway` ile container'ı yeniden oluştur.
 - **Düzeltme gereken eksik bulundu:** MinIO bucket'ı (`nova-media`) otomatik oluşmuyor; gateway container'ından `CreateBucketCommand` ile elle oluşturuldu. TODO: storage.mjs'e idempotent `ensureBucket()` ekle veya compose'a bir init job koy.
@@ -314,7 +334,7 @@ bu bölüm veya "SIRADAKİ ADIM" bölümü güncel bırakılmalı.
 
 ### Oturum — 10 Haziran 2026 (devam 9: OIDC/KEYCLOAK + JWT CANLI ✅)
 - **Keycloak 26 compose'a eklendi** (`docker-compose.faz2.yml`): port 8081, `start-dev --import-realm`, hostname `http://localhost:8081`, `--hostname-backchannel-dynamic=true` (gateway JWKS'e `http://keycloak:8081` içinden ulaşır, token issuer browser URL'i olur). Admin: admin/admin.
-- **Realm:** `keycloak/nova-realm.json` — realm `nova`, public client `nova-web` (PKCE S256, redirect `http://localhost/*` + `https://localhost/*` + `:5173`, directAccessGrants açık), demo kullanıcı `demo` / `nova-local-dev`.
+- **Realm:** `keycloak/nova-realm.json` — realm `nova`, public client `nova-web` (PKCE S256, redirect `http://localhost/*` + `https://localhost/*` + `:5173`). Güncel public-ready durumda varsayılan kullanıcı/parola import edilmez ve password grant kapalıdır.
 - **Gateway OIDC env'leri** faz2 compose'da: `OIDC_ISSUER=http://localhost:8081/realms/nova`, `OIDC_JWKS_URL=http://keycloak:8081/...certs`, audience boş.
 - **HATA DÜZELTİLDİ (`auth.mjs` userFromJwt):** upsert sadece `oidc_sub` çakışmasını yakalıyordu; bootstrap'la oluşmuş kullanıcı (aynı email, `oidc_sub` NULL) JWT ile girince email unique index'ine takılıp 401 olurdu. Önce email-eşleşen hesaba `oidc_sub` bağlanıyor (account linking), yoksa insert.
 - **Yaşanan pürüz:** ilk realm import'unda kullanıcıda `lastName` yoktu → Keycloak "Account is not fully set up" verdi. JSON'a `lastName` + `requiredActions: []` eklendi, volume silinip yeniden import edildi.
@@ -322,7 +342,7 @@ bu bölüm veya "SIRADAKİ ADIM" bölümü güncel bırakılmalı.
 - ~~Kalan (Faz B): web UI'a "Keycloak ile giriş" butonu~~ → **TAMAMLANDI (devam 10)**, aşağıya bak.
 
 ### Oturum — 11 Haziran 2026 (devam 10: UI PAKETİ CANLI ✅ — login + kullanım + sunucu geçmişi + ses)
-- **Keycloak ile Giriş (PKCE) UI'da canlı:** Ayarlar > Gateway'de "Keycloak ile Giriş" butonu → authorization code + S256 PKCE → dönüşte token exchange → JWT, gateway key alanına otomatik yazılır; oturum IndexedDB'de (`nova:auth:v1`), 30 sn'de bir süresi kontrol edilip refresh_token ile sessiz tazelenir; "Çıkış" + email rozeti var. Uçtan uca canlı test edildi: login → demo kullanıcı email rozeti → JWT ile chat cevabı.
+- **Keycloak ile Giriş (PKCE) UI'da canlı:** Ayarlar > Gateway'de "Keycloak ile Giriş" butonu → authorization code + S256 PKCE → dönüşte token exchange → JWT, gateway key alanına otomatik yazılır; oturum IndexedDB'de (`nova:auth:v1`), 30 sn'de bir süresi kontrol edilip refresh_token ile sessiz tazelenir; "Çıkış" + email rozeti var. Uçtan uca canlı test, o dönemde oluşturulmuş yerel test kullanıcısıyla doğrulandı.
 - **Kullanım/kota paneli:** Yeni `GET /v1/usage` endpoint'i (`gateway/routes/usage.mjs`, MULTI_USER'da mount). Ayarlar panelinde "Kullanım — Bu Ay": giren/çıkan token, istek, maliyet kartları + kota progress barı + model bazlı dağılım. Canlıda gerçek veriyle görüldü (445/4.667 tok, 6 istek).
 - **Sunucu geçmişi:** `ensureServerConv()` gateway+oturum varken sohbeti `POST /v1/conversations` ile sunucuda açıyor; chat isteklerine `conversation_id` ekleniyor → gateway mesajları Postgres'e yazıyor (canlıda doğrulandı: 2 mesaj). Açılışta sunucu sohbetleri çekmeceye ekleniyor (bulut ikonu), seçilince mesajları lazy yükleniyor.
 - **Medya:** Görsel eklenince `/v1/media`'ya da arşivleniyor (MinIO); model çağrısı data URL ile sürüyor (gateway'in remote URL fetch'i yok — TODO).

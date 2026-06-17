@@ -12,7 +12,7 @@ geçilmelidir (bkz. `NOVA_Mimari_Inceleme.md`).
 |---|---|
 | `gateway/Dockerfile` | Gateway'i üretim imajı olarak paketler (Node 22, prod deps, non-root, healthcheck) |
 | `gateway/.dockerignore` | `node_modules` / `.env`'i imaja sızdırmaz |
-| `Caddyfile` | TLS sonlandırma + `web/dist` servis + `/v1 /stt /tts` reverse proxy |
+| `Caddyfile` | TLS sonlandırma + `web/dist` servis + `/health /v1 /stt /tts` reverse proxy |
 | `docker-compose.yml` | gateway + caddy servisleri, healthcheck, kalıcı TLS volume'leri |
 | `gateway.mjs` (guard) | `NODE_ENV=production` iken boş token / `*` CORS varsa **başlamayı reddeder** |
 | `.github/workflows/ci.yml` | install · web build · gateway smoke test · imaj build |
@@ -35,6 +35,7 @@ npm run build
 
 # 3) Domain'i ver ve ayağa kaldır
 export DOMAIN=nova.example.com      # gerçek domain → otomatik TLS. Yerel test için boş bırak (localhost)
+export CSP_CONNECT_SRC="'self'"     # public UI yalnız aynı origin gateway'e bağlansın
 docker compose up -d --build
 
 # 4) Doğrula

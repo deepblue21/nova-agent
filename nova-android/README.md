@@ -19,10 +19,14 @@ ayrıca `gradle wrapper` çalıştırmana gerek yok. Tek gereksinim **JDK 17** v
 3. Bir cihaz/emülatör seç → **Run**.
 
 **Terminalden (JDK 17 kurulu):**
+
+`assembleDebug` APK'yi `app/build/outputs/apk/debug/app-debug.apk` konumuna üretir.
+`installDebug` bağlı cihaza veya emülatöre kurar.
+
 ```bash
 cd nova-android
-./gradlew assembleDebug         # APK: app/build/outputs/apk/debug/app-debug.apk
-./gradlew installDebug          # bağlı cihaza/emülatöre kur
+./gradlew assembleDebug
+./gradlew installDebug
 ```
 Windows'ta `gradlew.bat assembleDebug`.
 
@@ -69,8 +73,10 @@ MainActivity (Compose UI)
 Saf mantık (SSE delta ayrıştırma) için JUnit testi var:
 
 ```bash
-./gradlew test          # app/src/test → NovaClientTest
+./gradlew test
 ```
+
+Test dosyası: `app/src/test` altında `NovaClientTest`.
 
 Derleme + statik denetim:
 ```bash

@@ -20,6 +20,12 @@ services:
       GATEWAY_TOKEN: ${GATEWAY_TOKEN:-}        # multi-user uses OIDC/JWT; set if single-user
     restart: unless-stopped
 
+  caddy:
+    environment:
+      KC_HOSTNAME_HOST: ${KC_HOSTNAME_HOST:?set KC_HOSTNAME_HOST to the public auth host, e.g. auth.example.com}
+      CSP_CONNECT_SRC: "${CSP_CONNECT_SRC:-'self'}"
+    restart: unless-stopped
+
   keycloak:
     # Production mode (not start-dev). Needs a real public hostname; TLS is
     # terminated at Caddy, so Keycloak runs http internally behind the proxy.

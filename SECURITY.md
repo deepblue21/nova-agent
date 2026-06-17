@@ -19,13 +19,14 @@ ve hepsi env değişkeniyle override edilebilir:
 | `GRAFANA_PASSWORD` | `admin` | güçlü değer |
 | `SEARXNG_SECRET` | dev string | rastgele 32+ bayt |
 | `GATEWAY_TOKEN` | *(boş)* | rastgele 32 bayt hex |
+| `CSP_CONNECT_SRC` | local/dev origin'leri | public'te `'self'` veya tam güvenilir origin listesi |
 
 Üret: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
 
-> **Keycloak realm:** `keycloak/nova-realm.json` içindeki demo kullanıcı
-> (`demo@example.local` / `nova-local-dev`) **yalnızca yerel testlerdir**. Prod'da: gerçek kullanıcıları
-> Keycloak admin panelinden yönet, realm dosyasındaki demo kullanıcıyı kaldır
-> veya şifresini değiştir. Realm import sadece ilk kurulumda çalışır.
+> **Keycloak realm:** `keycloak/nova-realm.json` yalnız `nova-web` public client'ını
+> import eder; varsayılan kullanıcı veya parola import edilmez. Yerel ve production
+> kullanıcılarını Keycloak admin panelinden oluştur. Realm import sadece ilk kurulumda
+> çalışır.
 
 ## Üretim (production) kontrol listesi
 
@@ -37,16 +38,19 @@ ve hepsi env değişkeniyle override edilebilir:
 5. **Tüm varsayılan parolaları değiştir** (yukarıdaki tablo).
 6. **Keycloak `start-dev` yerine `start`** (prod modu) + gerçek hostname/TLS.
 7. **`ALLOW_MODELS`** allowlist ile maliyet/erişim kontrolü.
-8. Portları dışarı açma: yalnızca Caddy 80/443 publish; Postgres/Redis/MinIO/
+8. **`CSP_CONNECT_SRC`** public'te local/dev origin veya wildcard içermemeli; mümkünse
+   sadece `'self'` kullan.
+9. Portları dışarı açma: yalnızca Caddy 80/443 publish; Postgres/Redis/MinIO/
    Keycloak/Grafana/SearXNG iç ağda kalsın (compose'da gerektiğinde `ports` kaldır).
-9. **OIDC issuer'ı boş bırakma:** `OIDC_JWKS_URL` kullanılıyorsa `OIDC_ISSUER`
+10. **OIDC issuer'ı boş bırakma:** `OIDC_JWKS_URL` kullanılıyorsa `OIDC_ISSUER`
    de set edilmeli; production preflight bunu zorlar.
-10. **Bağımlılık audit'i:** public release öncesi `npm.cmd --prefix gateway audit`
+11. **Bağımlılık audit'i:** public release öncesi `npm.cmd --prefix gateway audit`
    ve `npm.cmd --prefix web audit` 0 vulnerability dönmeli.
-11. **Otomatik kontrol:** prod `.env`'i source ettikten sonra `npm run prod-check`
+12. **Otomatik kontrol:** prod `.env`'i source ettikten sonra `npm run prod-check`
    çalıştır. Artık şunları da doğrular: `GATEWAY_TOKEN` gücü (≥32), multi-user için
    `DATABASE_URL`/`ADMIN_USER_IDS`, varsayılan/zayıf altyapı parolaları
-   (Postgres/Keycloak/MinIO/Redis) ve cleartext (`http://`) MCP sunucuları.
+   (Postgres/Keycloak/MinIO/Redis), public CSP `connect-src`, Keycloak Caddy host'u
+   ve cleartext (`http://`) MCP sunucuları.
    Ayrıca prod'da gateway, çok kısa (`<24`) `GATEWAY_TOKEN` ile başlamayı reddeder.
 
 ## Production compose overlay (Faz 8)
@@ -57,8 +61,10 @@ erişilir ama ağdan/internetten erişilemez. Yalnızca Caddy 80/443 publish ede
 
 Production için sertleştirme overlay'ini ekle:
 
+Prod `.env` içinde güçlü secret'lar, `KC_HOSTNAME`, `ALLOW_ORIGINS` ve
+`CSP_CONNECT_SRC` hazırlandıktan sonra:
+
 ```bash
-# prod .env'i hazırla (güçlü secret'lar + KC_HOSTNAME + ALLOW_ORIGINS), sonra:
 npm run prod-check
 docker compose -f docker-compose.yml -f docker-compose.faz2.yml -f docker-compose.prod.yml up -d
 ```
@@ -66,7 +72,9 @@ docker compose -f docker-compose.yml -f docker-compose.faz2.yml -f docker-compos
 `docker-compose.prod.yml`: Keycloak'ı **`start`** (prod modu) ile çalıştırır,
 `NODE_ENV=production` + `TRUST_PROXY=1` set eder, `restart: unless-stopped` ekler ve
 `${VAR:?...}` ile **zorunlu secret'lar** (Keycloak/Postgres/MinIO/Grafana parolaları,
-`KC_HOSTNAME`, `ALLOW_ORIGINS`) atanmadan başlatmayı engeller. Panellere erişim için
+`KC_HOSTNAME`, `KC_HOSTNAME_HOST`, `ALLOW_ORIGINS`) atanmadan başlatmayı engeller. Prod overlay
+ayrıca Caddy `connect-src` değerini varsayılan olarak `'self'` yapar; farklı UI/API origin'i
+varsa `CSP_CONNECT_SRC` yalnız tam güvenilir origin'lerle genişletilmeli. Panellere erişim için
 SSH tüneli kullan ya da her alt-alan için kimlik doğrulamalı bir Caddy route ekle.
 
 ## Uygulama içi korumalar (gateway)

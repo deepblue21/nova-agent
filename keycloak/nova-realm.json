@@ -12,25 +12,11 @@
       "protocol": "openid-connect",
       "publicClient": true,
       "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": true,
+      "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": ["http://localhost/*", "https://localhost/*", "http://localhost:5173/*"],
       "webOrigins": ["http://localhost", "https://localhost", "http://localhost:5173"],
       "attributes": { "pkce.code.challenge.method": "S256" }
-    }
-  ],
-  "users": [
-    {
-      "username": "demo",
-      "email": "demo@example.local",
-      "emailVerified": true,
-      "enabled": true,
-      "firstName": "Demo",
-      "lastName": "User",
-      "requiredActions": [],
-      "credentials": [
-        { "type": "password", "value": "nova-local-dev", "temporary": false }
-      ]
     }
   ]
 }

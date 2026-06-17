@@ -28,13 +28,28 @@ const BASE_TOOL_SPECS = [
     type: "function",
     function: {
       name: "web_search",
-      description: "Güncel bilgi, haber, fiyat, kişi/olay gibi modelin eğitim verisinde olmayan şeyler için web'de arama yapar. Kaynak linkleriyle sonuç döner.",
+      description: "Güncel bilgi, haber, fiyat, kişi/olay gibi modelin eğitim verisinde olmayan şeyler için web'de arama yapar. Kaynak linkleriyle sonuç döner. Hava tahmini için weather_forecast aracını tercih et.",
       parameters: {
         type: "object",
         properties: {
           query: { type: "string", description: "Arama sorgusu (kısa ve net tut)" },
         },
         required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "weather_forecast",
+      description: "Bir şehir/ilçe için güncel veya gelecek gün hava tahmini alır. Hava durumu, yarınki sıcaklık, yağış olasılığı, rüzgar gibi sorularda bunu kullan.",
+      parameters: {
+        type: "object",
+        properties: {
+          location: { type: "string", description: "Şehir/ilçe ve ülke; örn. 'Manisa, Türkiye'" },
+          date: { type: "string", description: "İsteğe bağlı: 'today', 'tomorrow' veya YYYY-MM-DD. Varsayılan: tomorrow" },
+        },
+        required: ["location"],
       },
     },
   },
@@ -141,6 +156,22 @@ function safeEval(expr) {
   return v;
 }
 
+// WMO hava kodu -> Turkce aciklama (Open-Meteo `weather_code`).
+const WEATHER_CODES = {
+  0: "açık", 1: "az bulutlu", 2: "parçalı bulutlu", 3: "çok bulutlu",
+  45: "sisli", 48: "kırağılı sis",
+  51: "hafif çisenti", 53: "çisenti", 55: "yoğun çisenti",
+  56: "donan hafif çisenti", 57: "donan çisenti",
+  61: "hafif yağmur", 63: "yağmur", 65: "kuvvetli yağmur",
+  66: "donan hafif yağmur", 67: "donan yağmur",
+  71: "hafif kar", 73: "kar", 75: "yoğun kar", 77: "kar taneleri",
+  80: "hafif sağanak", 81: "sağanak", 82: "şiddetli sağanak",
+  85: "hafif kar sağanağı", 86: "yoğun kar sağanağı",
+  95: "gök gürültülü fırtına", 96: "dolulu fırtına", 99: "şiddetli dolulu fırtına",
+};
+const weatherDesc = (code) => WEATHER_CODES[code] ?? (code == null ? "bilinmiyor" : "kod " + code);
+const rounded = (value, suffix = "") => Number.isFinite(Number(value)) ? Math.round(Number(value)) + suffix : "bilinmiyor";
+
 const EXECUTORS = {
   async doc_search(args, ctx) {
     if (!ctx || !ctx.userId) return { text: "Belge araması için oturum gerekli." };
@@ -154,6 +185,56 @@ const EXECUTORS = {
   async web_search(args, ctx) {
     const results = await webSearch(args.query, { signal: ctx && ctx.signal });
     return { text: formatResults(results), sources: results.map(r => ({ n: r.n, title: r.title, url: r.url })) };
+  },
+  // Hava tahmini: Open-Meteo (anahtarsiz, ucretsiz). Once geocoding (sehir ->
+  // koordinat), sonra gunluk tahmin. date: today|tomorrow|YYYY-MM-DD (varsayilan tomorrow).
+  async weather_forecast(args, ctx) {
+    const loc = String(args.location || "").trim();
+    if (!loc) return { text: "Konum belirtilmedi (örn. 'Manisa, Türkiye')." };
+    const signal = ctx && ctx.signal;
+    const GEO = (process.env.OPEN_METEO_GEOCODE_URL || "https://geocoding-api.open-meteo.com/v1/search").replace(/\/$/, "");
+    const API = (process.env.OPEN_METEO_URL || "https://api.open-meteo.com/v1/forecast").replace(/\/$/, "");
+    const name = loc.split(",")[0].trim();
+    const gres = await fetch(GEO + "?name=" + encodeURIComponent(name) + "&count=1&language=tr&format=json", { signal, headers: { Accept: "application/json" } });
+    if (!gres.ok) throw new Error("geocoding " + gres.status);
+    const gjson = await gres.json();
+    const place = gjson && gjson.results && gjson.results[0];
+    if (!place) return { text: `"${loc}" için konum bulunamadı.` };
+    const when = String(args.date || "tomorrow").trim().toLowerCase();
+    const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    let offset = 1;
+    if (when === "today" || when === "bugün") offset = 0;
+    else if (when === "tomorrow" || when === "yarın") offset = 1;
+    else if (/^\d{4}-\d{2}-\d{2}$/.test(when)) {
+      offset = Math.round((startOfDay(new Date(when + "T00:00:00")) - startOfDay(new Date())) / 86400000);
+    }
+    if (!(offset >= 0 && offset <= 6)) offset = 1;
+    const fu = API + "?latitude=" + place.latitude + "&longitude=" + place.longitude
+      + "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max"
+      + "&current=temperature_2m,weather_code,wind_speed_10m&timezone=auto&forecast_days=7";
+    const fres = await fetch(fu, { signal, headers: { Accept: "application/json" } });
+    if (!fres.ok) throw new Error("forecast " + fres.status);
+    const fjson = await fres.json();
+    const daily = fjson.daily || {};
+    const days = daily.time || [];
+    if (!days.length || offset >= days.length) return { text: "Tahmin verisi alınamadı." };
+    const placeName = [place.name, place.admin1, place.country].filter(Boolean).join(", ");
+    const label = offset === 0 ? "bugün" : offset === 1 ? "yarın" : days[offset];
+    const tmin = daily.temperature_2m_min && daily.temperature_2m_min[offset];
+    const tmax = daily.temperature_2m_max && daily.temperature_2m_max[offset];
+    const pop = daily.precipitation_probability_max && daily.precipitation_probability_max[offset];
+    const wind = daily.wind_speed_10m_max && daily.wind_speed_10m_max[offset];
+    const lines = [
+      `${placeName} — ${label} (${days[offset]})`,
+      `Durum: ${weatherDesc(daily.weather_code && daily.weather_code[offset])}`,
+      `Sıcaklık: ${rounded(tmin, "°C")} – ${rounded(tmax, "°C")}`,
+    ];
+    if (pop != null) lines.push(`Yağış olasılığı: %${pop}`);
+    if (wind != null) lines.push(`Rüzgar (maks): ${rounded(wind, " km/s")}`);
+    if (offset === 0 && fjson.current) {
+      lines.push(`Şu an: ${rounded(fjson.current.temperature_2m, "°C")}, ${weatherDesc(fjson.current.weather_code)}`);
+    }
+    return { text: lines.join("\n"), sources: [{ n: 1, title: "Open-Meteo — " + placeName, url: "https://open-meteo.com/" }] };
   },
   async calculator(args) {
     return { text: String(safeEval(args.expression)) };

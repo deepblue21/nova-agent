@@ -16,6 +16,12 @@ export function looksWeak(value) {
   return WEAK.some((w) => s === w || s.includes(w));
 }
 
+export function cspConnectSrcLooksPublicSafe(value) {
+  const s = String(value || "").trim();
+  if (!s) return false;
+  return !/(^|\s)(\*|http:\/\/localhost(?::|\s|$)|http:\/\/127\.0\.0\.1(?::|\s|$)|http:\/\/10\.0\.2\.2(?::|\s|$)|http:\/\/0\.0\.0\.0(?::|\s|$))/i.test(s);
+}
+
 export function evaluate(env = {}) {
   const rows = [];
   const add = (name, pass, detail, hard = true) => rows.push({ name, pass: !!pass, detail, hard });
@@ -34,6 +40,15 @@ export function evaluate(env = {}) {
     add("admins", !!env.ADMIN_USER_IDS, "ADMIN_USER_IDS set (at least one admin)", false);
   }
 
+  // When OIDC/JWT auth is configured, JWTs should be audience-restricted to this
+  // app. Without OIDC_AUDIENCE the verifier accepts any token from the issuer —
+  // including one minted for a different client of the same realm. Soft warning:
+  // not every IdP deployment uses audiences, so this is advisory, not fatal.
+  if (env.OIDC_ISSUER || env.OIDC_JWKS_URL) {
+    add("oidc-audience", !!env.OIDC_AUDIENCE,
+      "OIDC_AUDIENCE set (JWTs restricted to this app's audience)", false);
+  }
+
   // Default/weak infrastructure secrets (only checked when present).
   for (const [key, label] of [
     ["POSTGRES_PASSWORD", "Postgres"],
@@ -48,10 +63,18 @@ export function evaluate(env = {}) {
 
   add("ALLOW_MODELS", !!env.ALLOW_MODELS, "model allowlist set (cost/exposure control)", false);
   add("TRUST_PROXY", env.TRUST_PROXY === "1", "TRUST_PROXY=1 (behind a TLS reverse proxy)", false);
+  if (env.NODE_ENV === "production") {
+    add("CSP_CONNECT_SRC", cspConnectSrcLooksPublicSafe(env.CSP_CONNECT_SRC),
+      "CSP_CONNECT_SRC set for public use without wildcard/local dev origins");
+  }
   add("HEALTH_DETAILS", env.HEALTH_DETAILS_ENABLED !== "1", "HEALTH_DETAILS_ENABLED != 1 in prod", false);
   add("rate-limit", env.RATE_MAX !== "0", "rate limiting enabled (RATE_MAX != 0)", false);
   if (env.MCP_SERVERS && /http:\/\//.test(env.MCP_SERVERS)) {
     add("mcp-tls", false, "MCP_SERVERS uses http:// — prefer https for remote MCP servers", false);
+  }
+  if (env.KC_HOSTNAME) {
+    add("keycloak-caddy-host", !!env.KC_HOSTNAME_HOST && !/^https?:\/\//i.test(env.KC_HOSTNAME_HOST),
+      "KC_HOSTNAME_HOST set to auth host only (e.g. auth.example.com) for the Caddy Keycloak route");
   }
   return rows;
 }
