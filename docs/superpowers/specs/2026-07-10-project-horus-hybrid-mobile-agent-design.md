@@ -50,6 +50,23 @@ Seçilen yaklaşım hibrit local-first mimaridir. PC yalnızca model sunucusu ol
 
 Project Horus ikinci yaklaşımı kullanacaktır. İlk MVP, risk azaltmak için PC merkezli başlayacak; ardından telefon fallback'i eklenecektir.
 
+### PC Geliştirme ve Çalışma Ortamı
+
+PC tarafının birincil geliştirme ve servis runtime'ı WSL2 üzerindeki `Ubuntu` dağıtımıdır. Kaynak kodun kanonik konumu kullanıcının isteğine uygun olarak `C:\Users\salih\Project_Horus`, WSL görünümü ise `/mnt/c/Users/salih/Project_Horus` olacaktır.
+
+2026-07-10 tarihinde doğrulanan ortam:
+
+- WSL2, Linux kernel `6.18.35.2-microsoft-standard-WSL2`.
+- Python `3.12.3`.
+- Docker `29.1.3`.
+- NVIDIA GeForce RTX 3070, 8192 MiB VRAM.
+- Ollama `0.30.8`.
+- WSL içinde ADB henüz kurulu değildir ve Alt Proje B öncesinde kurulacaktır.
+
+Windows ve Linux için üretilen bağımlılıklar paylaşılmayacaktır. WSL Python sanal ortamı Linux home altında, Node paketleri çalıştırıldıkları platforma özel tutulacaktır. Android Studio, Android SDK ve Gradle tabanlı APK derleme Windows tarafında çalışabilir; Gateway, Mobile Worker, Mobilerun, Python testleri, Docker servisleri ve Ollama entegrasyonu WSL tarafında çalışacaktır.
+
+Gerçek cihaz geliştirmesinde ilk tercih WSL içinden Wi-Fi ADB'dir. USB zorunlu olursa Windows ADB veya `usbipd-win` yolu ayrı bir adaptör olarak ele alınır; MVP aynı anda iki ADB sunucusuna dayanmaz.
+
 ## 4. Sistem Bileşenleri
 
 ### Horus Android
@@ -97,7 +114,7 @@ Yönlendirme politikası:
 
 ### Horus Mobile Worker
 
-İlk MVP'de PC üzerinde çalışan ayrı bir süreçtir. Gateway'den görev veya alt hedef alır, Mobilerun Python API'sini çağırır ve ADB ile bağlı Android cihazda gözlem/eylem döngüsünü yürütür. Worker, provider anahtarlarını veya gateway admin yetkisini telefona aktarmaz. Native Horus Portal tamamlandığında aynı action sözleşmesi korunur ve worker isteğe bağlı geliştirme/test adaptörüne dönüşür.
+İlk MVP'de WSL Ubuntu üzerinde çalışan ayrı bir süreçtir. Gateway'den görev veya alt hedef alır, Mobilerun Python API'sini çağırır ve Wi-Fi ADB ile bağlı Android cihazda gözlem/eylem döngüsünü yürütür. Worker, provider anahtarlarını veya gateway admin yetkisini telefona aktarmaz. Native Horus Portal tamamlandığında aynı action sözleşmesi korunur ve worker isteğe bağlı geliştirme/test adaptörüne dönüşür.
 
 ### Mobile Agent Orchestrator
 
