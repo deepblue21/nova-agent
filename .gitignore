@@ -1,0 +1,29 @@
+# dependencies
+node_modules/
+**/node_modules/
+
+# env / secrets — never commit real keys or tokens
+.env
+.env.*
+!.env.example
+
+# build output
+web/dist/
+dist/
+build/
+
+# logs / runtime
+*.log
+npm-debug.log*
+.DS_Store
+*.timestamp-*.mjs
+*.zip
+
+# editor
+.vscode/
+.idea/
+*.bundle
+*.tgz
+
+# Project Horus SDD working artifacts
+.superpowers/

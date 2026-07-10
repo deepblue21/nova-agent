@@ -1,0 +1,42 @@
+# NOVA — edge reverse proxy (TLS terminator + static host)
+#
+# For a real domain Caddy provisions and renews TLS automatically.
+# For local testing it serves https://localhost with Caddy's internal CA.
+# Pass the domain via the DOMAIN env var (see docker-compose.yml); defaults
+# to "localhost".
+#
+#   /health /v1/* /stt /tts -> gateway (liveness + API surface)
+#   everything else      -> web/dist SPA (client-side routing fallback)
+#
+# CSP_CONNECT_SRC controls browser egress from the static UI. The default keeps
+# local/dev provider-direct use working; production should set it to "'self'" or
+# exact trusted origins only.
+
+# Serve BOTH https (internal CA) and plain http for local testing, so the
+# browser doesn't hit a self-signed-cert interstitial on http://localhost.
+{$DOMAIN:localhost}, http://{$DOMAIN:localhost} {
+	encode gzip
+
+	@api path /health /v1/* /stt /tts
+	handle @api {
+		reverse_proxy gateway:8088
+	}
+
+	handle {
+		root * /srv/web
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data: blob:; media-src 'self' blob: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src {$CSP_CONNECT_SRC:'self' http://localhost:* http://127.0.0.1:* http://10.0.2.2:* https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com}; script-src 'self'"
+	}
+}
+
+{$KC_HOSTNAME_HOST:auth.localhost} {
+	encode gzip
+	reverse_proxy keycloak:8081
+}

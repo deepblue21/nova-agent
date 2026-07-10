@@ -1,0 +1,115 @@
+# NOVA — production-ish stack.
+#   Phase 0: gateway (Node) behind Caddy (TLS) + static web.
+#   Phase 1: Postgres (users/sohbet/usage) + Redis (rate/cache) + one-shot migrate.
+#
+# Prerequisites:
+#   1. cp gateway/.env.example gateway/.env   and set GATEWAY_TOKEN + provider keys
+#      (Phase 1: also DATABASE_URL, REDIS_URL, OIDC_* — see .env.example)
+#   2. cd gateway && npm install              (refreshes package-lock.json for pg/ioredis/jose)
+#   3. npm run build                          (produces web/dist served by Caddy)
+#   4. export DOMAIN=nova.example.com          (or leave unset for localhost)
+#   5. docker compose up -d --build
+#
+# The gateway runs with NODE_ENV=production, so its preflight guard REFUSES to
+# start if GATEWAY_TOKEN is empty or ALLOW_ORIGINS='*'. That is intentional.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16   # RAG için pgvector eklentili Postgres 16
+    environment:
+      POSTGRES_USER: nova
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nova}
+      POSTGRES_DB: nova
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nova -d nova"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # One-shot: apply migrations, then exit. Gateway waits for it to succeed.
+  migrate:
+    build: ./gateway
+    command: ["node", "migrate.mjs"]
+    env_file:
+      - ./gateway/.env
+    environment:
+      DATABASE_URL: postgres://nova:${POSTGRES_PASSWORD:-nova}@postgres:5432/nova
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  gateway:
+    build: ./gateway
+    env_file:
+      - ./gateway/.env
+    environment:
+      NODE_ENV: production
+      PORT: "8088"
+      TRUST_PROXY: "1"          # gateway sits behind Caddy
+      DATABASE_URL: postgres://nova:${POSTGRES_PASSWORD:-nova}@postgres:5432/nova
+      REDIS_URL: redis://redis:6379
+      # Local LLM: reach the host's Ollama from inside the container.
+      OLLAMA_URL: http://host.docker.internal:11434
+      DEFAULT_MODEL: ollama/gemma4:latest
+      # effort kademesi → model (YALNIZ 'auto' / Dinamik Yönlendirme'de geçerli).
+      # Kendi kurulu Ollama tag'lerine göre değiştir (ollama list).
+      ROUTE_FAST: ollama/gemma4:e2b
+      ROUTE_BALANCED: ollama/gemma4:latest
+      ROUTE_DEEP: ollama/qwen3.5:35b
+      ROUTE_MAX: ollama/qwen3.6:35b
+      SCHEDULER_ENABLED: "1"        # zamanlanmış/otomatik ajan görevleri çalışsın
+      SCHEDULER_TICK_MS: "30000"    # due görevleri ne sıklıkta kontrol etsin (ms)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    expose:
+      - "8088"                  # internal only; not published to the host
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8088/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      - gateway
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+      KC_HOSTNAME_HOST: ${KC_HOSTNAME_HOST:-auth.localhost}
+      CSP_CONNECT_SRC: "${CSP_CONNECT_SRC:-'self' http://localhost:* http://127.0.0.1:* http://10.0.2.2:* https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./web/dist:/srv/web:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
+  pg_data:

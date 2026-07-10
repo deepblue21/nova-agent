@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nova-gateway
+  namespace: nova
+  labels:
+    app: nova-gateway
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nova-gateway
+  template:
+    metadata:
+      labels:
+        app: nova-gateway
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      # Idempotent migrations run before the app container starts. Safe to run
+      # per-pod: migrate.mjs tracks applied files in schema_migrations.
+      initContainers:
+        - name: migrate
+          image: ghcr.io/OWNER/nova-gateway:latest
+          command: ["node", "migrate.mjs"]
+          envFrom:
+            - secretRef:
+                name: nova-secrets
+      containers:
+        - name: gateway
+          image: ghcr.io/OWNER/nova-gateway:latest
+          ports:
+            - containerPort: 8088
+          envFrom:
+            - configMapRef:
+                name: nova-config
+            - secretRef:
+                name: nova-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "1"
+              memory: "512Mi"

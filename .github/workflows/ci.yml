@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+# Least-privilege default for the auto-provisioned GITHUB_TOKEN (public-repo
+# hardening). Both jobs only read the checkout; no write scopes are needed.
+permissions:
+  contents: read
+
+jobs:
+  web-gateway:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Test the supported minimum (Vite 8 needs >=20.19) and current LTS.
+        node: [ "20.19", "22" ]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "${{ matrix.node }}"
+
+      # Clean, reproducible installs from the committed lockfiles.
+      - name: Install gateway deps
+        working-directory: gateway
+        run: npm ci
+      - name: Install web deps
+        working-directory: web
+        run: npm ci
+
+      - name: Secret scan (tracked files)
+        run: node scripts/secret-scan.mjs
+
+      - name: Unit tests (gateway)
+        run: npm --prefix gateway test
+
+      - name: Build web
+        run: npm --prefix web run build
+
+      - name: Dependency audit (gateway + web)
+        run: |
+          npm --prefix gateway audit --audit-level=moderate
+          npm --prefix web audit --audit-level=moderate
+
+      - name: Gateway live smoke (/health, auth, models)
+        run: |
+          REQ_TIMEOUT_MS=5000 MAX_RETRIES=0 GATEWAY_TOKEN=ci-smoke-token \
+            node gateway/gateway.mjs &
+          GW=$!
+          for i in $(seq 1 20); do
+            sleep 1
+            curl -fsS http://localhost:8088/health >/dev/null 2>&1 && break
+          done
+          SMOKE_TIMEOUT_MS=20000 GATEWAY_URL=http://localhost:8088 \
+            GATEWAY_TOKEN=ci-smoke-token node scripts/smoke-live.mjs
+          kill "$GW" 2>/dev/null || true
+
+      - name: Preflight must FAIL in production without a token
+        run: |
+          set +e
+          NODE_ENV=production node gateway/gateway.mjs
+          code=$?
+          set -e
+          test "$code" -ne 0 && echo "OK: gateway refused to start unauthenticated"
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build gateway image
+        run: docker build -t nova-gateway ./gateway
+
+  # android:
+  #   Requires gradle/wrapper/gradle-wrapper.jar (missing from the repo).
+  #   Regenerate once with `gradle wrapper --gradle-version 8.9` (or open the
+  #   project in Android Studio), commit the jar, then enable this job:
+  #
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-java@v4
+  #       with: { distribution: temurin, java-version: "17" }
+  #     - run: ./gradlew test
+  #       working-directory: nova-android

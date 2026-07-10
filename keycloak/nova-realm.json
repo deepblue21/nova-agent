@@ -1,0 +1,22 @@
+{
+  "realm": "nova",
+  "enabled": true,
+  "registrationAllowed": false,
+  "loginTheme": "keycloak",
+  "accessTokenLifespan": 3600,
+  "ssoSessionIdleTimeout": 86400,
+  "clients": [
+    {
+      "clientId": "nova-web",
+      "name": "NOVA Web UI",
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost/*", "https://localhost/*", "http://localhost:5173/*"],
+      "webOrigins": ["http://localhost", "https://localhost", "http://localhost:5173"],
+      "attributes": { "pkce.code.challenge.method": "S256" }
+    }
+  ]
+}

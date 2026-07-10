@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nova-config
+  namespace: nova
+data:
+  NODE_ENV: "production"
+  PORT: "8088"
+  TRUST_PROXY: "1"
+  ALLOW_ORIGINS: "https://nova.example.com"
+  RATE_MAX: "120"
+  RATE_WINDOW_MS: "60000"
+  LOG_LEVEL: "info"
+  S3_BUCKET: "nova-media"
+  S3_REGION: "us-east-1"
+  ALLOW_MODELS: ""                      # prod allowlist, e.g. "ollama/*,gemini/gemini-2.5-flash"
+  DEFAULT_MODEL: "ollama/qwen3.5-9b-agent:latest"
+  VISION_MODEL: "ollama/gemma4:latest"
+  # effort → model (auto / dynamic routing)
+  ROUTE_FAST: "ollama/gemma4:e2b"
+  ROUTE_BALANCED: "ollama/gemma4:latest"
+  ROUTE_DEEP: "ollama/qwen3.5:35b"
+  ROUTE_MAX: "ollama/qwen3.6:35b"
+  # agent tools / RAG (in-cluster services)
+  SEARXNG_URL: "http://searxng:8080"
+  # voice STT/TTS (in-cluster services or managed)
+  WHISPER_URL: "http://whisper:8000/v1/audio/transcriptions"
+  TTS_URL: "http://tts:8000/v1/audio/speech"
+  TTS_FORMAT: "wav"
+  VOICE_QUEUE_ENABLED: "0"
+  # scheduled/automated agent tasks
+  SCHEDULER_ENABLED: "0"
+  SCHEDULER_TICK_MS: "30000"
+  # observability — set OTLP endpoint to enable tracing
+  OTEL_SERVICE_NAME: "nova-gateway"
+  # OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"

@@ -1,0 +1,73 @@
+# NOVA — production hardening overlay (Faz 8).
+# Layer ON TOP of the base + phase-2 files; fill in your real values first:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.faz2.yml -f docker-compose.prod.yml up -d
+#
+# `${VAR:?...}` entries FAIL the command if the variable is unset — this forces
+# strong secrets / a real hostname before anything starts. Set them in your prod
+# `.env` (never commit it). See SECURITY.md and run `npm run prod-check` first.
+#
+# TLS: terminate HTTPS at Caddy (the only service publishing 80/443). All other
+# panels stay loopback-only (127.0.0.1, set in docker-compose.faz2.yml); reach
+# them over an SSH tunnel, or add an authenticated Caddy route per subdomain.
+
+services:
+  gateway:
+    environment:
+      NODE_ENV: production
+      TRUST_PROXY: "1"                 # behind Caddy/TLS
+      ALLOW_ORIGINS: ${ALLOW_ORIGINS:?set ALLOW_ORIGINS to your exact UI origin(s), never *}
+      GATEWAY_TOKEN: ${GATEWAY_TOKEN:-}        # multi-user uses OIDC/JWT; set if single-user
+    restart: unless-stopped
+
+  caddy:
+    environment:
+      KC_HOSTNAME_HOST: ${KC_HOSTNAME_HOST:?set KC_HOSTNAME_HOST to the public auth host, e.g. auth.example.com}
+      CSP_CONNECT_SRC: "${CSP_CONNECT_SRC:-'self'}"
+    restart: unless-stopped
+
+  keycloak:
+    # Production mode (not start-dev). Needs a real public hostname; TLS is
+    # terminated at Caddy, so Keycloak runs http internally behind the proxy.
+    command: ["start", "--import-realm", "--http-port=8081", "--http-enabled=true", "--proxy-headers=xforwarded"]
+    environment:
+      KC_HOSTNAME: ${KC_HOSTNAME:?set KC_HOSTNAME to the public Keycloak URL, e.g. https://auth.example.com}
+      KC_HOSTNAME_STRICT: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:?set a non-default Keycloak admin username}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set a strong Keycloak admin password}
+    restart: unless-stopped
+
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set a strong Postgres password}
+    restart: unless-stopped
+
+  redis:
+    restart: unless-stopped
+
+  minio:
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER:?set a non-default MinIO user}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:?set a strong MinIO password}
+    restart: unless-stopped
+
+  searxng:
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:?set a random 32+ byte SearXNG secret}
+    restart: unless-stopped
+
+  prometheus:
+    restart: unless-stopped
+
+  grafana:
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?set a strong Grafana password}
+    restart: unless-stopped
+
+  whisper:
+    restart: unless-stopped
+
+  tts:
+    restart: unless-stopped

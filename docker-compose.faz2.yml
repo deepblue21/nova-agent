@@ -1,0 +1,101 @@
+# NOVA — Phase 2 add-ons (object storage, observability, voice) for local/staging.
+# Layer it on top of the base stack:
+#   docker compose -f docker-compose.yml -f docker-compose.faz2.yml up -d --build
+#
+# Adds: MinIO (S3-compatible), Prometheus + Grafana, faster-whisper + openedai-speech.
+# In production use managed S3 + a hosted monitoring stack + GPU voice nodes.
+
+services:
+  gateway:
+    environment:
+      # Ajan araçları: web araması SearXNG'e gider (iç ağ).
+      SEARXNG_URL: http://searxng:8080
+      # OIDC: issuer = browser-facing URL (token 'iss' claim); JWKS via internal host.
+      OIDC_ISSUER: http://localhost:8081/realms/nova
+      OIDC_JWKS_URL: http://keycloak:8081/realms/nova/protocol/openid-connect/certs
+      OIDC_AUDIENCE: ""
+      S3_ENDPOINT: http://minio:9000
+      S3_FORCE_PATH_STYLE: "1"
+      S3_ACCESS_KEY: ${MINIO_USER:-minio}
+      S3_SECRET_KEY: ${MINIO_PASSWORD:-minio12345}
+      S3_BUCKET: nova-media
+      WHISPER_URL: http://whisper:8000/v1/audio/transcriptions
+      TTS_URL: http://tts:8000/v1/audio/speech
+    depends_on:
+      minio:
+        condition: service_started
+
+  # OIDC identity provider (Phase 1 multi-user auth). Dev mode + realm import.
+  # Frontend URL http://localhost:8081 (token issuer); gateway reaches JWKS via
+  # the internal hostname (backchannel-dynamic allows both).
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: ["start-dev", "--import-realm", "--http-port=8081", "--hostname=http://localhost:8081", "--hostname-backchannel-dynamic=true"]
+    environment:
+      # Dev varsayılanları; PRODÜKSİYONDA .env'den override edin (admin paneli erişimi).
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    ports:
+      - "127.0.0.1:8081:8081"   # loopback-only; prod'da Caddy/TLS arkasına al
+    volumes:
+      - ./keycloak/nova-realm.json:/opt/keycloak/data/import/nova-realm.json:ro
+      - keycloak_data:/opt/keycloak/data
+
+  # Self-hosted meta arama — ajan modunun web_search aracı buraya sorar.
+  searxng:
+    image: searxng/searxng:latest
+    environment:
+      SEARXNG_BASE_URL: http://localhost:8080/
+      # İmaj, settings.yml'deki secret'i bu env ile override eder (rastgele üretmek için boş bırakıp imaja bırakabilirsiniz).
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-change-me-searxng-dev-secret}
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    ports:
+      - "127.0.0.1:8080:8080"   # loopback-only (iç ağda gateway 'searxng:8080' kullanır)
+
+  minio:
+    image: minio/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-minio12345}
+    ports:
+      - "127.0.0.1:9000:9000"   # loopback-only (S3 API)
+      - "127.0.0.1:9001:9001"   # loopback-only (MinIO console)
+    volumes:
+      - minio_data:/data
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "127.0.0.1:9090:9090"   # loopback-only (Prometheus)
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    ports:
+      - "127.0.0.1:3001:3000"   # loopback-only (Grafana)
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana-nova-gw.json:/var/lib/grafana/dashboards/nova-gw.json:ro
+    depends_on:
+      - prometheus
+
+  whisper:
+    image: fedirz/faster-whisper-server:latest-cpu
+    ports:
+      - "127.0.0.1:8000:8000"   # loopback-only (Whisper STT)
+
+  tts:
+    image: ghcr.io/matatonic/openedai-speech-min:latest
+    ports:
+      - "127.0.0.1:8001:8000"   # loopback-only (TTS)
+
+volumes:
+  minio_data:
+  grafana_data:
+  keycloak_data:

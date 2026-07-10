@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nova-gateway
+  namespace: nova
+spec:
+  selector:
+    app: nova-gateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8088

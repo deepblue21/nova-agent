@@ -1,0 +1,10 @@
+# Auto-provisioned Prometheus datasource (uid matches the NOVA dashboard targets).
+apiVersion: 1
+datasources:
+  - name: prom-nova
+    uid: prom-nova
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true

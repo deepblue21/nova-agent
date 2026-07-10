@@ -1,0 +1,43 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nova
+  namespace: nova
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # SSE streaming must not be buffered by the ingress proxy.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - nova.example.com
+      secretName: nova-tls
+  rules:
+    - host: nova.example.com
+      http:
+        paths:
+          - path: /v1
+            pathType: Prefix
+            backend:
+              service:
+                name: nova-gateway
+                port:
+                  number: 80
+          - path: /stt
+            pathType: Prefix
+            backend:
+              service:
+                name: nova-gateway
+                port:
+                  number: 80
+          - path: /tts
+            pathType: Prefix
+            backend:
+              service:
+                name: nova-gateway
+                port:
+                  number: 80
+# Static web (web/dist) is best served from a CDN or a separate static service.
+# Point the apex/root host at that; keep the API paths above on the gateway.
