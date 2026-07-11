@@ -4,6 +4,11 @@ import { createMobileTaskStore } from "../lib/mobile_task_store.mjs";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const COMMANDS = new Set(["cancel", "pause", "resume", "steer"]);
+const TRANSITION_CONFLICTS = new Set([
+  "terminal task cannot be changed",
+  "cannot resume a task that is not paused",
+  "task must be waiting_for_confirmation to resolve confirmation",
+]);
 const asyncRoute = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 function clampLimit(value, fallback = 50) {
@@ -32,14 +37,20 @@ function invalidId(res) {
   return res.status(400).json({ error: "invalid id" });
 }
 
-function transitionError(res, error) {
-  return res.status(409).json({ error: error?.message || "task transition conflict" });
+function isTransitionConflict(error) {
+  return error instanceof Error && TRANSITION_CONFLICTS.has(error.message);
+}
+
+function transitionError(res) {
+  return res.status(409).json({ error: "task transition conflict" });
 }
 
 export function createMobileTasksRouter({
   store = createMobileTaskStore(),
   broker = mobileEventBroker,
   heartbeatMs = process.env.MOBILE_SSE_HEARTBEAT_MS,
+  setIntervalFn = setInterval,
+  clearIntervalFn = clearInterval,
 } = {}) {
   const router = Router();
   const sseHeartbeatMs = heartbeatInterval(heartbeatMs);
@@ -89,7 +100,7 @@ export function createMobileTasksRouter({
     const close = () => {
       if (closed) return;
       closed = true;
-      if (heartbeat) clearInterval(heartbeat);
+      if (heartbeat) clearIntervalFn(heartbeat);
       unsubscribeOnce();
     };
 
@@ -113,7 +124,7 @@ export function createMobileTasksRouter({
       return;
     }
 
-    heartbeat = setInterval(() => {
+    heartbeat = setIntervalFn(() => {
       if (!closed) res.write(": heartbeat\n\n");
     }, sseHeartbeatMs);
     heartbeat.unref?.();
@@ -130,7 +141,8 @@ export function createMobileTasksRouter({
       broker.publish(updated.event);
       res.json(updated.task);
     } catch (error) {
-      transitionError(res, error);
+      if (isTransitionConflict(error)) return transitionError(res);
+      throw error;
     }
   }));
 
@@ -152,7 +164,8 @@ export function createMobileTasksRouter({
       broker.publish(updated.event);
       res.json(updated.task);
     } catch (error) {
-      transitionError(res, error);
+      if (isTransitionConflict(error)) return transitionError(res);
+      throw error;
     }
   }));
 

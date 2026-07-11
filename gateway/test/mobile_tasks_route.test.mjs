@@ -47,6 +47,47 @@ function createBroker() {
   };
 }
 
+function createTrackedTimers() {
+  const active = new Set();
+  return {
+    created: [],
+    clearCalls: 0,
+    setInterval(callback, ms) {
+      const timer = { callback, ms };
+      active.add(timer);
+      this.created.push(timer);
+      return timer;
+    },
+    clearInterval(timer) {
+      if (active.delete(timer)) this.clearCalls += 1;
+    },
+    tick() {
+      for (const timer of active) timer.callback();
+    },
+    get activeCount() { return active.size; },
+  };
+}
+
+async function readUntil(reader, pattern) {
+  const decoder = new TextDecoder();
+  let text = "";
+  for (let count = 0; count < 10; count += 1) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    text += decoder.decode(chunk.value, { stream: true });
+    if (pattern.test(text)) return text;
+  }
+  assert.fail(`did not receive SSE output matching ${pattern}`);
+}
+
+async function waitFor(predicate, description) {
+  for (let count = 0; count < 20; count += 1) {
+    if (predicate()) return;
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
+  assert.fail(`timed out waiting for ${description}`);
+}
+
 function createApp(store = createStore(), broker = createBroker(), options = {}) {
   const app = express();
   app.use(express.json());
@@ -55,6 +96,10 @@ function createApp(store = createStore(), broker = createBroker(), options = {})
     next();
   });
   app.use(createMobileTasksRouter({ store, broker, ...options }));
+  app.use((error, _req, res, _next) => {
+    options.onError?.(error);
+    res.status(500).json({ error: "gateway error" });
+  });
   return app;
 }
 
@@ -125,6 +170,20 @@ test("commands validate input and map transition errors to 409", async () => {
 
   assert.equal(invalid.status, 400);
   assert.equal(conflict.status, 409);
+  assert.equal(conflict.body.error, "task transition conflict");
+});
+
+test("unexpected store errors propagate to the gateway error handler", async () => {
+  const databaseError = new Error("database credentials leaked");
+  let received;
+  const store = createStore({ applyCommand: async () => { throw databaseError; } });
+  const res = await request(createApp(store, undefined, { onError: error => { received = error; } }))
+    .post(`/v1/mobile/tasks/${TASK_ID}/commands`)
+    .send({ command: "pause" });
+
+  assert.equal(res.status, 500);
+  assert.deepEqual(res.body, { error: "gateway error" });
+  assert.equal(received, databaseError);
 });
 
 test("confirmation decision only accepts approve or reject", async () => {
@@ -157,7 +216,7 @@ test("parseLastEventId accepts non-negative integer headers only", () => {
   assert.equal(parseLastEventId("nope"), 0);
 });
 
-test("SSE verifies ownership, replays before subscribing, and cleans up exactly once", async (t) => {
+test("SSE replays, heartbeats, and cleans up the broker and interval exactly once", async (t) => {
   const calls = [];
   const replay = event({ id: "7", type: "task.created" });
   const store = createStore({
@@ -165,7 +224,12 @@ test("SSE verifies ownership, replays before subscribing, and cleans up exactly 
     listEvents: async (_userId, _taskId, afterId) => { calls.push(`listEvents:${afterId}`); return [replay]; },
   });
   const broker = createBroker();
-  const app = createApp(store, broker, { heartbeatMs: 5 });
+  const timers = createTrackedTimers();
+  const app = createApp(store, broker, {
+    heartbeatMs: 5,
+    setIntervalFn: timers.setInterval.bind(timers),
+    clearIntervalFn: timers.clearInterval.bind(timers),
+  });
   const server = app.listen(0);
   t.after(() => server.close());
   await once(server, "listening");
@@ -175,21 +239,25 @@ test("SSE verifies ownership, replays before subscribing, and cleans up exactly 
     headers: { "Last-Event-ID": "6" },
   });
   const reader = response.body.getReader();
-  const first = await reader.read();
-  const firstText = new TextDecoder().decode(first.value);
+  try {
+    assert.equal(response.headers.get("content-type"), "text/event-stream; charset=utf-8");
+    assert.deepEqual(calls, ["getTask", "listEvents:6"]);
+    assert.deepEqual(broker.subscribes, [TASK_ID]);
+    assert.match(await readUntil(reader, /^id: 7\nevent: task\.created\ndata: /m), /^id: 7\nevent: task\.created\ndata: /m);
+    assert.equal(timers.activeCount, 1);
+    assert.equal(timers.created[0].ms, 5);
 
-  assert.equal(response.headers.get("content-type"), "text/event-stream; charset=utf-8");
-  assert.deepEqual(calls, ["getTask", "listEvents:6"]);
-  assert.deepEqual(broker.subscribes, [TASK_ID]);
-  assert.match(firstText, /^id: 7\nevent: task\.created\ndata: /);
+    timers.tick();
+    assert.match(await readUntil(reader, /: heartbeat\n\n/), /: heartbeat\n\n/);
 
-  broker.emit(event({ id: "8", type: "task.paused" }));
-  const live = await reader.read();
-  assert.match(new TextDecoder().decode(live.value), /event: task\.paused/);
-
-  await reader.cancel();
-  await new Promise(resolve => setTimeout(resolve, 20));
+    broker.emit(event({ id: "8", type: "task.paused" }));
+    assert.match(await readUntil(reader, /event: task\.paused/), /event: task\.paused/);
+  } finally {
+    await reader.cancel();
+  }
+  await waitFor(() => broker.unsubscribes === 1 && timers.activeCount === 0, "SSE cleanup");
   assert.equal(broker.unsubscribes, 1);
+  assert.equal(timers.clearCalls, 1);
 });
 
 test("SSE returns 404 before it writes streaming headers for an unowned task", async () => {
