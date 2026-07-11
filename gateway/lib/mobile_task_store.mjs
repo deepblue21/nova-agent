@@ -197,7 +197,8 @@ async function resolveConfirmation(transaction, userId, taskId, confirmationId, 
   return transaction(async (client) => {
     const task = await lockTask(client, userId, taskId);
     if (!task) return null;
-    if (task.status !== "waiting_for_confirmation") {
+    const isWaitingForConfirmation = task.status === "waiting_for_confirmation";
+    if (decision === "approve" && !isWaitingForConfirmation) {
       throw new Error("task must be waiting_for_confirmation to resolve confirmation");
     }
 
@@ -221,15 +222,19 @@ async function resolveConfirmation(transaction, userId, taskId, confirmationId, 
       [confirmationStatus, confirmationId, taskId],
     );
     const savedConfirmation = savedConfirmationResult.rows[0];
-    const nextStatus = decision === "approve" ? confirmation.resume_status : "paused";
-    const taskResult = await client.query(
-      `UPDATE mobile_tasks
-          SET status=$1, updated_at=now()
-        WHERE id=$2 AND user_id=$3
-        RETURNING ${TASK_COLUMNS}`,
-      [nextStatus, taskId, userId],
-    );
-    const updatedTask = taskResult.rows[0];
+    const nextStatus = decision === "approve" ? confirmation.resume_status
+      : (isWaitingForConfirmation ? "paused" : task.status);
+    let updatedTask = task;
+    if (isWaitingForConfirmation) {
+      const taskResult = await client.query(
+        `UPDATE mobile_tasks
+            SET status=$1, updated_at=now()
+          WHERE id=$2 AND user_id=$3
+          RETURNING ${TASK_COLUMNS}`,
+        [nextStatus, taskId, userId],
+      );
+      updatedTask = taskResult.rows[0];
+    }
     const eventType = decision === "approve" ? "confirmation.approved" : "confirmation.rejected";
     const event = await insertEvent(client, taskId, eventType, { status: nextStatus });
     return { task: updatedTask, event, confirmation: savedConfirmation };

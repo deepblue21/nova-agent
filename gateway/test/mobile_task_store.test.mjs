@@ -235,3 +235,77 @@ test("applyCommand caps notes by Unicode code points", async () => {
   assert.equal(eventParams[2].note, expected);
   assert.equal(Array.from(eventParams[2].note).length, 1000);
 });
+
+function staleConfirmationClient() {
+  const state = { taskStatus: "waiting_for_confirmation", confirmationStatus: "pending" };
+  const client = { query: async (sql, params) => {
+    if (sql.includes("FROM mobile_tasks")) {
+      return { rows: [{ id: "task-1", user_id: "user-1", status: state.taskStatus }] };
+    }
+    if (sql.includes("FROM mobile_confirmations")) {
+      if (state.confirmationStatus !== "pending") return { rows: [] };
+      return { rows: [{ id: "confirmation-1", task_id: "task-1", risk_level: "R2", action: {}, resume_status: "executing", status: "pending" }] };
+    }
+    if (sql.includes("UPDATE mobile_confirmations")) {
+      state.confirmationStatus = params[0];
+      return { rows: [{ id: "confirmation-1", status: state.confirmationStatus }] };
+    }
+    if (sql.includes("UPDATE mobile_tasks")) {
+      state.taskStatus = sql.includes("status='waiting_for_confirmation'")
+        ? "waiting_for_confirmation"
+        : params[0];
+      return { rows: [{ id: "task-1", status: state.taskStatus }] };
+    }
+    if (sql.includes("INSERT INTO mobile_confirmations")) {
+      state.confirmationStatus = "pending";
+      return { rows: [{ id: "confirmation-2", task_id: "task-1", risk_level: "R2", action: {}, resume_status: "executing", status: "pending" }] };
+    }
+    if (sql.includes("INSERT INTO mobile_task_events")) {
+      return { rows: [{ id: 12, task_id: "task-1", type: params[1], payload: params[2] }] };
+    }
+    throw new Error(`unexpected SQL: ${sql}`);
+  }};
+  return { client, state };
+}
+
+test("pause then reject settles the confirmation and keeps the task paused", async () => {
+  const { client, state } = staleConfirmationClient();
+  const store = createMobileTaskStore({ q: client.query, withTx: async fn => fn(client) });
+
+  await store.applyCommand("user-1", "task-1", "pause");
+  const out = await store.resolveConfirmation("user-1", "task-1", "confirmation-1", "reject");
+
+  assert.equal(out.confirmation.status, "rejected");
+  assert.equal(out.task.status, "paused");
+  assert.equal(out.event.type, "confirmation.rejected");
+  assert.equal(state.taskStatus, "paused");
+  assert.equal(state.confirmationStatus, "rejected");
+});
+
+test("cancel then reject settles the confirmation and keeps the task cancelled", async () => {
+  const { client, state } = staleConfirmationClient();
+  const store = createMobileTaskStore({ q: client.query, withTx: async fn => fn(client) });
+
+  await store.applyCommand("user-1", "task-1", "cancel");
+  const out = await store.resolveConfirmation("user-1", "task-1", "confirmation-1", "reject");
+
+  assert.equal(out.confirmation.status, "rejected");
+  assert.equal(out.task.status, "cancelled");
+  assert.equal(out.event.type, "confirmation.rejected");
+  assert.equal(state.taskStatus, "cancelled");
+  assert.equal(state.confirmationStatus, "rejected");
+});
+
+test("a paused task can request a later confirmation after rejecting its stale one", async () => {
+  const { client, state } = staleConfirmationClient();
+  const store = createMobileTaskStore({ q: client.query, withTx: async fn => fn(client) });
+
+  await store.applyCommand("user-1", "task-1", "pause");
+  await store.resolveConfirmation("user-1", "task-1", "confirmation-1", "reject");
+  const out = await store.requestConfirmation("user-1", "task-1", { riskLevel: "R2", action: {} });
+
+  assert.equal(out.confirmation.id, "confirmation-2");
+  assert.equal(out.confirmation.status, "pending");
+  assert.equal(out.task.status, "waiting_for_confirmation");
+  assert.equal(state.confirmationStatus, "pending");
+});
