@@ -165,6 +165,7 @@ with both verified work and the next concrete work item.
 - Docker mobile-control-plane smoke that creates, reads, pauses, resumes, cancels, and
   replays task events without printing the API key.
 - Debug APK: `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
+- Dedicated worker-goal policy and worker-only authentication are complete.
 
 **In progress**
 
@@ -173,8 +174,7 @@ with both verified work and the next concrete work item.
 
 **Next**
 
-1. Add worker-only Gateway authentication, leases, idempotent reports, and replayable
-   execution events.
+1. Add lease persistence and idempotent worker reports.
 2. Add the isolated Python worker and a WSL-to-emulator ADB bridge, with Mobilerun Portal
    readiness checks.
 3. Show worker lifecycle states in the Android Tasks timeline, then prove the safe

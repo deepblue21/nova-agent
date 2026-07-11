@@ -164,6 +164,7 @@ yapilanlar hem de siradaki somut is burada guncellenir.
 - API anahtarini yazdirmadan gorev olusturan, okuyan, duraklatan, devam ettiren, iptal eden
   ve event'leri replay eden Docker mobil kontrol duzlemi smoke testi.
 - Debug APK: `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
+- Ayrilmis worker-goal politikasi ve yalnizca worker icin kimlik dogrulamasi tamamlandi.
 
 **Devam eden is**
 
@@ -172,8 +173,7 @@ yapilanlar hem de siradaki somut is burada guncellenir.
 
 **Siradaki isler**
 
-1. Worker'a ozel Gateway kimlik dogrulamasi, lease, idempotent sonuc raporu ve replay
-   destekli calisma event'lerini eklemek.
+1. Lease kaliciligini ve idempotent worker raporlarini eklemek.
 2. Izole Python worker'i ve WSL-emulator ADB koprusunu, Mobilerun Portal hazirlik
    kontrolleriyle birlikte eklemek.
 3. Worker yasam dongusu durumlarini Android Gorevler timeline'inda gostermek ve guvenli
