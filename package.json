@@ -15,7 +15,8 @@
     "prod-check": "node scripts/prod-check.mjs",
     "audit": "npm --prefix gateway audit --audit-level=moderate && npm --prefix web audit --audit-level=moderate",
     "security": "node scripts/security-check.mjs",
-    "smoke:live": "node scripts/smoke-live.mjs"
+    "smoke:live": "node scripts/smoke-live.mjs",
+    "smoke:mobile": "node scripts/smoke-mobile-control-plane.mjs"
   },
   "engines": {
     "node": ">=20.19.0"

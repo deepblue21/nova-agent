@@ -20,3 +20,15 @@ Android:
 cd nova-android
 .\gradlew.bat test lintDebug assembleDebug
 ```
+
+## Mobile Control Plane
+
+Start the local multi-user stack from WSL:
+
+```bash
+docker compose up -d --build postgres redis migrate gateway caddy
+docker compose exec gateway node scripts/bootstrap-user.mjs horus@local.test 5
+HORUS_API_KEY='nova_key_returned_once' npm run smoke:mobile
+```
+
+The smoke test creates a task, verifies its queued state, pauses, resumes, and cancels it, then checks replayable SSE event order. It never prints the API key.
