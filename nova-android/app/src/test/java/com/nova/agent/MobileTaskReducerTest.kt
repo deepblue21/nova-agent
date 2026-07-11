@@ -1,0 +1,85 @@
+package com.nova.agent
+
+import com.nova.agent.feature.tasks.MobileConfirmation
+import com.nova.agent.feature.tasks.MobileTask
+import com.nova.agent.feature.tasks.MobileTaskEvent
+import com.nova.agent.feature.tasks.MobileTaskMutation
+import com.nova.agent.feature.tasks.MobileTaskStatus
+import com.nova.agent.feature.tasks.MobileTaskUiState
+import com.nova.agent.feature.tasks.reduceMobileTask
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+
+class MobileTaskReducerTest {
+
+    @Test
+    fun startsEmptyAndKeepsPromptChanges() {
+        val state = reduceMobileTask(MobileTaskUiState(), MobileTaskMutation.PromptChanged("Open Settings"))
+
+        assertEquals("Open Settings", state.prompt)
+        assertNull(state.task)
+        assertEquals(emptyList<MobileTaskEvent>(), state.events)
+    }
+
+    @Test
+    fun loadsCreatedTaskAndStopsLoading() {
+        val task = MobileTask("task-1", "Open Settings", MobileTaskStatus.QUEUED)
+        val state = reduceMobileTask(
+            MobileTaskUiState(loading = true, error = "old error"),
+            MobileTaskMutation.TaskLoaded(task),
+        )
+
+        assertEquals(task, state.task)
+        assertEquals(false, state.loading)
+        assertNull(state.error)
+    }
+
+    @Test
+    fun ordersEventsNumericallyAndDropsDuplicateIds() {
+        val later = event("10", "task.state", "executing")
+        val earlier = event("2", "task.state", "queued")
+        val state = reduceMobileTask(
+            reduceMobileTask(
+                reduceMobileTask(MobileTaskUiState(), MobileTaskMutation.EventReceived(later)),
+                MobileTaskMutation.EventReceived(earlier),
+            ),
+            MobileTaskMutation.EventReceived(event("2", "task.state", "paused")),
+        )
+
+        assertEquals(listOf("2", "10"), state.events.map { it.id })
+        assertEquals("queued", state.events.first().summary)
+    }
+
+    @Test
+    fun showsPendingConfirmationThenClearsItAfterApproval() {
+        val confirmation = MobileConfirmation("confirmation-1", "R2", "Turn Wi-Fi off")
+        val requested = event("2", "confirmation.requested", "Turn Wi-Fi off", confirmation)
+        val approved = event("3", "confirmation.approved", "executing")
+
+        val waiting = reduceMobileTask(MobileTaskUiState(), MobileTaskMutation.EventReceived(requested))
+        val approvedState = reduceMobileTask(waiting, MobileTaskMutation.EventReceived(approved))
+
+        assertEquals(confirmation, waiting.pendingConfirmation)
+        assertNull(approvedState.pendingConfirmation)
+    }
+
+    @Test
+    fun keepsCancelledTaskAndRetainsConnectionErrorUntilCleared() {
+        val cancelled = MobileTask("task-1", "Open Settings", MobileTaskStatus.CANCELLED)
+        val failed = reduceMobileTask(MobileTaskUiState(), MobileTaskMutation.Failed("Bağlantı hatası"))
+        val withEvent = reduceMobileTask(failed, MobileTaskMutation.EventReceived(event("1", "task.cancel", "cancelled")))
+        val complete = reduceMobileTask(withEvent, MobileTaskMutation.TaskLoaded(cancelled))
+
+        assertEquals("Bağlantı hatası", withEvent.error)
+        assertEquals(MobileTaskStatus.CANCELLED, complete.task?.status)
+        assertNull(reduceMobileTask(complete, MobileTaskMutation.ErrorCleared).error)
+    }
+
+    private fun event(
+        id: String,
+        type: String,
+        summary: String,
+        confirmation: MobileConfirmation? = null,
+    ) = MobileTaskEvent(id, "task-1", type, summary, confirmation)
+}
