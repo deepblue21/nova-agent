@@ -33,5 +33,5 @@ val EFFORTS = listOf(
     EffortOption("max", "Maks"),
 )
 
-enum class Mode { VOICE, CHAT }
+enum class Mode { VOICE, CHAT, TASKS }
 enum class VoiceState { IDLE, LISTENING, THINKING, SPEAKING }

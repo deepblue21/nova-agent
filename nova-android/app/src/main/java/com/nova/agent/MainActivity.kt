@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
@@ -74,6 +75,8 @@ import com.nova.agent.data.EFFORTS
 import com.nova.agent.data.MODELS
 import com.nova.agent.data.Mode
 import com.nova.agent.data.VoiceState
+import com.nova.agent.feature.tasks.MobileTaskScreen
+import com.nova.agent.feature.tasks.MobileTaskViewModel
 import com.nova.agent.ui.Orb
 import com.nova.agent.ui.theme.Azure
 import com.nova.agent.ui.theme.Bg
@@ -91,16 +94,17 @@ import com.nova.agent.ui.theme.NovaTheme
 
 class MainActivity : ComponentActivity() {
     private val vm: NovaViewModel by viewModels()
+    private val taskVm: MobileTaskViewModel by viewModels()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { NovaTheme { NovaApp(vm) } }
+        setContent { NovaTheme { NovaApp(vm, taskVm) } }
     }
 }
 
 private val gradient = Brush.linearGradient(listOf(Cyan, Azure))
 
 @Composable
-private fun NovaApp(vm: NovaViewModel) {
+private fun NovaApp(vm: NovaViewModel, taskVm: MobileTaskViewModel) {
     var showSettings by remember { mutableStateOf(false) }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     var micGranted by remember {
@@ -118,12 +122,35 @@ private fun NovaApp(vm: NovaViewModel) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             TopBar(vm, onNew = { vm.newChat() }, onSettings = { showSettings = true })
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                if (vm.mode == Mode.VOICE) VoiceView(vm) { requestMicThenListen() } else ChatView(vm)
+                when (vm.mode) {
+                    Mode.VOICE -> VoiceView(vm) { requestMicThenListen() }
+                    Mode.CHAT -> ChatView(vm)
+                    Mode.TASKS -> MobileTaskWorkspace(taskVm)
+                }
             }
             Dock(vm)
         }
         if (showSettings) SettingsOverlay(vm) { showSettings = false }
     }
+}
+
+@Composable
+private fun MobileTaskWorkspace(vm: MobileTaskViewModel) {
+    MobileTaskScreen(
+        state = vm.state,
+        onPromptChange = vm::updatePrompt,
+        onCreateTask = vm::createTask,
+        onCommand = { command ->
+            when (command) {
+                "pause" -> vm.pause()
+                "resume" -> vm.resume()
+                "cancel" -> vm.cancel()
+            }
+        },
+        onDecision = { decision ->
+            if (decision == "approve") vm.approve() else if (decision == "reject") vm.reject()
+        },
+    )
 }
 
 /* ----------------------------- Top bar ----------------------------- */
@@ -340,6 +367,7 @@ private fun Dock(vm: NovaViewModel) {
         ) {
             ModeTab("Sesli", Icons.Filled.Mic, vm.mode == Mode.VOICE) { vm.mode = Mode.VOICE }
             ModeTab("Sohbet", Icons.Filled.ChatBubbleOutline, vm.mode == Mode.CHAT) { vm.mode = Mode.CHAT }
+            ModeTab("Görevler", Icons.Filled.PlayArrow, vm.mode == Mode.TASKS) { vm.mode = Mode.TASKS }
         }
         ModelSelector(vm)
         EffortSegmented(vm)
