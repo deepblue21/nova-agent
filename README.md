@@ -149,6 +149,41 @@ for the live status and next step. Related docs:
 - [`PHASE2.md`](./PHASE2.md) — Phase 2 (observability, object storage, billing, K8s/HPA, voice)
 - [`nova-android/README.md`](./nova-android/README.md) — the Android client
 
+### Project Horus: Android-first mobile agent
+
+Project Horus is the active Android-first track in this repository. It uses the Nova
+Gateway for local PC/GPU inference and the Android client as the task-control surface.
+This section is a living delivery record: it is updated after every completed Horus task
+with both verified work and the next concrete work item.
+
+**Completed and verified**
+
+- Persistent authenticated mobile tasks, replayable SSE events, pause/resume/cancel, and
+  R2/R3 confirmation records in the Gateway.
+- Android **Tasks** workspace with task creation, timeline replay, controls, and risk
+  confirmation UI; unit, lint, APK, and emulator Compose checks passed.
+- Docker mobile-control-plane smoke that creates, reads, pauses, resumes, cancels, and
+  replays task events without printing the API key.
+- Debug APK: `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
+
+**In progress**
+
+- A WSL Python Mobilerun worker that will use local Ollama on the PC GPU to perform the
+  first safe emulator-only task: open Android Settings and report the Android version.
+
+**Next**
+
+1. Add worker-only Gateway authentication, leases, idempotent reports, and replayable
+   execution events.
+2. Add the isolated Python worker and a WSL-to-emulator ADB bridge, with Mobilerun Portal
+   readiness checks.
+3. Show worker lifecycle states in the Android Tasks timeline, then prove the safe
+   Settings/version workflow on `emulator-5554`.
+4. Design physical-device Wi-Fi ADB enrollment only after the emulator workflow passes.
+
+The detailed implementation sequence is in
+[`docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md`](./docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md).
+
 ### Phase board
 
 | Phase | Status | Highlights |

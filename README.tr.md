@@ -148,6 +148,41 @@ Public, çok kullanıcılı dağıtıma taşıma çalışması sürüyor. Günce
 - [`PHASE2.md`](./PHASE2.md) — Faz 2 (gözlemlenebilirlik, object storage, billing, K8s/HPA, ses)
 - [`nova-android/README.md`](./nova-android/README.md) — Android istemci
 
+### Project Horus: Android-oncelikli mobil ajan
+
+Project Horus, bu depodaki aktif Android-oncelikli gelistirme hattidir. Yerel PC/GPU
+inference icin Nova Gateway'i, gorev kontrol yuzu olarak Android istemciyi kullanir.
+Bu bolum canli teslimat kaydidir: Her tamamlanan Horus gorevinden sonra hem dogrulanmis
+yapilanlar hem de siradaki somut is burada guncellenir.
+
+**Tamamlanan ve dogrulananlar**
+
+- Gateway'de kalici ve kimligi dogrulanmis mobil gorevler, SSE tekrar oynatma,
+  duraklat/devam et/iptal ve R2/R3 onay kayitlari.
+- Android **Gorevler** alani: gorev olusturma, timeline replay, kontroller ve risk onay
+  arayuzu; unit, lint, APK ve emulator Compose kontrolleri gecti.
+- API anahtarini yazdirmadan gorev olusturan, okuyan, duraklatan, devam ettiren, iptal eden
+  ve event'leri replay eden Docker mobil kontrol duzlemi smoke testi.
+- Debug APK: `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
+
+**Devam eden is**
+
+- PC GPU uzerindeki yerel Ollama'yi kullanacak WSL Python Mobilerun worker'i. Ilk guvenli
+  emulator gorevi: Android Ayarlar uygulamasini acip Android surumunu bildirmek.
+
+**Siradaki isler**
+
+1. Worker'a ozel Gateway kimlik dogrulamasi, lease, idempotent sonuc raporu ve replay
+   destekli calisma event'lerini eklemek.
+2. Izole Python worker'i ve WSL-emulator ADB koprusunu, Mobilerun Portal hazirlik
+   kontrolleriyle birlikte eklemek.
+3. Worker yasam dongusu durumlarini Android Gorevler timeline'inda gostermek ve guvenli
+   Ayarlar/surum akisini `emulator-5554` uzerinde kanitlamak.
+4. Emulator akisi gectikten sonra fiziksel telefon Wi-Fi ADB katilimini ayri tasarlamak.
+
+Ayrintili uygulama sirasi:
+[`docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md`](./docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md).
+
 ### Faz panosu
 
 | Faz | Durum | Öne çıkanlar |

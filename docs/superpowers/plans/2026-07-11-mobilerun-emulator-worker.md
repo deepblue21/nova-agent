@@ -20,6 +20,7 @@
 - R2/R3 actions, messages, purchases, account/permission changes, deletion, setting changes, physical phones, native AccessibilityService, and phone-side inference remain out of scope.
 - Android stays `compileSdk=35`, `targetSdk=35`, `minSdk=26`, JVM 17. Gateway test command remains `npm --prefix gateway test`.
 - Every task starts with a failing focused test, finishes with its focused tests, ends in a dedicated commit, and receives implementation plus requirements review before the next task.
+- After every completed task, update the Project Horus living-delivery sections in both `README.md` and `README.tr.md` with verified completed work and the next concrete work item; include those README changes in the task's commit.
 
 ---
 
