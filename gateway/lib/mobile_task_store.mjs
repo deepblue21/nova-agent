@@ -1,5 +1,5 @@
 import { q, withTx } from "./db.mjs";
-import { applyTaskCommand, isTerminal } from "./mobile_task_state.mjs";
+import { applyTaskCommand, isTerminal, TASK_STATUSES } from "./mobile_task_state.mjs";
 
 const TASK_COLUMNS = "id, user_id, prompt, device_id, status, created_at, updated_at";
 const EVENT_COLUMNS = "id, task_id, type, payload, created_at";
@@ -7,7 +7,7 @@ const CONFIRMATION_COLUMNS = "id, task_id, risk_level, action, resume_status, st
 const MAX_EVENT_PAYLOAD_BYTES = 32 * 1024;
 
 function cappedText(value, max) {
-  return String(value ?? "").slice(0, max);
+  return Array.from(String(value ?? "")).slice(0, max).join("");
 }
 
 function limit(value, fallback, maximum) {
@@ -138,10 +138,14 @@ function confirmationInput(input) {
   const riskLevel = input?.riskLevel;
   if (riskLevel !== "R2" && riskLevel !== "R3") throw new Error("risk level must be R2 or R3");
   if (input?.action === undefined) throw new Error("confirmation action is required");
+  const resumeStatus = cappedText(input.resumeStatus || "executing", 100);
+  if (!TASK_STATUSES.includes(resumeStatus) || isTerminal(resumeStatus)) {
+    throw new Error("resume status must be a non-terminal task status");
+  }
   return {
     riskLevel,
     action: input.action,
-    resumeStatus: cappedText(input.resumeStatus || "executing", 100),
+    resumeStatus,
   };
 }
 
@@ -193,6 +197,9 @@ async function resolveConfirmation(transaction, userId, taskId, confirmationId, 
   return transaction(async (client) => {
     const task = await lockTask(client, userId, taskId);
     if (!task) return null;
+    if (task.status !== "waiting_for_confirmation") {
+      throw new Error("task must be waiting_for_confirmation to resolve confirmation");
+    }
 
     const confirmationResult = await client.query(
       `SELECT c.${CONFIRMATION_COLUMNS.replaceAll(", ", ", c.")}
