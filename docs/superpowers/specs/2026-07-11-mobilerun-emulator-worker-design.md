@@ -94,7 +94,7 @@ Open Settings and tell me the Android version
 Ayarlari ac ve Android surumunu soyle
 ```
 
-Every other prompt stays `queued` and is not acted on by the worker. It is surfaced to the user as unsupported by this worker slice rather than guessed at or sent to a cloud model.
+When the emulator worker is enabled, every other prompt is rejected by task creation with a user-safe unsupported-goal error. It is never queued, guessed at, or sent to a cloud model.
 
 The claim response contains only:
 

@@ -16,6 +16,7 @@
 - User API keys, `GATEWAY_TOKEN`, provider keys, raw UI trees, screenshots, model transcripts, credentials, and worker tokens never appear in Android payloads, task events, stdout, test fixtures, or commits.
 - `MOBILE_WORKER_ENABLED=1` and a non-empty dedicated `MOBILE_WORKER_TOKEN` are required for worker routes. Disabled worker routes return `404`.
 - Initial device is exactly `emulator-5554`; the only claimable normalized goals are `Open Settings and tell me the Android version` and `Ayarlari ac ve Android surumunu soyle`.
+- A successful claim atomically binds `mobile_tasks.device_id` to `emulator-5554`. While the worker is enabled, an unsupported prompt is rejected at task creation with `400`; it is never silently left queued.
 - Initial agent mode is direct (`reasoning=False`), no vision, no credentials, no telemetry/tracing, no saved trajectories, and coordinate tools `click_at`, `click_area`, and `long_press_at` remain disabled.
 - R2/R3 actions, messages, purchases, account/permission changes, deletion, setting changes, physical phones, native AccessibilityService, and phone-side inference remain out of scope.
 - Android stays `compileSdk=35`, `targetSdk=35`, `minSdk=26`, JVM 17. Gateway test command remains `npm --prefix gateway test`.
@@ -34,6 +35,7 @@
 - Create `gateway/lib/mobile_worker_store.mjs`: transactional claim, active-status check, report, and lease-expiry operations.
 - Create `gateway/routes/mobile_worker.mjs`: worker-only claim, status, report, and expiry endpoints.
 - Modify `gateway/gateway.mjs`: mount the worker router after baseline JSON/rate middleware and before user principal middleware.
+- Modify `gateway/routes/mobile_tasks.mjs`: reject unsupported prompts when the strict emulator worker is enabled.
 - Modify `gateway/.env.example`: document worker feature, token, device, lease, and strict policy configuration.
 - Create `gateway/test/mobile_worker_policy.test.mjs`, `gateway/test/mobile_worker_auth.test.mjs`, `gateway/test/mobile_worker_store.test.mjs`, and `gateway/test/mobile_worker_route.test.mjs`.
 
@@ -251,7 +253,7 @@ CREATE TABLE IF NOT EXISTS mobile_worker_reports (
 
 - [ ] **Step 4: Implement transactional store methods**
 
-`claimNext({ deviceId, policy })` must execute `SELECT ... FOR UPDATE SKIP LOCKED`, filter exact normalized prompt variants in SQL, reject a non-emulator device, insert a token-hash-only lease, update the task to `executing`, and insert both `worker.claimed` and `worker.executing` events in the same transaction.
+`claimNext({ deviceId, policy })` must execute `SELECT ... FOR UPDATE SKIP LOCKED`, filter exact normalized prompt variants in SQL, reject a non-emulator device, insert a token-hash-only lease, update the task's `device_id` to `emulator-5554` and status to `executing`, and insert both `worker.claimed` and `worker.executing` events in the same transaction.
 
 ```js
 export function createMobileWorkerStore({ q: query = q, withTx: transaction = withTx, now = () => new Date(), randomBytes = crypto.randomBytes } = {}) {
@@ -302,6 +304,8 @@ git commit -m "feat: persist mobile worker leases"
 - Create: `gateway/routes/mobile_worker.mjs`
 - Create: `gateway/test/mobile_worker_route.test.mjs`
 - Modify: `gateway/gateway.mjs`
+- Modify: `gateway/routes/mobile_tasks.mjs`
+- Modify: `gateway/test/mobile_tasks_route.test.mjs`
 
 **Interfaces:**
 - Consumes: `createWorkerAuth`, `createMobileWorkerStore`, `mobileEventBroker`, and the worker store output from Task 2.
@@ -358,6 +362,16 @@ export function createMobileWorkerRouter({
 ```
 
 Validate UUID route IDs, require a nonblank `X-Horus-Lease-Token`, only return task status/lease expiry from the status route, and use the parsed report from Task 1. The report route publishes `result.event` only when `result.replayed` is false. Map invalid input to `400`, missing/stale lease to `409`, unknown task to `404`, and disabled worker to `404`.
+
+In `createMobileTasksRouter`, accept `workerEnabled` and `workerGoalPolicy` options. Before `store.createTask`, reject an unsupported prompt only when `workerEnabled` is true:
+
+```js
+if (workerEnabled && !isAllowedWorkerPrompt(prompt, workerGoalPolicy)) {
+  return res.status(400).json({ error: "task is not supported by this emulator worker" });
+}
+```
+
+Add a route regression test that makes `workerEnabled: true`, submits `Send a message to Ada`, expects `400`, and asserts that `store.createTask` was never called. Keep existing unrestricted task creation behavior when `workerEnabled` is false.
 
 - [ ] **Step 4: Mount the worker router before principal auth**
 
@@ -582,6 +596,8 @@ val updatedTask = state.task?.takeIf { it.id == mutation.event.taskId }?.let { c
 ```
 
 Keep numeric event ordering, duplicate suppression, confirmation semantics, and `loading = false` unchanged.
+
+Map task-creation HTTP `400` to `Bu gorev emulator worker'inda desteklenmiyor` when the Gateway returns the strict worker error; keep the generic safe message for other `400` responses.
 
 - [ ] **Step 4: Extend Compose instrumentation coverage**
 
