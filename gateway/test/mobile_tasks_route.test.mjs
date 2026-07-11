@@ -1,0 +1,201 @@
+import { once } from "node:events";
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import express from "express";
+import request from "supertest";
+import { createMobileTasksRouter, parseLastEventId } from "../routes/mobile_tasks.mjs";
+
+const TASK_ID = "11111111-1111-4111-8111-111111111111";
+const CONFIRMATION_ID = "22222222-2222-4222-8222-222222222222";
+
+function task(overrides = {}) {
+  return { id: TASK_ID, user_id: "user-1", prompt: "Open Settings", status: "queued", ...overrides };
+}
+
+function event(overrides = {}) {
+  return { id: "1", task_id: TASK_ID, type: "task.state", payload: { status: "paused" }, ...overrides };
+}
+
+function createStore(overrides = {}) {
+  return {
+    createTask: async (_userId, input) => ({ task: { id: "task-1", prompt: input.prompt }, event: event({ type: "task.created" }) }),
+    listTasks: async () => [task()],
+    getTask: async () => task(),
+    listEvents: async () => [],
+    applyCommand: async () => ({ task: task({ status: "paused" }), event: event() }),
+    resolveConfirmation: async () => ({ task: task({ status: "executing" }), confirmation: { id: CONFIRMATION_ID, status: "approved" }, event: event({ type: "confirmation.approved" }) }),
+    ...overrides,
+  };
+}
+
+function createBroker() {
+  const listeners = new Map();
+  return {
+    published: [],
+    subscribes: [],
+    unsubscribes: 0,
+    publish(savedEvent) { this.published.push(savedEvent); },
+    subscribe(taskId, listener) {
+      this.subscribes.push(taskId);
+      listeners.set(taskId, listener);
+      return () => {
+        this.unsubscribes += 1;
+        listeners.delete(taskId);
+      };
+    },
+    emit(savedEvent) { listeners.get(savedEvent.task_id)?.(savedEvent); },
+  };
+}
+
+function createApp(store = createStore(), broker = createBroker(), options = {}) {
+  const app = express();
+  app.use(express.json());
+  app.use((req, _res, next) => {
+    req.principal = { userId: "user-1" };
+    next();
+  });
+  app.use(createMobileTasksRouter({ store, broker, ...options }));
+  return app;
+}
+
+test("POST /v1/mobile/tasks validates and creates a task", async () => {
+  const broker = createBroker();
+  const res = await request(createApp(createStore(), broker))
+    .post("/v1/mobile/tasks")
+    .send({ prompt: "  Open Settings  " });
+
+  assert.equal(res.status, 201);
+  assert.equal(res.body.id, "task-1");
+  assert.equal(res.body.prompt, "Open Settings");
+  assert.deepEqual(broker.published.map(({ type }) => type), ["task.created"]);
+});
+
+test("POST /v1/mobile/tasks rejects empty and overlong prompts", async () => {
+  const app = createApp();
+  const blank = await request(app).post("/v1/mobile/tasks").send({ prompt: "   " });
+  const long = await request(app).post("/v1/mobile/tasks").send({ prompt: "x".repeat(4001) });
+
+  assert.equal(blank.status, 400);
+  assert.equal(long.status, 400);
+});
+
+test("task IDs are validated", async () => {
+  const res = await request(createApp()).get("/v1/mobile/tasks/not-a-uuid");
+
+  assert.equal(res.status, 400);
+  assert.equal(res.body.error, "invalid id");
+});
+
+test("missing owned tasks return 404", async () => {
+  const store = createStore({ getTask: async () => null });
+  const res = await request(createApp(store)).get(`/v1/mobile/tasks/${TASK_ID}`);
+
+  assert.equal(res.status, 404);
+});
+
+test("list limits are clamped to the supported range", async () => {
+  const limits = [];
+  const store = createStore({ listTasks: async (_userId, limit) => { limits.push(limit); return []; } });
+  const app = createApp(store);
+
+  assert.equal((await request(app).get("/v1/mobile/tasks?limit=0")).status, 200);
+  assert.equal((await request(app).get("/v1/mobile/tasks?limit=999")).status, 200);
+  assert.deepEqual(limits, [1, 100]);
+});
+
+test("commands publish the persisted event", async () => {
+  const published = [];
+  const broker = { publish: (savedEvent) => published.push(savedEvent.type), subscribe: () => () => {} };
+  const res = await request(createApp(createStore(), broker))
+    .post(`/v1/mobile/tasks/${TASK_ID}/commands`)
+    .send({ command: "pause" });
+
+  assert.equal(res.status, 200);
+  assert.deepEqual(published, ["task.state"]);
+});
+
+test("commands validate input and map transition errors to 409", async () => {
+  const invalid = await request(createApp())
+    .post(`/v1/mobile/tasks/${TASK_ID}/commands`)
+    .send({ command: "launch" });
+  const store = createStore({ applyCommand: async () => { throw new Error("cannot resume a task that is not paused"); } });
+  const conflict = await request(createApp(store))
+    .post(`/v1/mobile/tasks/${TASK_ID}/commands`)
+    .send({ command: "resume" });
+
+  assert.equal(invalid.status, 400);
+  assert.equal(conflict.status, 409);
+});
+
+test("confirmation decision only accepts approve or reject", async () => {
+  const res = await request(createApp())
+    .post(`/v1/mobile/tasks/${TASK_ID}/confirmations/${CONFIRMATION_ID}`)
+    .send({ decision: "maybe" });
+
+  assert.equal(res.status, 400);
+});
+
+test("confirmation decisions publish their persisted event and hide missing rows", async () => {
+  const broker = createBroker();
+  const accepted = await request(createApp(createStore(), broker))
+    .post(`/v1/mobile/tasks/${TASK_ID}/confirmations/${CONFIRMATION_ID}`)
+    .send({ decision: "approve" });
+  const missing = await request(createApp(createStore({ resolveConfirmation: async () => null })))
+    .post(`/v1/mobile/tasks/${TASK_ID}/confirmations/${CONFIRMATION_ID}`)
+    .send({ decision: "reject" });
+
+  assert.equal(accepted.status, 200);
+  assert.deepEqual(broker.published.map(({ type }) => type), ["confirmation.approved"]);
+  assert.equal(missing.status, 404);
+});
+
+test("parseLastEventId accepts non-negative integer headers only", () => {
+  assert.equal(parseLastEventId(undefined), 0);
+  assert.equal(parseLastEventId("42"), 42);
+  assert.equal(parseLastEventId("-1"), 0);
+  assert.equal(parseLastEventId("4.2"), 0);
+  assert.equal(parseLastEventId("nope"), 0);
+});
+
+test("SSE verifies ownership, replays before subscribing, and cleans up exactly once", async (t) => {
+  const calls = [];
+  const replay = event({ id: "7", type: "task.created" });
+  const store = createStore({
+    getTask: async () => { calls.push("getTask"); return task(); },
+    listEvents: async (_userId, _taskId, afterId) => { calls.push(`listEvents:${afterId}`); return [replay]; },
+  });
+  const broker = createBroker();
+  const app = createApp(store, broker, { heartbeatMs: 5 });
+  const server = app.listen(0);
+  t.after(() => server.close());
+  await once(server, "listening");
+
+  const address = server.address();
+  const response = await fetch(`http://127.0.0.1:${address.port}/v1/mobile/tasks/${TASK_ID}/events`, {
+    headers: { "Last-Event-ID": "6" },
+  });
+  const reader = response.body.getReader();
+  const first = await reader.read();
+  const firstText = new TextDecoder().decode(first.value);
+
+  assert.equal(response.headers.get("content-type"), "text/event-stream; charset=utf-8");
+  assert.deepEqual(calls, ["getTask", "listEvents:6"]);
+  assert.deepEqual(broker.subscribes, [TASK_ID]);
+  assert.match(firstText, /^id: 7\nevent: task\.created\ndata: /);
+
+  broker.emit(event({ id: "8", type: "task.paused" }));
+  const live = await reader.read();
+  assert.match(new TextDecoder().decode(live.value), /event: task\.paused/);
+
+  await reader.cancel();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(broker.unsubscribes, 1);
+});
+
+test("SSE returns 404 before it writes streaming headers for an unowned task", async () => {
+  const app = createApp(createStore({ getTask: async () => null }));
+  const res = await request(app).get(`/v1/mobile/tasks/${TASK_ID}/events`);
+
+  assert.equal(res.status, 404);
+  assert.notEqual(res.headers["content-type"], "text/event-stream; charset=utf-8");
+});

@@ -52,6 +52,7 @@ import { withMemory } from "./lib/memory_store.mjs";
 import { getMcpTools, describeTools, parseServers } from "./lib/mcp.mjs";
 import { workspaces } from "./routes/workspaces.mjs";
 import { agentRuns as agentRunsRoute } from "./routes/agent_runs.mjs";
+import { mobileTasks } from "./routes/mobile_tasks.mjs";
 import * as agentRunStore from "./lib/agent_runs_store.mjs";
 import * as schedStore from "./lib/scheduled_store.mjs";
 import { nextRunAt as schedNextRunAt } from "./lib/scheduler.mjs";
@@ -332,6 +333,7 @@ if (MULTI_USER) {
   app.use(memory);      // /v1/memory — kişisel uzun-dönem hafıza (oto-hatırlama)
   app.use(workspaces);  // /v1/workspaces — çalışma alanı + RBAC (3 rol)
   app.use(agentRunsRoute); // /v1/agent/runs — ajan çalışma geçmişi
+  app.use(mobileTasks); // /v1/mobile/tasks -- authenticated mobile task control plane
 }
 
 // ---------- Endpoints ----------
