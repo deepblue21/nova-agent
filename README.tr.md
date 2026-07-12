@@ -190,8 +190,8 @@ yapilanlar hem de siradaki somut is burada guncellenir.
   durumlarini tasir, bunlari sadece eslesen bellek-ici goreve uygular ve Gateway'in sagladigi
   terminal ozeti gosterir. Sadece strict worker gorev-olusturma reddi guvenli Turkce mesaja
   donusur; diger `400` yanitlari genel kalir. Odakli JVM testleri ile tam unit/lint/debug APK
-  dogrulamasi gecer; terminal Compose kapsami derlenir fakat bagli cihaz olmadigi ve `adb` `PATH`
-  icinde bulunmadigi icin calistirilamadi.
+  dogrulamasi gecer; terminal Compose kapsami Pixel_10_Pro_XL (Android 17) uzerinde basariyla
+  calisir ve sanitize edilmis worker event'inden `COMPLETED` ile `Android 17` durumunu gosterir.
 
 **Devam eden is**
 

@@ -190,8 +190,8 @@ with both verified work and the next concrete work item.
   apply them only to the matching in-memory task, and render the Gateway-supplied terminal summary.
   Strict worker-only task-creation rejections map to the safe Turkish message while other `400`
   responses remain generic. Focused JVM tests and full unit/lint/debug-APK verification pass; the
-  terminal Compose coverage compiles, but could not execute because no device was connected and
-  `adb` was unavailable on `PATH`.
+  terminal Compose coverage also passed on Pixel_10_Pro_XL (Android 17), rendering `COMPLETED` and
+  `Android 17` from the sanitized worker event.
 
 **In progress**
 
