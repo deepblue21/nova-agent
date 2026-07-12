@@ -4,7 +4,7 @@
 
 **Goal:** Add a polished, native Android adaptive launcher icon to the Project Horus app and prove that it packages and launches on the existing emulator.
 
-**Architecture:** Android API 26+ adaptive-icon XML composes a stable graphite background with a padded vector foreground and a monochrome themed-icon layer. The manifest names the standard and round resources, so launchers receive the intended icon without runtime code or a bitmap pipeline.
+**Architecture:** Android API 26+ adaptive-icon XML composes a stable graphite background with a padded vector foreground. Android API 33+ resource overlays add the monochrome themed-icon layer. The manifest names the standard and round resources, so launchers receive the intended icon without runtime code or a bitmap pipeline.
 
 **Tech Stack:** Android resource XML, AdaptiveIconDrawable, VectorDrawable, Gradle/AGP, Android SDK platform-tools ADB.
 
@@ -12,7 +12,7 @@
 
 - Canonical checkout is `C:\Users\salih\Project_Horus` on branch `codex/mobile-task-control-plane`; preserve unrelated changes.
 - Android remains `compileSdk=35`, `targetSdk=35`, `minSdk=26`, JVM 17.
-- The icon must be native adaptive XML, provide `ic_launcher`, `ic_launcher_round`, and an Android 13+ monochrome layer, and carry no text, credentials, screenshots, device metadata, or worker controls.
+- The icon must be native adaptive XML: `mipmap-anydpi-v26` provides foreground/background baselines for `ic_launcher` and `ic_launcher_round`, while `mipmap-anydpi-v33` overlays add the Android 13+ monochrome layer. It carries no text, credentials, screenshots, device metadata, or worker controls.
 - The visual design is a flat graphite background (`#10242D`), turquoise orbital signal (`#55D7C5` / `#C9FFF6`), and small amber core (`#F2B455`); avoid gradients and external asset dependencies.
 - Use TDD-style resource validation: introduce unresolved manifest icon references, observe `processDebugResources` fail, then add the minimal resources and verify the same task succeeds.
 - After completion, update `README.md`, `README.tr.md`, and `.superpowers/sdd/progress.md` with verified work and the next concrete item, and commit the complete task.
@@ -25,6 +25,8 @@
 - Modify: `nova-android/app/src/main/AndroidManifest.xml`
 - Create: `nova-android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml`
 - Create: `nova-android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml`
+- Create: `nova-android/app/src/main/res/mipmap-anydpi-v33/ic_launcher.xml`
+- Create: `nova-android/app/src/main/res/mipmap-anydpi-v33/ic_launcher_round.xml`
 - Create: `nova-android/app/src/main/res/drawable/ic_launcher_background.xml`
 - Create: `nova-android/app/src/main/res/drawable/ic_launcher_foreground.xml`
 - Create: `nova-android/app/src/main/res/drawable/ic_launcher_monochrome.xml`
@@ -34,7 +36,7 @@
 
 **Interfaces:**
 - Consumes: the application manifest and Android API 26 adaptive icon resource resolver.
-- Produces: `@mipmap/ic_launcher` and `@mipmap/ic_launcher_round` resources with foreground, background, and themed monochrome layers.
+- Produces: `@mipmap/ic_launcher` and `@mipmap/ic_launcher_round` resources with API 26 foreground/background baselines and Android 13+ themed monochrome overlays.
 
 - [ ] **Step 1: Establish a failing resource contract**
 
@@ -56,7 +58,16 @@ Expected: FAIL because `@mipmap/ic_launcher` and `@mipmap/ic_launcher_round` are
 
 - [ ] **Step 2: Add the minimal adaptive icon resources**
 
-Create both `mipmap-anydpi-v26` resources with this common composition:
+Create both `mipmap-anydpi-v26` resources with this API 26 baseline composition:
+
+```xml
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>
+```
+
+Create both `mipmap-anydpi-v33` overlays with this Android 13+ composition:
 
 ```xml
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
@@ -66,7 +77,7 @@ Create both `mipmap-anydpi-v26` resources with this common composition:
 </adaptive-icon>
 ```
 
-Use a flat `#10242D` background. Place the foreground artwork inside the adaptive safe zone: a turquoise orbital ring with a light inner signal and a central amber core. The monochrome vector must use a single `?android:colorControlNormal` path fill and retain the same silhouette.
+Use a flat `#10242D` background. Place the foreground artwork inside the adaptive safe zone: a turquoise orbital ring with a light inner signal and a central amber core. The monochrome vector must use a single `?android:colorControlNormal` path fill and retain the same `-35` degree rotated silhouette.
 
 - [ ] **Step 3: Verify packaging and launcher compatibility**
 
@@ -86,7 +97,7 @@ Expected: Gradle succeeds and the final ADB command returns `com.nova.agent/.Mai
 Add a concise verified icon-delivery entry to both README living-delivery sections, set Task 6 local worker reachability as the next work item, and update the ignored SDD ledger. Then commit:
 
 ```bash
-git add nova-android/app/src/main/AndroidManifest.xml nova-android/app/src/main/res/mipmap-anydpi-v26 nova-android/app/src/main/res/drawable README.md README.tr.md docs/superpowers/specs/2026-07-12-android-adaptive-app-icon-design.md docs/superpowers/plans/2026-07-12-android-adaptive-app-icon.md
+git add nova-android/app/src/main/AndroidManifest.xml nova-android/app/src/main/res/mipmap-anydpi-v26 nova-android/app/src/main/res/mipmap-anydpi-v33 nova-android/app/src/main/res/drawable README.md README.tr.md docs/superpowers/specs/2026-07-12-android-adaptive-app-icon-design.md docs/superpowers/plans/2026-07-12-android-adaptive-app-icon.md
 git commit -m "feat: add Android adaptive app icon"
 ```
 
@@ -102,4 +113,4 @@ git commit -m "feat: add Android adaptive app icon"
 
 ### Type Consistency
 
-- The two manifest IDs and the two `mipmap-anydpi-v26` filenames are identical, and every adaptive icon references the same three drawable layer names.
+- The two manifest IDs resolve to matching v26 and v33 filenames. Each v26 adaptive icon references foreground/background only; each v33 overlay references those same layers plus monochrome.
