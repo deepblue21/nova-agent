@@ -177,20 +177,21 @@ with both verified work and the next concrete work item.
 - Verified Task 3 correction: worker bearer auth and its static safe `500` boundary are scoped to
   `/v1/internal/mobile-worker`, so public `/health` and ordinary Gateway routes continue through
   the mounted router in both worker modes without exposing unexpected store-error details.
+- Task 4: the isolated `mobile-worker` package pins `mobilerun==0.6.10` and `httpx`, accepts only
+  `emulator-5554` and local Ollama, redacts its worker token, keeps lease headers at the worker HTTP
+  boundary, cancels on inactive status or lease loss, and emits only bounded safe reports and logs.
+  Mobilerun Portal readiness stays private; `uv lock --check` and the standard-library worker suite
+  pass.
 
 **In progress**
 
-- Task 4: an isolated WSL Python Mobilerun worker and WSL-to-emulator ADB bridge that consumes the
-  one-time claim `lease.token` for the first safe emulator-only task: open Android Settings and
-  report the Android version.
+- Task 5: Render Worker State in Android Tasks.
 
 **Next**
 
-1. Build the isolated Python worker and a WSL-to-emulator ADB bridge, with Mobilerun Portal
-   readiness checks.
-2. Show worker lifecycle states in the Android Tasks timeline, then prove the safe
-   Settings/version workflow on `emulator-5554`.
-3. Design physical-device Wi-Fi ADB enrollment only after the emulator workflow passes.
+1. Render Worker State in Android Tasks.
+2. Make the local worker reachable and prepare WSL ADB.
+3. Install Portal and prove the safe Settings/version workflow on `emulator-5554`.
 
 The detailed implementation sequence is in
 [`docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md`](./docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md).

@@ -24,6 +24,7 @@ npm-debug.log*
 .idea/
 *.bundle
 *.tgz
+mobile-worker/.venv/
 
 # Project Horus SDD working artifacts
 .superpowers/

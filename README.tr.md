@@ -176,20 +176,21 @@ yapilanlar hem de siradaki somut is burada guncellenir.
 - Dogrulanmis Gorev 3 duzeltmesi: worker bearer auth ve statik guvenli `500` siniri yalnizca
   `/v1/internal/mobile-worker` kapsamina alindi; boylece public `/health` ve siradan Gateway
   rotalari, worker iki moddayken de mount edilen router'dan gecer ve beklenmeyen store hata ayrintilari sizmaz.
+- Gorev 4: izole `mobile-worker` paketi `mobilerun==0.6.10` ve `httpx` surumlerini kilitler;
+  yalnizca `emulator-5554` ve yerel Ollama kabul eder, worker token'ini redakte eder, lease
+  header'larini worker HTTP sinirinda tutar, aktif olmayan durum veya lease kaybinda iptal eder ve
+  sadece sinirli guvenli raporlar ile loglar uretir. Mobilerun Portal hazirligi ozeldir;
+  `uv lock --check` ve standart kutuphane worker test paketi gecer.
 
 **Devam eden is**
 
-- Gorev 4: izole WSL Python Mobilerun worker'i ve WSL-emulator ADB koprusu. Worker, ilk guvenli
-  emulator gorevinde tek kullanimlik claim `lease.token` degerini kullanarak Android Ayarlar
-  uygulamasini acip Android surumunu bildirecek.
+- Gorev 5: Android Gorevler ekraninda worker durumunu goster.
 
 **Siradaki isler**
 
-1. Izole Python worker'ini ve WSL-emulator ADB koprusunu, Mobilerun Portal hazirlik
-   kontrolleriyle birlikte eklemek.
-2. Worker yasam dongusu durumlarini Android Gorevler timeline'inda gostermek ve guvenli
-   Ayarlar/surum akisini `emulator-5554` uzerinde kanitlamak.
-3. Emulator akisi gectikten sonra fiziksel telefon Wi-Fi ADB katilimini ayri tasarlamak.
+1. Android Gorevler ekraninda worker durumunu goster.
+2. Yerel worker'i erisilebilir yap ve WSL ADB'yi hazirla.
+3. Portal'i kur ve `emulator-5554` uzerinde guvenli Ayarlar/surum akisini kanitla.
 
 Ayrintili uygulama sirasi:
 [`docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md`](./docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md).
