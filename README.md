@@ -174,6 +174,9 @@ with both verified work and the next concrete work item.
   then mounted after baseline middleware and before user-principal authentication. Dedicated worker
   bearer auth gates claim, status, report, and expiry endpoints; claim alone returns the one-time
   opaque `lease.token` needed by the worker, while status/report responses never expose it.
+- Verified Task 3 correction: worker bearer auth and its static safe `500` boundary are scoped to
+  `/v1/internal/mobile-worker`, so public `/health` and ordinary Gateway routes continue through
+  the mounted router in both worker modes without exposing unexpected store-error details.
 
 **In progress**
 

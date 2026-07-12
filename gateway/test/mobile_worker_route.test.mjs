@@ -47,14 +47,62 @@ function createApp(store = createStore(), broker = createBroker(), options = {})
   const app = express();
   app.use(express.json());
   app.use(createMobileWorkerRouter({ store, broker, enabled: true, token: WORKER_TOKEN, ...options }));
+  app.get("/health", (_req, res) => res.json({ ok: true }));
+  app.get("/v1/user-route", (_req, res) => res.json({ ok: true }));
   app.use((_req, res) => res.status(404).end());
-  app.use((_error, _req, res, _next) => res.status(500).json({ error: "gateway error" }));
+  app.use((error, _req, res, _next) => {
+    options.onGlobalError?.(error);
+    res.status(500).json({ error: "gateway error" });
+  });
   return app;
 }
 
 function workerRequest(app, method, path) {
   return request(app)[method](path).set("Authorization", `Bearer ${WORKER_TOKEN}`);
 }
+
+test("worker authentication applies only to the worker path", async () => {
+  const disabled = createApp(createStore(), createBroker(), { enabled: false });
+  const enabled = createApp(createStore(), createBroker(), { enabled: true });
+
+  for (const app of [disabled, enabled]) {
+    assert.deepEqual((await request(app).get("/health")).body, { ok: true });
+    assert.deepEqual((await request(app).get("/v1/user-route")).body, { ok: true });
+  }
+
+  const hidden = await request(disabled).post("/v1/internal/mobile-worker/claims").send({ device_id: "emulator-5554" });
+  const denied = await request(enabled).post("/v1/internal/mobile-worker/claims").send({ device_id: "emulator-5554" });
+
+  assert.equal(hidden.status, 404);
+  assert.equal(denied.status, 401);
+});
+
+test("unexpected worker store failures are handled locally without leaking details", async () => {
+  const rawMessage = "unexpected private store failure";
+  const calls = [];
+  const failures = [
+    ["claim", createStore({ claimNext: async () => { throw new Error(rawMessage); } }), "post", "/v1/internal/mobile-worker/claims", { device_id: "emulator-5554" }],
+    ["status", createStore({ getActiveStatus: async () => { throw new Error(rawMessage); } }), "get", `/v1/internal/mobile-worker/tasks/${TASK_ID}/status`, undefined],
+    ["report", createStore({ report: async () => { throw new Error(rawMessage); } }), "post", `/v1/internal/mobile-worker/tasks/${TASK_ID}/reports`, { lease_id: LEASE_ID, report_id: REPORT_ID, phase: "completed" }],
+    ["expiry", createStore({ expireLeases: async () => { throw new Error(rawMessage); } }), "post", "/v1/internal/mobile-worker/leases/expire", {}],
+  ];
+
+  for (const [name, store, method, path, body] of failures) {
+    let globalErrors = 0;
+    const app = createApp(store, createBroker(), { onGlobalError: () => { globalErrors += 1; } });
+    let response = workerRequest(app, method, path);
+    if (name === "status" || name === "report") response = response.set("X-Horus-Lease-Token", LEASE_TOKEN);
+    if (body !== undefined) response = response.send(body);
+    const result = await response;
+
+    calls.push(globalErrors);
+    assert.equal(result.status, 500);
+    assert.deepEqual(result.body, { error: "mobile worker request failed" });
+    assert.equal(JSON.stringify(result.body).includes(rawMessage), false);
+  }
+
+  assert.deepEqual(calls, [0, 0, 0, 0]);
+});
 
 test("claim requires a dedicated worker token and publishes only persisted events", async () => {
   const broker = createBroker();

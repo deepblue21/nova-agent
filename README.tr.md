@@ -173,6 +173,9 @@ yapilanlar hem de siradaki somut is burada guncellenir.
   mount edilir. Ayrilmis worker bearer auth claim, status, report ve expiry endpoint'lerini korur;
   Task 4 icin gereken tek kullanimlik opak `lease.token` yalnizca claim yanitinda doner, status/report
   yanitlarinda asla yer almaz.
+- Dogrulanmis Gorev 3 duzeltmesi: worker bearer auth ve statik guvenli `500` siniri yalnizca
+  `/v1/internal/mobile-worker` kapsamina alindi; boylece public `/health` ve siradan Gateway
+  rotalari, worker iki moddayken de mount edilen router'dan gecer ve beklenmeyen store hata ayrintilari sizmaz.
 
 **Devam eden is**
 

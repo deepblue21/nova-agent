@@ -31,7 +31,7 @@ export function createMobileWorkerRouter({
   policy = process.env.MOBILE_WORKER_GOAL_POLICY || "settings_android_version",
 } = {}) {
   const router = Router();
-  router.use(createWorkerAuth({ enabled, token }));
+  router.use("/v1/internal/mobile-worker", createWorkerAuth({ enabled, token }));
 
   router.post("/v1/internal/mobile-worker/claims", asyncRoute(async (req, res) => {
     if (req.body?.device_id !== DEVICE_ID) return invalid(res);
@@ -76,5 +76,8 @@ export function createMobileWorkerRouter({
     for (const { event } of expired) broker.publish(event);
     res.json({ data: expired.map(({ task }) => safeTask(task)) });
   }));
+  router.use("/v1/internal/mobile-worker", (_error, _req, res, _next) => {
+    res.status(500).json({ error: "mobile worker request failed" });
+  });
   return router;
 }
