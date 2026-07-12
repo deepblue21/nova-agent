@@ -167,7 +167,8 @@ yapilanlar hem de siradaki somut is burada guncellenir.
 - Ayrilmis worker-goal politikasi ve yalnizca worker icin kimlik dogrulamasi tamamlandi.
 - Gateway worker lease'leri yalnizca token hash'i ile kalici; anlamsal store testleri en eski
   guvenli gorev kilidini, tum rapor faz haritalarini ve lease kapanisini, gecersiz/suresi dolmus
-  claim redlerini, idempotent raporlari, sure dolumu no-op/toparlamayi ve token-guvenli event'leri dogruladi.
+  claim redlerini, idempotent raporlari, suresi dolmus lease no-op'larini/lease sure dolumu
+  toparlamasini ve token-guvenli event'leri dogruladi.
 
 **Devam eden is**
 

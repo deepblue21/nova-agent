@@ -100,11 +100,16 @@ test("claimNext locks the oldest supported queued task and records lease events"
   const out = await store.claimNext({ deviceId: "emulator-5554", policy: "settings_android_version" });
 
   assert.equal(out.task.status, "executing");
+  assert.equal(out.task.device_id, "emulator-5554");
   assert.equal(out.lease.device_id, "emulator-5554");
   assert.deepEqual(out.events.map(event => event.type), ["worker.claimed", "worker.executing"]);
   assert.match(state.calls[0].sql, /FOR UPDATE SKIP LOCKED/);
   assert.match(state.calls[0].sql, /lower\(regexp_replace\(trim\(t\.prompt\), '\\s\+', ' ', 'g'\)\)/);
   assert.deepEqual(state.calls[0].params, [["open settings and tell me the android version", "ayarlari ac ve android surumunu soyle"]]);
+  const taskUpdate = state.calls.find(call => call.sql.includes("UPDATE mobile_tasks") && call.sql.includes("status='executing'"));
+  assert.ok(taskUpdate);
+  assert.match(taskUpdate.sql, /SET status='executing', device_id=\$1, updated_at=now\(\)/);
+  assert.deepEqual(taskUpdate.params, ["emulator-5554", TASK_ID]);
   assert.notEqual(out.lease.token, undefined);
   assert.notEqual(state.lease.token_hash, out.lease.token);
 });
