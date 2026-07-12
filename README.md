@@ -167,9 +167,10 @@ with both verified work and the next concrete work item.
 - Debug APK: `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
 - Dedicated worker-goal policy and worker-only authentication are complete.
 - Gateway worker leases are persisted with token hashes only; focused semantic store tests
-  now verify oldest safe-task locking, all report phase mappings and lease closure, rejected
-  invalid claims, idempotent reports, expired-lease no-ops/lease-expiry recovery, and
-  token-safe events.
+  now verify oldest safe-task locking, all report phase mappings and lease closure, rejection
+  of invalid device or policy claims, rejection of reports for expired or non-active leases,
+  idempotent reports, an expiry sweep no-op for an unexpired active lease, recovery of an
+  expired active lease to `waiting_for_device` with `worker.lease_expired`, and token-safe events.
 
 **In progress**
 
