@@ -678,28 +678,33 @@ MOBILE_WORKER_MAX_STEPS=8
 
 - [ ] **Step 3: Establish the WSL ADB bridge without exposing it publicly**
 
-Install the Linux ADB client only after checking whether it is already available:
+Install the Linux ADB client only after checking whether it is already available. The WSL root user is used so the setup never asks for a password in the worker shell:
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y adb
+wsl.exe -d Ubuntu -- adb version
+wsl.exe -d Ubuntu -u root -- apt-get update
+wsl.exe -d Ubuntu -u root -- apt-get install -y adb
 ```
 
-On Windows, restart the Android SDK ADB server with listen-all enabled but hidden. Create a firewall rule that permits TCP 5037 only from the current WSL IP; this command requires an elevated PowerShell and must not use `Any` as the remote address:
+On Windows, restart the Android SDK ADB server with listen-all enabled but hidden. Derive the source from the WSL `eth0` interface rather than `hostname -I`, because Docker bridge addresses can also appear there. Resolve the host through `host.docker.internal`; on this WSL configuration the generated `/etc/resolv.conf` nameserver is a local loopback address and must not be used as a Windows-host address. Create a firewall rule that permits TCP 5037 only from that explicit WSL address; this command requires an elevated PowerShell and must not use `Any` as the remote address:
 
 ```powershell
 $adb = 'C:\Users\salih\AppData\Local\Android\Sdk\platform-tools\adb.exe'
-$wslIp = (wsl.exe -d Ubuntu -- hostname -I).Trim().Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries)[0]
+$eth0 = (wsl.exe -d Ubuntu -- ip -o -4 addr show dev eth0).Trim()
+$wslIp = [regex]::Match($eth0, '\b(?:\d{1,3}\.){3}\d{1,3}(?=/)').Value
+$hostRows = wsl.exe -d Ubuntu -- getent ahostsv4 host.docker.internal
+$windowsHost = [regex]::Match(($hostRows -join "`n"), '\b(?:\d{1,3}\.){3}\d{1,3}\b').Value
+if (-not $wslIp -or -not $windowsHost) { throw 'Unable to resolve the WSL source or Windows host address' }
 Get-NetFirewallRule -DisplayName 'Horus WSL ADB bridge' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 New-NetFirewallRule -DisplayName 'Horus WSL ADB bridge' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 5037 -Program $adb -RemoteAddress $wslIp
 & $adb kill-server
 Start-Process -FilePath $adb -ArgumentList @('-a', 'server', 'nodaemon') -WindowStyle Hidden
 ```
 
-In WSL, derive the Windows host IP from `/etc/resolv.conf`, set it only for the worker shell, and prove it sees the existing emulator:
+In WSL, derive the Windows host IP from `host.docker.internal`, set it only for the worker shell, and prove it sees the existing emulator:
 
 ```bash
-export ADB_SERVER_SOCKET="tcp:$(awk '/nameserver/{print $2; exit}' /etc/resolv.conf):5037"
+export ADB_SERVER_SOCKET="tcp:$(getent ahostsv4 host.docker.internal | awk 'NR == 1 { print $1 }'):5037"
 adb devices
 ```
 
@@ -720,6 +725,7 @@ Document worker launch with:
 ```bash
 cd /mnt/c/Users/salih/Project_Horus/mobile-worker
 set -a; source .env; set +a
+export PATH="$HOME/.local/bin:$PATH"
 uv run horus-mobile-worker --once
 ```
 
