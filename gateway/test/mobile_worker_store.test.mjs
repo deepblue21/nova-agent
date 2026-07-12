@@ -4,6 +4,8 @@ import crypto from "node:crypto";
 import { createMobileWorkerStore } from "../lib/mobile_worker_store.mjs";
 
 const TASK_ID = "11111111-1111-4111-8111-111111111111";
+const OLDER_TASK_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const NEWER_TASK_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const LEASE_ID = "22222222-2222-4222-8222-222222222222";
 const REPORT_ID = "33333333-3333-4333-8333-333333333333";
 const LEASE_TOKEN = crypto.randomBytes(32).toString("hex");
@@ -19,31 +21,40 @@ function reportInput(overrides = {}) {
   };
 }
 
-function createClient({ taskStatus = "queued", leaseExpired = false } = {}) {
+function createClient({ taskStatus = "queued", leaseExpired = false, leaseState = "active", tasks } = {}) {
   const state = {
-    task: { id: TASK_ID, prompt: "open settings and tell me the android version", status: taskStatus, device_id: null },
-    lease: { id: LEASE_ID, task_id: TASK_ID, token_hash: "", state: "active", expires_at: leaseExpired ? new Date("2026-07-11T12:00:00Z") : new Date("2026-07-11T12:05:00Z") },
+    tasks: (tasks ?? [{ id: TASK_ID, prompt: "open settings and tell me the android version", status: taskStatus }]).map(task => ({
+      device_id: null,
+      created_at: new Date("2026-07-11T12:00:00Z"),
+      ...task,
+    })),
+    lease: { id: LEASE_ID, task_id: TASK_ID, token_hash: "", state: leaseState, expires_at: leaseExpired ? new Date("2026-07-11T12:00:00Z") : new Date("2026-07-11T12:05:00Z") },
     reports: new Map(),
     events: [],
     calls: [],
   };
+  Object.defineProperty(state, "task", { get: () => state.tasks.find(task => task.id === state.lease.task_id) ?? state.tasks[0] });
+  const taskById = id => state.tasks.find(task => task.id === id);
+  const normalized = value => String(value).trim().replace(/\s+/g, " ").toLowerCase();
   let nextEventId = 1;
   const client = { query: async (sql, params = []) => {
     state.calls.push({ sql, params });
     if (sql.includes("FROM mobile_tasks t") && sql.includes("SKIP LOCKED") && sql.includes("t.status='queued'")) {
-      return { rows: state.task.status === "queued" ? [{ ...state.task }] : [] };
+      const task = state.tasks
+        .filter(candidate => candidate.status === "queued" && params[0].includes(normalized(candidate.prompt)))
+        .sort((left, right) => new Date(left.created_at) - new Date(right.created_at))[0];
+      return { rows: task ? [{ ...task }] : [] };
     }
     if (sql.includes("INSERT INTO mobile_worker_leases")) {
       state.lease = { ...state.lease, id: LEASE_ID, task_id: params[0], device_id: params[1], token_hash: params[2], expires_at: params[3], state: "active" };
       return { rows: [{ ...state.lease }] };
     }
     if (sql.includes("UPDATE mobile_tasks")) {
-      state.task = sql.includes("status='executing'")
-        ? { ...state.task, status: "executing", device_id: params[0] }
-        : sql.includes("status='waiting_for_device'")
-          ? { ...state.task, status: "waiting_for_device" }
-          : { ...state.task, status: params[0] };
-      return { rows: [{ ...state.task }] };
+      const taskId = sql.includes("status='executing'") ? params[1] : sql.includes("status='waiting_for_device'") ? params[0] : params[1];
+      const task = taskById(taskId);
+      task.status = sql.includes("status='executing'") ? "executing" : sql.includes("status='waiting_for_device'") ? "waiting_for_device" : params[0];
+      if (sql.includes("status='executing'")) task.device_id = params[0];
+      return { rows: [{ ...task }] };
     }
     if (sql.includes("INSERT INTO mobile_task_events")) {
       const event = { id: nextEventId++, task_id: params[0], type: params[1], payload: params[2] };
@@ -51,10 +62,14 @@ function createClient({ taskStatus = "queued", leaseExpired = false } = {}) {
       return { rows: [event] };
     }
     if (sql.includes("FROM mobile_worker_leases l") && sql.includes("FOR UPDATE")) {
+      if (sql.includes("l.id=$1") && (params[0] !== state.lease.id || params[1] !== state.lease.task_id)) return { rows: [] };
+      if (sql.includes("l.expires_at <= $1")) {
+        return { rows: state.lease.state === "active" && new Date(state.lease.expires_at) <= new Date(params[0]) ? [{ ...state.lease, task_status: state.task.status }] : [] };
+      }
       return { rows: [{ ...state.lease, task_status: state.task.status }] };
     }
     if (sql.includes("FROM mobile_worker_reports") && sql.includes("report_id")) {
-      const report = state.reports.get(params[1]);
+      const report = state.reports.get(`${params[0]}:${params[1]}`);
       return { rows: report ? [report] : [] };
     }
     if (sql.includes("FROM mobile_task_events WHERE id=$1")) {
@@ -62,7 +77,7 @@ function createClient({ taskStatus = "queued", leaseExpired = false } = {}) {
     }
     if (sql.includes("INSERT INTO mobile_worker_reports")) {
       const report = { lease_id: params[0], report_id: params[1], event_id: params[3], task_status: params[4] };
-      state.reports.set(params[1], report);
+      state.reports.set(`${params[0]}:${params[1]}`, report);
       return { rows: [report] };
     }
     if (sql.includes("UPDATE mobile_worker_leases") && sql.includes("state='closed'")) {
@@ -72,9 +87,6 @@ function createClient({ taskStatus = "queued", leaseExpired = false } = {}) {
     if (sql.includes("UPDATE mobile_worker_leases") && sql.includes("state='expired'")) {
       state.lease.state = "expired";
       return { rows: [{ ...state.lease, task_status: state.task.status }] };
-    }
-    if (sql.includes("WHERE l.state='active' AND l.expires_at <= $1")) {
-      return { rows: leaseExpired ? [{ ...state.lease, task_status: state.task.status }] : [] };
     }
     throw new Error(`unexpected SQL: ${sql}`);
   }};
@@ -154,4 +166,79 @@ test("getActiveStatus returns distinct task and lease records after verifying th
   assert.equal(out.task.id, TASK_ID);
   assert.equal(out.lease.id, LEASE_ID);
   assert.equal("token_hash" in out.lease, false);
+});
+
+test("claimNext claims the oldest safe queued task and keeps credentials out of events", async () => {
+  const { client, state } = createClient({
+    tasks: [
+      { id: NEWER_TASK_ID, prompt: "open settings and tell me the android version", status: "queued", created_at: new Date("2026-07-11T12:01:00Z") },
+      { id: OLDER_TASK_ID, prompt: "  OPEN settings AND tell me the Android version  ", status: "queued", created_at: new Date("2026-07-11T12:00:00Z") },
+      { id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", prompt: "open the browser", status: "queued", created_at: new Date("2026-07-11T11:59:00Z") },
+    ],
+  });
+  const store = createMobileWorkerStore({ q: client.query, withTx: async fn => fn(client), now: () => new Date("2026-07-11T12:00:00Z"), randomBytes: () => Buffer.alloc(32, 7) });
+
+  const out = await store.claimNext({ deviceId: "emulator-5554", policy: "settings_android_version" });
+
+  assert.equal(out.task.id, OLDER_TASK_ID);
+  assert.equal(out.lease.token_hash, undefined);
+  assert.equal(JSON.stringify(out.events).includes(out.lease.token), false);
+  assert.equal(state.tasks.find(task => task.id === NEWER_TASK_ID).status, "queued");
+  assert.match(state.calls[0].sql, /ORDER BY t\.created_at ASC/);
+  assert.match(state.calls[0].sql, /FOR UPDATE SKIP LOCKED/);
+});
+
+test("reports map every allowed phase and close every non-progress lease", async () => {
+  const phases = {
+    observing: ["observing", "worker.observing", "active"],
+    running: ["executing", "worker.running", "active"],
+    completed: ["completed", "worker.completed", "closed"],
+    failed: ["failed", "worker.failed", "closed"],
+    waiting_for_device: ["waiting_for_device", "worker.waiting_for_device", "closed"],
+    waiting_for_compute: ["waiting_for_compute", "worker.waiting_for_compute", "closed"],
+  };
+
+  for (const [phase, [status, type, leaseState]] of Object.entries(phases)) {
+    const { client, state } = createClient({ taskStatus: "executing" });
+    state.lease.token_hash = (await import("../lib/keys.mjs")).sha256hex(LEASE_TOKEN);
+    const store = createMobileWorkerStore({ q: client.query, withTx: async fn => fn(client), now: () => new Date("2026-07-11T12:00:00Z") });
+
+    const out = await store.report(reportInput({ phase, report_id: `${REPORT_ID.slice(0, -1)}${Object.keys(phases).indexOf(phase)}` }));
+
+    assert.equal(out.task.status, status, phase);
+    assert.equal(out.event.type, type, phase);
+    assert.equal(state.lease.state, leaseState, phase);
+    assert.equal(JSON.stringify(out).includes(LEASE_TOKEN), false, phase);
+  }
+});
+
+test("reports reject expired and non-active leases", async () => {
+  for (const overrides of [{ leaseExpired: true }, { leaseState: "closed" }]) {
+    const { client, state } = createClient({ taskStatus: "executing", ...overrides });
+    state.lease.token_hash = (await import("../lib/keys.mjs")).sha256hex(LEASE_TOKEN);
+    const store = createMobileWorkerStore({ q: client.query, withTx: async fn => fn(client), now: () => new Date("2026-07-11T12:00:00Z") });
+
+    await assert.rejects(store.report(reportInput()), /worker lease is not active/);
+    assert.equal(state.events.length, 0);
+  }
+});
+
+test("claimNext rejects a non-emulator device before it queries", async () => {
+  const { client, state } = createClient();
+  const store = createMobileWorkerStore({ q: client.query, withTx: async fn => fn(client) });
+
+  await assert.rejects(store.claimNext({ deviceId: "device-serial", policy: "settings_android_version" }), /emulator-5554/);
+  assert.equal(state.calls.length, 0);
+});
+
+test("expireLeases leaves an unexpired active lease untouched", async () => {
+  const { client, state } = createClient({ taskStatus: "executing" });
+  const store = createMobileWorkerStore({ q: client.query, withTx: async fn => fn(client) });
+
+  const out = await store.expireLeases(new Date("2026-07-11T12:02:01Z"));
+
+  assert.deepEqual(out, []);
+  assert.equal(state.lease.state, "active");
+  assert.equal(state.task.status, "executing");
+  assert.equal(state.events.length, 0);
 });

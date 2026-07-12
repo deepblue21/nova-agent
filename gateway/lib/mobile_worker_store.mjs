@@ -77,7 +77,8 @@ async function claimNext(transaction, { deviceId, policy, now, randomBytes }) {
       await insertEvent(client, task.id, "worker.claimed", updatedTask.status),
       await insertEvent(client, task.id, "worker.executing", updatedTask.status),
     ];
-    return { task: updatedTask, lease: { ...leaseResult.rows[0], token }, events };
+    const { token_hash, ...lease } = leaseResult.rows[0];
+    return { task: updatedTask, lease: { ...lease, token }, events };
   });
 }
 

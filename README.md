@@ -166,8 +166,9 @@ with both verified work and the next concrete work item.
   replays task events without printing the API key.
 - Debug APK: `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
 - Dedicated worker-goal policy and worker-only authentication are complete.
-- Gateway worker leases are persisted with token hashes only; exact-prompt claims, expiry
-  recovery, and idempotent report events are covered by focused store tests and migration.
+- Gateway worker leases are persisted with token hashes only; focused semantic store tests
+  now verify oldest safe-task locking, all report phase mappings and lease closure, rejected
+  invalid/expired claims, idempotent reports, expiry no-ops/recovery, and token-safe events.
 
 **In progress**
 

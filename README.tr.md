@@ -165,8 +165,9 @@ yapilanlar hem de siradaki somut is burada guncellenir.
   ve event'leri replay eden Docker mobil kontrol duzlemi smoke testi.
 - Debug APK: `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
 - Ayrilmis worker-goal politikasi ve yalnizca worker icin kimlik dogrulamasi tamamlandi.
-- Gateway worker lease'leri yalnizca token hash'i ile kalici; tam-prompt claim, sure dolumu
-  toparlama ve idempotent rapor event'leri odakli store testleri ve migration ile dogrulandi.
+- Gateway worker lease'leri yalnizca token hash'i ile kalici; anlamsal store testleri en eski
+  guvenli gorev kilidini, tum rapor faz haritalarini ve lease kapanisini, gecersiz/suresi dolmus
+  claim redlerini, idempotent raporlari, sure dolumu no-op/toparlamayi ve token-guvenli event'leri dogruladi.
 
 **Devam eden is**
 
