@@ -166,20 +166,21 @@ with both verified work and the next concrete work item.
   replays task events without printing the API key.
 - Debug APK: `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
 - Dedicated worker-goal policy and worker-only authentication are complete.
+- Gateway worker leases are persisted with token hashes only; exact-prompt claims, expiry
+  recovery, and idempotent report events are covered by focused store tests and migration.
 
 **In progress**
 
-- A WSL Python Mobilerun worker that will use local Ollama on the PC GPU to perform the
-  first safe emulator-only task: open Android Settings and report the Android version.
+- An isolated WSL Python Mobilerun worker and WSL-to-emulator ADB bridge for the first
+  safe emulator-only task: open Android Settings and report the Android version.
 
 **Next**
 
-1. Add lease persistence and idempotent worker reports.
-2. Add the isolated Python worker and a WSL-to-emulator ADB bridge, with Mobilerun Portal
+1. Add the isolated Python worker and a WSL-to-emulator ADB bridge, with Mobilerun Portal
    readiness checks.
-3. Show worker lifecycle states in the Android Tasks timeline, then prove the safe
+2. Show worker lifecycle states in the Android Tasks timeline, then prove the safe
    Settings/version workflow on `emulator-5554`.
-4. Design physical-device Wi-Fi ADB enrollment only after the emulator workflow passes.
+3. Design physical-device Wi-Fi ADB enrollment only after the emulator workflow passes.
 
 The detailed implementation sequence is in
 [`docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md`](./docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md).

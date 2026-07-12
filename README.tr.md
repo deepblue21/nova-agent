@@ -165,20 +165,21 @@ yapilanlar hem de siradaki somut is burada guncellenir.
   ve event'leri replay eden Docker mobil kontrol duzlemi smoke testi.
 - Debug APK: `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
 - Ayrilmis worker-goal politikasi ve yalnizca worker icin kimlik dogrulamasi tamamlandi.
+- Gateway worker lease'leri yalnizca token hash'i ile kalici; tam-prompt claim, sure dolumu
+  toparlama ve idempotent rapor event'leri odakli store testleri ve migration ile dogrulandi.
 
 **Devam eden is**
 
-- PC GPU uzerindeki yerel Ollama'yi kullanacak WSL Python Mobilerun worker'i. Ilk guvenli
-  emulator gorevi: Android Ayarlar uygulamasini acip Android surumunu bildirmek.
+- Izole WSL Python Mobilerun worker'i ve WSL-emulator ADB koprusu. Ilk guvenli emulator
+  gorevi: Android Ayarlar uygulamasini acip Android surumunu bildirmek.
 
 **Siradaki isler**
 
-1. Lease kaliciligini ve idempotent worker raporlarini eklemek.
-2. Izole Python worker'i ve WSL-emulator ADB koprusunu, Mobilerun Portal hazirlik
+1. Izole Python worker'i ve WSL-emulator ADB koprusunu, Mobilerun Portal hazirlik
    kontrolleriyle birlikte eklemek.
-3. Worker yasam dongusu durumlarini Android Gorevler timeline'inda gostermek ve guvenli
+2. Worker yasam dongusu durumlarini Android Gorevler timeline'inda gostermek ve guvenli
    Ayarlar/surum akisini `emulator-5554` uzerinde kanitlamak.
-4. Emulator akisi gectikten sonra fiziksel telefon Wi-Fi ADB katilimini ayri tasarlamak.
+3. Emulator akisi gectikten sonra fiziksel telefon Wi-Fi ADB katilimini ayri tasarlamak.
 
 Ayrintili uygulama sirasi:
 [`docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md`](./docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md).
