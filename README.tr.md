@@ -165,22 +165,20 @@ yapilanlar hem de siradaki somut is burada guncellenir.
   ve event'leri replay eden Docker mobil kontrol duzlemi smoke testi.
 - Debug APK: `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
 - Ayrilmis worker-goal politikasi ve yalnizca worker icin kimlik dogrulamasi tamamlandi.
-- Gateway worker lease'leri yalnizca token hash'i ile kalici; anlamsal store testleri en eski
-  guvenli gorev kilidini, tum rapor faz haritalarini ve lease kapanisini, gecersiz cihaz veya
-  politika claim'lerinin reddini, suresi dolmus ya da aktif olmayan lease'ler icin rapor
-  redlerini, idempotent raporlari, suresi dolmamis aktif bir lease icin expiry sweep no-op'unu,
-  suresi dolmus aktif bir lease'in `worker.lease_expired` ile `waiting_for_device` durumuna
-  toparlanmasini ve token-guvenli event'leri dogruladi.
-- Yalnizca worker'a ait Gateway kontrol route'lari temel middleware korunarak kullanici-principal
-  kimlik dogrulamasindan once mount edildi. Ayrilmis worker bearer auth; claim, status, report ve
-  expiry endpoint'lerini korur. Route testleri devre disi route gizlemeyi, siki status eslemesini,
-  gorev olusturmadan once politika on kontrolunu, yalnizca kalici event yayinini ve idempotent
-  reportlari dogrular.
+- Gateway worker lease'leri yalnizca token hash'i ile kalici. Odakli anlamsal store testleri hem
+  durum hem de rapor islemlerinde bilinmeyen gorevi (`404`), eksik, bayat, aktif olmayan veya yanlis
+  lease'e sahip gecerli gorevden (`409`) ayirir; event'ler ve kalici kayitlar lease token'ini icermez.
+- Yalnizca worker'a ait Gateway kontrol router'lari yerel `.env` yukleyicisinden sonra factory ile
+  olusturulur; sonra temel middleware'den sonra ve kullanici-principal kimlik dogrulamasindan once
+  mount edilir. Ayrilmis worker bearer auth claim, status, report ve expiry endpoint'lerini korur;
+  Task 4 icin gereken tek kullanimlik opak `lease.token` yalnizca claim yanitinda doner, status/report
+  yanitlarinda asla yer almaz.
 
 **Devam eden is**
 
-- Gorev 4: izole WSL Python Mobilerun worker'i ve WSL-emulator ADB koprusu. Ilk guvenli emulator
-  gorevi: Android Ayarlar uygulamasini acip Android surumunu bildirmek.
+- Gorev 4: izole WSL Python Mobilerun worker'i ve WSL-emulator ADB koprusu. Worker, ilk guvenli
+  emulator gorevinde tek kullanimlik claim `lease.token` degerini kullanarak Android Ayarlar
+  uygulamasini acip Android surumunu bildirecek.
 
 **Siradaki isler**
 

@@ -39,6 +39,10 @@ function createClient({ taskStatus = "queued", leaseExpired = false, leaseState 
   let nextEventId = 1;
   const client = { query: async (sql, params = []) => {
     state.calls.push({ sql, params });
+    if (sql.includes("SELECT id FROM mobile_tasks WHERE id=$1")) {
+      const task = taskById(params[0]);
+      return { rows: task ? [{ id: task.id }] : [] };
+    }
     if (sql.includes("FROM mobile_tasks t") && sql.includes("SKIP LOCKED") && sql.includes("t.status='queued'")) {
       const task = state.tasks
         .filter(candidate => candidate.status === "queued" && params[0].includes(normalized(candidate.prompt)))
@@ -144,6 +148,7 @@ test("getActiveStatus returns distinct task and lease records after verifying th
   const token = LEASE_TOKEN;
   const store = createMobileWorkerStore({
     q: async sql => {
+      if (sql.includes("SELECT id FROM mobile_tasks WHERE id=$1")) return { rows: [{ id: TASK_ID }] };
       assert.match(sql, /t\.id AS task_id/);
       assert.match(sql, /l\.id AS lease_id/);
       return { rows: [{
@@ -171,6 +176,34 @@ test("getActiveStatus returns distinct task and lease records after verifying th
   assert.equal(out.task.id, TASK_ID);
   assert.equal(out.lease.id, LEASE_ID);
   assert.equal("token_hash" in out.lease, false);
+});
+
+test("getActiveStatus distinguishes an unknown task from an inactive or wrong lease", async () => {
+  const now = () => new Date("2026-07-11T12:00:00Z");
+  const missingTask = createMobileWorkerStore({
+    q: async sql => {
+      assert.match(sql, /SELECT id FROM mobile_tasks WHERE id=\$1/);
+      return { rows: [] };
+    },
+    now,
+  });
+  const inactiveLease = createMobileWorkerStore({
+    q: async sql => {
+      if (sql.includes("SELECT id FROM mobile_tasks WHERE id=$1")) return { rows: [{ id: TASK_ID }] };
+      assert.match(sql, /FROM mobile_worker_leases l/);
+      return { rows: [] };
+    },
+    now,
+  });
+
+  await assert.rejects(
+    missingTask.getActiveStatus({ taskId: TASK_ID, token: LEASE_TOKEN }),
+    error => error?.code === "TASK_NOT_FOUND",
+  );
+  await assert.rejects(
+    inactiveLease.getActiveStatus({ taskId: TASK_ID, token: LEASE_TOKEN }),
+    error => error?.code === "LEASE_NOT_ACTIVE",
+  );
 });
 
 test("claimNext claims the oldest safe queued task and keeps credentials out of events", async () => {
@@ -217,22 +250,55 @@ test("reports map every allowed phase and close every non-progress lease", async
   }
 });
 
-test("reports reject expired and non-active leases", async () => {
+test("reports reject expired and non-active leases with a typed lease outcome", async () => {
   for (const overrides of [{ leaseExpired: true }, { leaseState: "closed" }]) {
     const { client, state } = createClient({ taskStatus: "executing", ...overrides });
     state.lease.token_hash = (await import("../lib/keys.mjs")).sha256hex(LEASE_TOKEN);
     const store = createMobileWorkerStore({ q: client.query, withTx: async fn => fn(client), now: () => new Date("2026-07-11T12:00:00Z") });
 
-    await assert.rejects(store.report(reportInput()), /worker lease is not active/);
+    await assert.rejects(
+      store.report(reportInput()),
+      error => error?.code === "LEASE_NOT_ACTIVE",
+    );
     assert.equal(state.events.length, 0);
   }
 });
 
-test("claimNext rejects a non-emulator device before it queries", async () => {
+test("reports distinguish an unknown task from missing and wrong leases", async () => {
+  const now = () => new Date("2026-07-11T12:00:00Z");
+  const unknown = createClient({ tasks: [] });
+  const missingLease = createClient({ taskStatus: "executing" });
+  const wrongLease = createClient({ taskStatus: "executing" });
+  wrongLease.state.lease.token_hash = (await import("../lib/keys.mjs")).sha256hex(LEASE_TOKEN);
+  const unknownStore = createMobileWorkerStore({ q: unknown.client.query, withTx: async fn => fn(unknown.client), now });
+  const missingLeaseStore = createMobileWorkerStore({ q: missingLease.client.query, withTx: async fn => fn(missingLease.client), now });
+  const wrongLeaseStore = createMobileWorkerStore({ q: wrongLease.client.query, withTx: async fn => fn(wrongLease.client), now });
+
+  await assert.rejects(
+    unknownStore.report(reportInput()),
+    error => error?.code === "TASK_NOT_FOUND",
+  );
+  await assert.rejects(
+    missingLeaseStore.report(reportInput({ lease_id: "44444444-4444-4444-8444-444444444444" })),
+    error => error?.code === "LEASE_NOT_ACTIVE",
+  );
+  await assert.rejects(
+    wrongLeaseStore.report(reportInput({ token: crypto.randomBytes(32).toString("hex") })),
+    error => error?.code === "LEASE_NOT_ACTIVE",
+  );
+  assert.equal(unknown.state.events.length, 0);
+  assert.equal(missingLease.state.events.length, 0);
+  assert.equal(wrongLease.state.events.length, 0);
+});
+
+test("claimNext rejects a non-emulator device with a typed input outcome before it queries", async () => {
   const { client, state } = createClient();
   const store = createMobileWorkerStore({ q: client.query, withTx: async fn => fn(client) });
 
-  await assert.rejects(store.claimNext({ deviceId: "device-serial", policy: "settings_android_version" }), /emulator-5554/);
+  await assert.rejects(
+    store.claimNext({ deviceId: "device-serial", policy: "settings_android_version" }),
+    error => error?.code === "INVALID_REQUEST",
+  );
   assert.equal(state.calls.length, 0);
 });
 

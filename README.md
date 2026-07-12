@@ -166,20 +166,20 @@ with both verified work and the next concrete work item.
   replays task events without printing the API key.
 - Debug APK: `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
 - Dedicated worker-goal policy and worker-only authentication are complete.
-- Gateway worker leases are persisted with token hashes only; focused semantic store tests
-  now verify oldest safe-task locking, all report phase mappings and lease closure, rejection
-  of invalid device or policy claims, rejection of reports for expired or non-active leases,
-  idempotent reports, an expiry sweep no-op for an unexpired active lease, recovery of an
-  expired active lease to `waiting_for_device` with `worker.lease_expired`, and token-safe events.
-- Worker-only Gateway control routes are mounted before user-principal authentication while
-  retaining baseline middleware. Dedicated worker bearer auth gates claim, status, report, and
-  expiry endpoints; route tests verify disabled-route hiding, strict status mapping, policy
-  preflight before task creation, persisted-event-only publishing, and idempotent reports.
+- Gateway worker leases are persisted with token hashes only. Focused semantic store tests now
+  distinguish an unknown task (`404`) from a valid task with a missing, stale, inactive, or
+  wrong lease (`409`) for both status and report operations; events and persisted records never
+  contain the lease token.
+- Worker-only Gateway control routers are constructed from factories after the local `.env` loader,
+  then mounted after baseline middleware and before user-principal authentication. Dedicated worker
+  bearer auth gates claim, status, report, and expiry endpoints; claim alone returns the one-time
+  opaque `lease.token` needed by the worker, while status/report responses never expose it.
 
 **In progress**
 
-- Task 4: an isolated WSL Python Mobilerun worker and WSL-to-emulator ADB bridge for the first
-  safe emulator-only task: open Android Settings and report the Android version.
+- Task 4: an isolated WSL Python Mobilerun worker and WSL-to-emulator ADB bridge that consumes the
+  one-time claim `lease.token` for the first safe emulator-only task: open Android Settings and
+  report the Android version.
 
 **Next**
 

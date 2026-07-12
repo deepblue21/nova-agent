@@ -52,8 +52,8 @@ import { withMemory } from "./lib/memory_store.mjs";
 import { getMcpTools, describeTools, parseServers } from "./lib/mcp.mjs";
 import { workspaces } from "./routes/workspaces.mjs";
 import { agentRuns as agentRunsRoute } from "./routes/agent_runs.mjs";
-import { mobileTasks } from "./routes/mobile_tasks.mjs";
-import { mobileWorker } from "./routes/mobile_worker.mjs";
+import { createMobileTasksRouter } from "./routes/mobile_tasks.mjs";
+import { createMobileWorkerRouter } from "./routes/mobile_worker.mjs";
 import * as agentRunStore from "./lib/agent_runs_store.mjs";
 import * as schedStore from "./lib/scheduled_store.mjs";
 import { nextRunAt as schedNextRunAt } from "./lib/scheduler.mjs";
@@ -84,6 +84,18 @@ import { runScheduledTask } from "./lib/scheduled_runner.mjs";
     }
   } catch { /* no .env file — rely on real environment */ }
 })();
+
+const MOBILE_WORKER_ENABLED = process.env.MOBILE_WORKER_ENABLED === "1";
+const MOBILE_WORKER_GOAL_POLICY = process.env.MOBILE_WORKER_GOAL_POLICY || "settings_android_version";
+const mobileWorker = createMobileWorkerRouter({
+  enabled: MOBILE_WORKER_ENABLED,
+  token: process.env.MOBILE_WORKER_TOKEN || "",
+  policy: MOBILE_WORKER_GOAL_POLICY,
+});
+const mobileTasks = createMobileTasksRouter({
+  workerEnabled: MOBILE_WORKER_ENABLED,
+  workerGoalPolicy: MOBILE_WORKER_GOAL_POLICY,
+});
 
 const app = express();
 app.disable("x-powered-by");

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { createWorkerAuth } from "../lib/mobile_worker_auth.mjs";
 import { mobileEventBroker } from "../lib/mobile_event_broker.mjs";
 import { parseWorkerReport } from "../lib/mobile_worker_policy.mjs";
-import { createMobileWorkerStore } from "../lib/mobile_worker_store.mjs";
+import { createMobileWorkerStore, MobileWorkerStoreErrorCode } from "../lib/mobile_worker_store.mjs";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DEVICE_ID = "emulator-5554";
@@ -14,8 +14,14 @@ function invalid(res) { return res.status(400).json({ error: "invalid worker req
 function conflict(res) { return res.status(409).json({ error: "worker lease is not active" }); }
 function safeTask(task) { return { id: task.id, status: task.status }; }
 function safeStatus(status) { return { status: status.task.status, lease_expires_at: status.lease.expires_at }; }
-function isLeaseError(error) { return error instanceof Error && error.message === "worker lease is not active"; }
-function isUnknownTaskError(error) { return error instanceof Error && error.message === "task not found"; }
+function hasStoreErrorCode(error, code) { return error?.code === code; }
+function storeOutcome(res, error) {
+  if (hasStoreErrorCode(error, MobileWorkerStoreErrorCode.TASK_NOT_FOUND)) {
+    return res.status(404).json({ error: "task not found" });
+  }
+  if (hasStoreErrorCode(error, MobileWorkerStoreErrorCode.LEASE_NOT_ACTIVE)) return conflict(res);
+  return false;
+}
 
 export function createMobileWorkerRouter({
   store = createMobileWorkerStore(),
@@ -39,9 +45,13 @@ export function createMobileWorkerRouter({
     if (!validId(req.params.id)) return invalid(res);
     const token = leaseToken(req);
     if (!token) return conflict(res);
-    const status = await store.getActiveStatus({ taskId: req.params.id, token });
-    if (!status) return res.status(404).json({ error: "task not found" });
-    res.json(safeStatus(status));
+    try {
+      const status = await store.getActiveStatus({ taskId: req.params.id, token });
+      res.json(safeStatus(status));
+    } catch (error) {
+      if (storeOutcome(res, error)) return;
+      throw error;
+    }
   }));
 
   router.post("/v1/internal/mobile-worker/tasks/:id/reports", asyncRoute(async (req, res) => {
@@ -53,12 +63,10 @@ export function createMobileWorkerRouter({
     if (!report.lease_id || !report.report_id) return invalid(res);
     try {
       const result = await store.report({ taskId: req.params.id, token, ...report });
-      if (!result) return conflict(res);
       if (!result.replayed) broker.publish(result.event);
       res.json(safeTask(result.task));
     } catch (error) {
-      if (isLeaseError(error)) return conflict(res);
-      if (isUnknownTaskError(error)) return res.status(404).json({ error: "task not found" });
+      if (storeOutcome(res, error)) return;
       throw error;
     }
   }));
@@ -70,5 +78,3 @@ export function createMobileWorkerRouter({
   }));
   return router;
 }
-
-export const mobileWorker = createMobileWorkerRouter();

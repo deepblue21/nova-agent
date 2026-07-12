@@ -17,6 +17,24 @@ const PHASES = {
   waiting_for_compute: ["waiting_for_compute", "worker.waiting_for_compute"],
 };
 
+export const MobileWorkerStoreErrorCode = Object.freeze({
+  INVALID_REQUEST: "INVALID_REQUEST",
+  TASK_NOT_FOUND: "TASK_NOT_FOUND",
+  LEASE_NOT_ACTIVE: "LEASE_NOT_ACTIVE",
+});
+
+export class MobileWorkerStoreError extends Error {
+  constructor(code) {
+    super(code);
+    this.name = "MobileWorkerStoreError";
+    this.code = code;
+  }
+}
+
+function storeError(code) {
+  return new MobileWorkerStoreError(code);
+}
+
 function normalizeEvent(event) {
   return { ...event, id: String(event.id) };
 }
@@ -40,7 +58,7 @@ async function insertEvent(client, taskId, type, status) {
 }
 
 async function claimNext(transaction, { deviceId, policy, now, randomBytes }) {
-  if (deviceId !== DEVICE_ID) throw new Error("worker device must be emulator-5554");
+  if (deviceId !== DEVICE_ID) throw storeError(MobileWorkerStoreErrorCode.INVALID_REQUEST);
   const prompts = allowedWorkerPrompts(policy);
   if (!prompts.length) return null;
 
@@ -83,6 +101,8 @@ async function claimNext(transaction, { deviceId, policy, now, randomBytes }) {
 }
 
 async function getActiveStatus(query, { taskId, token, now }) {
+  const task = await query("SELECT id FROM mobile_tasks WHERE id=$1", [taskId]);
+  if (!task.rows[0]) throw storeError(MobileWorkerStoreErrorCode.TASK_NOT_FOUND);
   const result = await query(
     `SELECT t.id AS task_id, t.user_id AS task_user_id, t.prompt AS task_prompt,
             t.device_id AS task_device_id, t.status AS task_status,
@@ -96,7 +116,9 @@ async function getActiveStatus(query, { taskId, token, now }) {
     [taskId, now()],
   );
   const row = result.rows[0];
-  if (!row || !hashEquals(row.token_hash, sha256hex(token))) return null;
+  if (!row || !hashEquals(row.token_hash, sha256hex(token))) {
+    throw storeError(MobileWorkerStoreErrorCode.LEASE_NOT_ACTIVE);
+  }
   return {
     task: {
       id: row.task_id,
@@ -120,13 +142,22 @@ async function getActiveStatus(query, { taskId, token, now }) {
 }
 
 async function report(transaction, input) {
-  const report = parseWorkerReport(input);
+  let report;
+  try {
+    report = parseWorkerReport(input);
+  } catch {
+    throw storeError(MobileWorkerStoreErrorCode.INVALID_REQUEST);
+  }
   const taskId = input?.taskId;
   const token = input?.token;
-  if (!taskId || !token || !report.lease_id || !report.report_id) throw new Error("worker report requires task, lease, report, and token");
+  if (!taskId || !token || !report.lease_id || !report.report_id) {
+    throw storeError(MobileWorkerStoreErrorCode.INVALID_REQUEST);
+  }
   const [status, type] = PHASES[report.phase];
 
   return transaction(async (client) => {
+    const taskResult = await client.query("SELECT id FROM mobile_tasks WHERE id=$1 FOR KEY SHARE", [taskId]);
+    if (!taskResult.rows[0]) throw storeError(MobileWorkerStoreErrorCode.TASK_NOT_FOUND);
     const locked = await client.query(
       `SELECT l.${LEASE_COLUMNS.replaceAll(", ", ", l.")}, t.status AS task_status
          FROM mobile_worker_leases l
@@ -136,7 +167,9 @@ async function report(transaction, input) {
       [report.lease_id, taskId],
     );
     const lease = locked.rows[0];
-    if (!lease || !hashEquals(lease.token_hash, sha256hex(token))) return null;
+    if (!lease || !hashEquals(lease.token_hash, sha256hex(token))) {
+      throw storeError(MobileWorkerStoreErrorCode.LEASE_NOT_ACTIVE);
+    }
 
     const saved = await client.query(
       `SELECT lease_id, report_id, phase, event_id, task_status
@@ -148,7 +181,9 @@ async function report(transaction, input) {
       const event = await client.query(`SELECT ${EVENT_COLUMNS} FROM mobile_task_events WHERE id=$1`, [saved.rows[0].event_id]);
       return { task: { id: taskId, status: saved.rows[0].task_status }, event: normalizeEvent(event.rows[0] || { id: saved.rows[0].event_id }), replayed: true };
     }
-    if (lease.state !== "active" || new Date(lease.expires_at) <= input.now()) throw new Error("worker lease is not active");
+    if (lease.state !== "active" || new Date(lease.expires_at) <= input.now()) {
+      throw storeError(MobileWorkerStoreErrorCode.LEASE_NOT_ACTIVE);
+    }
 
     const updated = await client.query(
       `UPDATE mobile_tasks SET status=$1, updated_at=now() WHERE id=$2 RETURNING ${TASK_COLUMNS}`,

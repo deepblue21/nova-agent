@@ -177,5 +177,3 @@ export function createMobileTasksRouter({
 
   return router;
 }
-
-export const mobileTasks = createMobileTasksRouter();

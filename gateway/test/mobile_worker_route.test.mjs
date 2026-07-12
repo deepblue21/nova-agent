@@ -1,13 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import { readFileSync } from "node:fs";
 import express from "express";
 import request from "supertest";
 import { createMobileWorkerRouter } from "../routes/mobile_worker.mjs";
+import { MobileWorkerStoreError } from "../lib/mobile_worker_store.mjs";
 
 const TASK_ID = "11111111-1111-4111-8111-111111111111";
 const LEASE_ID = "22222222-2222-4222-8222-222222222222";
 const REPORT_ID = "33333333-3333-4333-8333-333333333333";
-const LEASE_TOKEN = "lease-token";
+const LEASE_TOKEN = crypto.randomBytes(32).toString("hex");
+const WORKER_TOKEN = crypto.randomBytes(32).toString("hex");
 
 function task(overrides = {}) {
   return { id: TASK_ID, status: "executing", device_id: "emulator-5554", ...overrides };
@@ -19,6 +23,10 @@ function lease(overrides = {}) {
 
 function event(overrides = {}) {
   return { id: "1", task_id: TASK_ID, type: "worker.running", payload: { status: "executing" }, ...overrides };
+}
+
+function storeError(code) {
+  return new MobileWorkerStoreError(code);
 }
 
 function createStore(overrides = {}) {
@@ -38,20 +46,20 @@ function createBroker() {
 function createApp(store = createStore(), broker = createBroker(), options = {}) {
   const app = express();
   app.use(express.json());
-  app.use(createMobileWorkerRouter({ store, broker, enabled: true, token: "worker-secret", ...options }));
+  app.use(createMobileWorkerRouter({ store, broker, enabled: true, token: WORKER_TOKEN, ...options }));
   app.use((_req, res) => res.status(404).end());
   app.use((_error, _req, res, _next) => res.status(500).json({ error: "gateway error" }));
   return app;
 }
 
 function workerRequest(app, method, path) {
-  return request(app)[method](path).set("Authorization", "Bearer worker-secret");
+  return request(app)[method](path).set("Authorization", `Bearer ${WORKER_TOKEN}`);
 }
 
 test("claim requires a dedicated worker token and publishes only persisted events", async () => {
   const broker = createBroker();
   const app = createApp(createStore(), broker);
-  const denied = await request(app).post("/v1/internal/mobile-worker/claims").set("Authorization", "Bearer user-api-key").send({ device_id: "emulator-5554" });
+  const denied = await request(app).post("/v1/internal/mobile-worker/claims").set("Authorization", `Bearer ${crypto.randomBytes(32).toString("hex")}`).send({ device_id: "emulator-5554" });
   const claimed = await workerRequest(app, "post", "/v1/internal/mobile-worker/claims").send({ device_id: "emulator-5554" });
 
   assert.equal(denied.status, 401);
@@ -63,18 +71,21 @@ test("claim requires a dedicated worker token and publishes only persisted event
 test("worker routes validate IDs, lease header, store input, and map lease/task outcomes", async () => {
   const calls = [];
   const store = createStore({
-    getActiveStatus: async input => { calls.push(["status", input]); return null; },
-    report: async input => { calls.push(["report", input]); return null; },
+    getActiveStatus: async input => { calls.push(["status", input]); throw storeError("LEASE_NOT_ACTIVE"); },
+    report: async input => { calls.push(["report", input]); throw storeError("LEASE_NOT_ACTIVE"); },
   });
   const app = createApp(store);
   const invalidId = await workerRequest(app, "get", "/v1/internal/mobile-worker/tasks/not-a-uuid/status").set("X-Horus-Lease-Token", LEASE_TOKEN);
   const missingToken = await workerRequest(app, "get", `/v1/internal/mobile-worker/tasks/${TASK_ID}/status`);
+  const staleStatus = await workerRequest(app, "get", `/v1/internal/mobile-worker/tasks/${TASK_ID}/status`).set("X-Horus-Lease-Token", LEASE_TOKEN);
   const stale = await workerRequest(app, "post", `/v1/internal/mobile-worker/tasks/${TASK_ID}/reports`).set("X-Horus-Lease-Token", LEASE_TOKEN).send({ lease_id: LEASE_ID, report_id: REPORT_ID, phase: "completed" });
 
   assert.equal(invalidId.status, 400);
   assert.equal(missingToken.status, 409);
+  assert.equal(staleStatus.status, 409);
   assert.equal(stale.status, 409);
-  assert.deepEqual(calls[0], ["report", { taskId: TASK_ID, token: LEASE_TOKEN, lease_id: LEASE_ID, report_id: REPORT_ID, phase: "completed" }]);
+  assert.deepEqual(calls[0], ["status", { taskId: TASK_ID, token: LEASE_TOKEN }]);
+  assert.deepEqual(calls[1], ["report", { taskId: TASK_ID, token: LEASE_TOKEN, lease_id: LEASE_ID, report_id: REPORT_ID, phase: "completed" }]);
 });
 
 test("report is idempotent, returns no internal data, and publishes a persisted event once", async () => {
@@ -104,6 +115,7 @@ test("status and expiry routes return only persisted safe data and events", asyn
 
   assert.equal(status.status, 200);
   assert.deepEqual(status.body, { status: "executing", lease_expires_at: "2026-07-12T12:00:00.000Z" });
+  assert.equal(JSON.stringify(status.body).includes(LEASE_TOKEN), false);
   assert.equal(expired.status, 200);
   assert.deepEqual(expired.body, { data: [{ id: TASK_ID, status: "waiting_for_device" }] });
   assert.deepEqual(broker.published.map(savedEvent => savedEvent.type), ["worker.lease_expired"]);
@@ -111,16 +123,31 @@ test("status and expiry routes return only persisted safe data and events", asyn
 
 test("unknown tasks are 404, invalid payloads are 400, and disabled worker routes are hidden", async () => {
   const app = createApp(createStore({
-    getActiveStatus: async () => null,
-    report: async () => { throw new Error("task not found"); },
+    getActiveStatus: async () => { throw storeError("TASK_NOT_FOUND"); },
+    report: async () => { throw storeError("TASK_NOT_FOUND"); },
   }));
   const unknown = await workerRequest(app, "get", `/v1/internal/mobile-worker/tasks/${TASK_ID}/status`).set("X-Horus-Lease-Token", LEASE_TOKEN);
   const unknownReport = await workerRequest(app, "post", `/v1/internal/mobile-worker/tasks/${TASK_ID}/reports`).set("X-Horus-Lease-Token", LEASE_TOKEN).send({ lease_id: LEASE_ID, report_id: REPORT_ID, phase: "completed" });
   const invalid = await workerRequest(app, "post", `/v1/internal/mobile-worker/tasks/${TASK_ID}/reports`).set("X-Horus-Lease-Token", LEASE_TOKEN).send({ lease_id: LEASE_ID, report_id: REPORT_ID, phase: "invalid" });
-  const disabled = await request(createApp(createStore(), createBroker(), { enabled: false })).post("/v1/internal/mobile-worker/claims").set("Authorization", "Bearer worker-secret").send({ device_id: "emulator-5554" });
+  const disabled = await request(createApp(createStore(), createBroker(), { enabled: false })).post("/v1/internal/mobile-worker/claims").set("Authorization", `Bearer ${WORKER_TOKEN}`).send({ device_id: "emulator-5554" });
 
   assert.equal(unknown.status, 404);
   assert.equal(unknownReport.status, 404);
   assert.equal(invalid.status, 400);
   assert.equal(disabled.status, 404);
+});
+
+test("gateway constructs mobile routers after loading .env and before principal auth", () => {
+  const source = readFileSync(new URL("../gateway.mjs", import.meta.url), "utf8");
+  const envLoaded = source.indexOf("})();", source.indexOf("zero-dependency .env loader"));
+  const workerConstructed = source.indexOf("createMobileWorkerRouter(");
+  const tasksConstructed = source.indexOf("createMobileTasksRouter(");
+  const workerMounted = source.indexOf("app.use(mobileWorker);");
+  const principalAuth = source.indexOf("const principalMiddleware = principal();");
+
+  assert.doesNotMatch(source, /import \{ mobileWorker \} from "\.\/routes\/mobile_worker\.mjs"/);
+  assert.doesNotMatch(source, /import \{ mobileTasks \} from "\.\/routes\/mobile_tasks\.mjs"/);
+  assert.ok(envLoaded < workerConstructed);
+  assert.ok(envLoaded < tasksConstructed);
+  assert.ok(workerMounted < principalAuth);
 });
