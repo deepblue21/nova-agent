@@ -35,8 +35,8 @@ function loopbackGatewayUrl(value) {
 export function workerEnvironment(values = process.env) {
   return Object.freeze({
     gatewayUrl: loopbackGatewayUrl(values.HORUS_GATEWAY_URL),
-    apiKey: required(values.HORUS_API_KEY, "HORUS_API_KEY"),
     workerToken: required(values.MOBILE_WORKER_TOKEN, "MOBILE_WORKER_TOKEN"),
+    apiKey: required(values.HORUS_API_KEY, "HORUS_API_KEY"),
   });
 }
 
@@ -89,10 +89,15 @@ async function waitForWorkerEvents({ gatewayUrl, apiKey }, taskId, signal) {
       const { done, value } = await reader.read();
       assert.equal(done, false, "worker smoke events stream ended early");
       pending += decoder.decode(value, { stream: true });
-      const boundary = pending.lastIndexOf("\n\n");
+      let boundary = -1;
+      let boundaryLength = 0;
+      for (const match of pending.matchAll(/\r?\n\r?\n/g)) {
+        boundary = match.index;
+        boundaryLength = match[0].length;
+      }
       if (boundary < 0) continue;
-      const complete = pending.slice(0, boundary + 2);
-      pending = pending.slice(boundary + 2);
+      const complete = pending.slice(0, boundary + boundaryLength);
+      pending = pending.slice(boundary + boundaryLength);
       events.push(...parseSseFrames(complete));
     }
   } finally {
