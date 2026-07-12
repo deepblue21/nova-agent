@@ -77,6 +77,8 @@ services:
       - "host.docker.internal:host-gateway"
     expose:
       - "8088"                  # internal only; not published to the host
+    ports:
+      - "127.0.0.1:8088:8088"
     depends_on:
       postgres:
         condition: service_healthy

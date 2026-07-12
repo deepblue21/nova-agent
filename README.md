@@ -200,14 +200,16 @@ with both verified work and the next concrete work item.
   and an amber core; Android 13+ overlays add the single-path themed monochrome silhouette. Resource
   processing, lint, debug APK assembly, and installation passed; `emulator-5554` resolves
   `com.nova.agent/.MainActivity`.
+- Task 6 status: the Gateway now publishes only `127.0.0.1:8088`, its WSL health check returned
+  `{"ok":true}`, and the worker smoke preflight/SSE tests pass (3/3). Ubuntu ADB was installed after
+  an absence check, but the WSL launcher intermittently returned its false `DISTRO_NOT_FOUND` result
+  during bridge resolution, so no Portal or Mobilerun installation was attempted and the bridged
+  `emulator-5554` listing remains to be verified.
 
 **Next**
 
-- Task 6: Make the local worker reachable and prepare WSL ADB.
-
-**After Task 6**
-
-1. Install Portal and prove the safe Settings/version workflow on `emulator-5554`.
+- Task 7: After the WSL ADB bridge lists `emulator-5554\tdevice`, install Portal and prove the safe
+  Settings/version workflow on that emulator.
 
 The detailed implementation sequence is in
 [`docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md`](./docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md).

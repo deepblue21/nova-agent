@@ -200,14 +200,16 @@ yapilanlar hem de siradaki somut is burada guncellenir.
   foreground/background XML kaynaklarina baglar; Android 13+ overlay'leri tek-path temali monokrom
   silueti ekler. Kaynak isleme, lint, debug APK paketi ve kurulum gecti; `emulator-5554`,
   `com.nova.agent/.MainActivity` sonucunu cozer.
+- Gorev 6 durumu: Gateway yalnizca `127.0.0.1:8088` uzerinden yayinlaniyor; WSL health denetimi
+  `{"ok":true}` dondu ve worker smoke preflight/SSE testleri 3/3 gecti. Ubuntu ADB, yokluk denetiminden
+  sonra kuruldu; ancak WSL baslaticisi bridge cozumlemesi sirasinda aralikli olarak yanlis
+  `DISTRO_NOT_FOUND` dondu. Bu nedenle Portal veya Mobilerun kurulumu denenmedi ve bridged
+  `emulator-5554\tdevice` satiri henuz dogrulanmadi.
 
 **Siradaki is**
 
-- Gorev 6: Yerel worker'i erisilebilir yap ve WSL ADB'yi hazirla.
-
-**Gorev 6 sonrasi**
-
-1. Portal'i kur ve `emulator-5554` uzerinde guvenli Ayarlar/surum akisini kanitla.
+- Gorev 7: WSL ADB bridge `emulator-5554\tdevice` satirini verdikten sonra Portal'i kur ve ayni
+  emulator uzerinde guvenli Ayarlar/surum akisini kanitla.
 
 Ayrintili uygulama sirasi:
 [`docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md`](./docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md).
