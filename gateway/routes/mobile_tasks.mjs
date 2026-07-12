@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { mobileEventBroker, formatSseEvent } from "../lib/mobile_event_broker.mjs";
 import { createMobileTaskStore } from "../lib/mobile_task_store.mjs";
+import { isAllowedWorkerPrompt } from "../lib/mobile_worker_policy.mjs";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const COMMANDS = new Set(["cancel", "pause", "resume", "steer"]);
@@ -49,6 +50,8 @@ export function createMobileTasksRouter({
   store = createMobileTaskStore(),
   broker = mobileEventBroker,
   heartbeatMs = process.env.MOBILE_SSE_HEARTBEAT_MS,
+  workerEnabled = process.env.MOBILE_WORKER_ENABLED === "1",
+  workerGoalPolicy = process.env.MOBILE_WORKER_GOAL_POLICY || "settings_android_version",
   setIntervalFn = setInterval,
   clearIntervalFn = clearInterval,
 } = {}) {
@@ -64,6 +67,9 @@ export function createMobileTasksRouter({
     const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
     if (!prompt || Array.from(prompt).length > 4000) {
       return res.status(400).json({ error: "prompt must be between 1 and 4000 characters" });
+    }
+    if (workerEnabled && !isAllowedWorkerPrompt(prompt, workerGoalPolicy)) {
+      return res.status(400).json({ error: "task is not supported by this emulator worker" });
     }
 
     const created = await store.createTask(req.principal.userId, {

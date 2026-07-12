@@ -171,15 +171,20 @@ yapilanlar hem de siradaki somut is burada guncellenir.
   redlerini, idempotent raporlari, suresi dolmamis aktif bir lease icin expiry sweep no-op'unu,
   suresi dolmus aktif bir lease'in `worker.lease_expired` ile `waiting_for_device` durumuna
   toparlanmasini ve token-guvenli event'leri dogruladi.
+- Yalnizca worker'a ait Gateway kontrol route'lari temel middleware korunarak kullanici-principal
+  kimlik dogrulamasindan once mount edildi. Ayrilmis worker bearer auth; claim, status, report ve
+  expiry endpoint'lerini korur. Route testleri devre disi route gizlemeyi, siki status eslemesini,
+  gorev olusturmadan once politika on kontrolunu, yalnizca kalici event yayinini ve idempotent
+  reportlari dogrular.
 
 **Devam eden is**
 
-- Izole WSL Python Mobilerun worker'i ve WSL-emulator ADB koprusu. Ilk guvenli emulator
+- Gorev 4: izole WSL Python Mobilerun worker'i ve WSL-emulator ADB koprusu. Ilk guvenli emulator
   gorevi: Android Ayarlar uygulamasini acip Android surumunu bildirmek.
 
 **Siradaki isler**
 
-1. Izole Python worker'i ve WSL-emulator ADB koprusunu, Mobilerun Portal hazirlik
+1. Izole Python worker'ini ve WSL-emulator ADB koprusunu, Mobilerun Portal hazirlik
    kontrolleriyle birlikte eklemek.
 2. Worker yasam dongusu durumlarini Android Gorevler timeline'inda gostermek ve guvenli
    Ayarlar/surum akisini `emulator-5554` uzerinde kanitlamak.

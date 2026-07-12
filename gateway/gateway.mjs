@@ -53,6 +53,7 @@ import { getMcpTools, describeTools, parseServers } from "./lib/mcp.mjs";
 import { workspaces } from "./routes/workspaces.mjs";
 import { agentRuns as agentRunsRoute } from "./routes/agent_runs.mjs";
 import { mobileTasks } from "./routes/mobile_tasks.mjs";
+import { mobileWorker } from "./routes/mobile_worker.mjs";
 import * as agentRunStore from "./lib/agent_runs_store.mjs";
 import * as schedStore from "./lib/scheduled_store.mjs";
 import { nextRunAt as schedNextRunAt } from "./lib/scheduler.mjs";
@@ -311,6 +312,8 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+app.use(mobileWorker);
 
 // 5) Auth. Phase 1/2 mode uses per-user API keys/JWTs; legacy local mode keeps GATEWAY_TOKEN.
 const principalMiddleware = principal();

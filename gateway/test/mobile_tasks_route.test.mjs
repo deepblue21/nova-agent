@@ -124,6 +124,29 @@ test("POST /v1/mobile/tasks rejects empty and overlong prompts", async () => {
   assert.equal(long.status, 400);
 });
 
+test("POST /v1/mobile/tasks rejects unsupported prompts before creating a task when the worker is enabled", async () => {
+  let creates = 0;
+  const store = createStore({ createTask: async () => { creates += 1; return null; } });
+  const res = await request(createApp(store, undefined, { workerEnabled: true, workerGoalPolicy: "settings_android_version" }))
+    .post("/v1/mobile/tasks")
+    .send({ prompt: "Send a message to Ada" });
+
+  assert.equal(res.status, 400);
+  assert.deepEqual(res.body, { error: "task is not supported by this emulator worker" });
+  assert.equal(creates, 0);
+});
+
+test("POST /v1/mobile/tasks preserves unrestricted creation while the worker is disabled", async () => {
+  let prompt;
+  const store = createStore({ createTask: async (_userId, input) => { prompt = input.prompt; return { task: { id: "task-1", prompt }, event: event({ type: "task.created" }) }; } });
+  const res = await request(createApp(store, undefined, { workerEnabled: false }))
+    .post("/v1/mobile/tasks")
+    .send({ prompt: "Send a message to Ada" });
+
+  assert.equal(res.status, 201);
+  assert.equal(prompt, "Send a message to Ada");
+});
+
 test("task IDs are validated", async () => {
   const res = await request(createApp()).get("/v1/mobile/tasks/not-a-uuid");
 

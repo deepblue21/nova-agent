@@ -171,15 +171,19 @@ with both verified work and the next concrete work item.
   of invalid device or policy claims, rejection of reports for expired or non-active leases,
   idempotent reports, an expiry sweep no-op for an unexpired active lease, recovery of an
   expired active lease to `waiting_for_device` with `worker.lease_expired`, and token-safe events.
+- Worker-only Gateway control routes are mounted before user-principal authentication while
+  retaining baseline middleware. Dedicated worker bearer auth gates claim, status, report, and
+  expiry endpoints; route tests verify disabled-route hiding, strict status mapping, policy
+  preflight before task creation, persisted-event-only publishing, and idempotent reports.
 
 **In progress**
 
-- An isolated WSL Python Mobilerun worker and WSL-to-emulator ADB bridge for the first
+- Task 4: an isolated WSL Python Mobilerun worker and WSL-to-emulator ADB bridge for the first
   safe emulator-only task: open Android Settings and report the Android version.
 
 **Next**
 
-1. Add the isolated Python worker and a WSL-to-emulator ADB bridge, with Mobilerun Portal
+1. Build the isolated Python worker and a WSL-to-emulator ADB bridge, with Mobilerun Portal
    readiness checks.
 2. Show worker lifecycle states in the Android Tasks timeline, then prove the safe
    Settings/version workflow on `emulator-5554`.
