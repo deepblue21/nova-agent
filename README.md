@@ -185,17 +185,22 @@ with both verified work and the next concrete work item.
   screenshot streaming is forced off, Ollama HTTP timeouts map to `waiting_for_compute`, and report
   phase/error values are checked against the Gateway allowlists locally. `uv lock --check` and the
   standard-library worker suite pass. Live emulator, Portal, Gateway, and local Ollama integration
-  is intentionally deferred to Tasks 6-7; Task 5 remains next.
+  is intentionally deferred to Tasks 6-7.
+- Task 5: Android tasks now carry only recognized worker lifecycle statuses from replayed events,
+  apply them only to the matching in-memory task, and render the Gateway-supplied terminal summary.
+  Strict worker-only task-creation rejections map to the safe Turkish message while other `400`
+  responses remain generic. Focused JVM tests and full unit/lint/debug-APK verification pass; the
+  terminal Compose coverage compiles, but could not execute because no device was connected and
+  `adb` was unavailable on `PATH`.
 
 **In progress**
 
-- Task 5: Render Worker State in Android Tasks.
+- Task 6: Make the local worker reachable and prepare WSL ADB.
 
 **Next**
 
-1. Render Worker State in Android Tasks.
-2. Make the local worker reachable and prepare WSL ADB.
-3. Install Portal and prove the safe Settings/version workflow on `emulator-5554`.
+1. Make the local worker reachable and prepare WSL ADB.
+2. Install Portal and prove the safe Settings/version workflow on `emulator-5554`.
 
 The detailed implementation sequence is in
 [`docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md`](./docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md).

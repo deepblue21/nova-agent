@@ -8,6 +8,8 @@ enum class MobileTaskStatus {
     companion object {
         fun fromWire(value: String) = entries.firstOrNull { it.name.equals(value, ignoreCase = true) }
             ?: FAILED
+
+        fun fromWireOrNull(value: String) = entries.firstOrNull { it.name.equals(value, ignoreCase = true) }
     }
 }
 
@@ -20,5 +22,6 @@ data class MobileTaskEvent(
     val taskId: String,
     val type: String,
     val summary: String,
+    val status: MobileTaskStatus? = null,
     val confirmation: MobileConfirmation? = null,
 )

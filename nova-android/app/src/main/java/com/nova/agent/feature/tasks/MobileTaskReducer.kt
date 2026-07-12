@@ -35,7 +35,11 @@ fun reduceMobileTask(state: MobileTaskUiState, mutation: MobileTaskMutation): Mo
                 "confirmation.approved", "confirmation.rejected" -> null
                 else -> state.pendingConfirmation
             }
+            val updatedTask = state.task?.takeIf { it.id == mutation.event.taskId }?.let { current ->
+                mutation.event.status?.let { status -> current.copy(status = status) } ?: current
+            }
             state.copy(
+                task = updatedTask ?: state.task,
                 events = (state.events + mutation.event).sortedBy { BigInteger(it.id) },
                 pendingConfirmation = confirmation,
                 loading = false,

@@ -52,6 +52,30 @@ class MobileTaskReducerTest {
     }
 
     @Test
+    fun updatesOnlyTheMatchingTaskFromAWorkerStatusEvent() {
+        val event = MobileTaskEvent(
+            id = "2",
+            taskId = "task-1",
+            type = "worker.completed",
+            summary = "Android 17",
+            status = MobileTaskStatus.COMPLETED,
+        )
+        val matchingState = reduceMobileTask(
+            MobileTaskUiState(task = MobileTask("task-1", "Open Settings", MobileTaskStatus.EXECUTING), loading = true),
+            MobileTaskMutation.EventReceived(event),
+        )
+        val otherTaskState = reduceMobileTask(
+            MobileTaskUiState(task = MobileTask("task-2", "Open Settings", MobileTaskStatus.EXECUTING)),
+            MobileTaskMutation.EventReceived(event),
+        )
+
+        assertEquals(MobileTaskStatus.COMPLETED, matchingState.task?.status)
+        assertEquals("Android 17", matchingState.events.single().summary)
+        assertEquals(false, matchingState.loading)
+        assertEquals(MobileTaskStatus.EXECUTING, otherTaskState.task?.status)
+    }
+
+    @Test
     fun showsPendingConfirmationThenClearsItAfterApproval() {
         val confirmation = MobileConfirmation("confirmation-1", "R2", "Turn Wi-Fi off")
         val requested = event("2", "confirmation.requested", "Turn Wi-Fi off", confirmation)
@@ -81,5 +105,11 @@ class MobileTaskReducerTest {
         type: String,
         summary: String,
         confirmation: MobileConfirmation? = null,
-    ) = MobileTaskEvent(id, "task-1", type, summary, confirmation)
+    ) = MobileTaskEvent(
+        id = id,
+        taskId = "task-1",
+        type = type,
+        summary = summary,
+        confirmation = confirmation,
+    )
 }

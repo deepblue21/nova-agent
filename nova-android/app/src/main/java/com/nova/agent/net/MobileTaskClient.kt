@@ -39,7 +39,7 @@ class MobileTaskClient(
         callback: (Result<MobileTask>) -> Unit,
     ) {
         val body = JSONObject().put("prompt", prompt).toString().toRequestBody(JSON_MEDIA_TYPE)
-        executeTask(request(baseUrl, token, "/mobile/tasks").post(body).build(), callback)
+        executeTask(request(baseUrl, token, "/mobile/tasks").post(body).build(), callback, taskCreation = true)
     }
 
     fun getTask(
@@ -114,7 +114,11 @@ class MobileTaskClient(
         return builder
     }
 
-    private fun executeTask(request: Request, callback: (Result<MobileTask>) -> Unit) {
+    private fun executeTask(
+        request: Request,
+        callback: (Result<MobileTask>) -> Unit,
+        taskCreation: Boolean = false,
+    ) {
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 callback(Result.failure(IOException("Bağlantı hatası", e)))
@@ -122,11 +126,17 @@ class MobileTaskClient(
 
             override fun onResponse(call: Call, response: Response) {
                 response.use { result ->
+                    val responseBody = result.body?.string().orEmpty()
                     if (!result.isSuccessful) {
-                        callback(Result.failure(IllegalStateException(userMessageForHttp(result.code))))
+                        val message = if (taskCreation) {
+                            userMessageForTaskCreationHttp(result.code, responseBody)
+                        } else {
+                            userMessageForHttp(result.code)
+                        }
+                        callback(Result.failure(IllegalStateException(message)))
                         return
                     }
-                    val task = parseTask(result.body?.string().orEmpty())
+                    val task = parseTask(responseBody)
                     if (task == null) {
                         callback(Result.failure(IllegalStateException("Geçersiz görev yanıtı")))
                     } else {
@@ -164,6 +174,9 @@ class MobileTaskClient(
                 if (id.isBlank() || taskId.isEmpty() || type.isEmpty()) return null
 
                 val payload = objectValue.optJSONObject("payload") ?: JSONObject()
+                val status = payload.optString("status").trim()
+                    .takeIf { it.isNotEmpty() }
+                    ?.let(MobileTaskStatus::fromWireOrNull)
                 val confirmation = if (type == "confirmation.requested") {
                     val confirmationId = payload.optString("confirmation_id").trim()
                     confirmationId.takeIf { it.isNotEmpty() }?.let {
@@ -182,6 +195,7 @@ class MobileTaskClient(
                     taskId = taskId,
                     type = type,
                     summary = payloadSummary(payload, type),
+                    status = status,
                     confirmation = confirmation,
                 )
             } catch (_: Exception) {
@@ -196,6 +210,21 @@ class MobileTaskClient(
             429 -> "Çok fazla istek; daha sonra tekrar deneyin"
             else -> "Görev servisi hatası"
         }
+
+        private fun userMessageForTaskCreationHttp(code: Int, responseBody: String): String {
+            if (code == 400 && hasStrictWorkerUnsupportedError(responseBody)) {
+                return "Bu gorev emulator worker'inda desteklenmiyor"
+            }
+            return userMessageForHttp(code)
+        }
+
+        private fun hasStrictWorkerUnsupportedError(responseBody: String): Boolean = try {
+            JSONObject(responseBody).optString("error").trim() == STRICT_WORKER_UNSUPPORTED_ERROR
+        } catch (_: Exception) {
+            false
+        }
+
+        private const val STRICT_WORKER_UNSUPPORTED_ERROR = "task is not supported by this emulator worker"
 
         private fun payloadSummary(payload: JSONObject, fallback: String): String {
             val explicit = payload.optString("summary").ifBlank {

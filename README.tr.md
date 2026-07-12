@@ -185,17 +185,22 @@ yapilanlar hem de siradaki somut is burada guncellenir.
   kapatilir, Ollama HTTP timeout'lari `waiting_for_compute` olur ve rapor phase/error degerleri
   Gateway allowlist'lerine gore yerelde dogrulanir. `uv lock --check` ve standart kutuphane worker
   test paketi gecer. Canli emulator, Portal, Gateway ve yerel Ollama entegrasyonu kasitli olarak
-  Gorev 6-7'ye ertelenmistir; siradaki is Gorev 5 olarak kalir.
+  Gorev 6-7'ye ertelenmistir.
+- Gorev 5: Android gorevleri replay edilen event'lerden sadece taninan worker yasam dongusu
+  durumlarini tasir, bunlari sadece eslesen bellek-ici goreve uygular ve Gateway'in sagladigi
+  terminal ozeti gosterir. Sadece strict worker gorev-olusturma reddi guvenli Turkce mesaja
+  donusur; diger `400` yanitlari genel kalir. Odakli JVM testleri ile tam unit/lint/debug APK
+  dogrulamasi gecer; terminal Compose kapsami derlenir fakat bagli cihaz olmadigi ve `adb` `PATH`
+  icinde bulunmadigi icin calistirilamadi.
 
 **Devam eden is**
 
-- Gorev 5: Android Gorevler ekraninda worker durumunu goster.
+- Gorev 6: Yerel worker'i erisilebilir yap ve WSL ADB'yi hazirla.
 
 **Siradaki isler**
 
-1. Android Gorevler ekraninda worker durumunu goster.
-2. Yerel worker'i erisilebilir yap ve WSL ADB'yi hazirla.
-3. Portal'i kur ve `emulator-5554` uzerinde guvenli Ayarlar/surum akisini kanitla.
+1. Yerel worker'i erisilebilir yap ve WSL ADB'yi hazirla.
+2. Portal'i kur ve `emulator-5554` uzerinde guvenli Ayarlar/surum akisini kanitla.
 
 Ayrintili uygulama sirasi:
 [`docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md`](./docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md).

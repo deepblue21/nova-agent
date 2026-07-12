@@ -3,6 +3,7 @@ package com.nova.agent
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.nova.agent.feature.tasks.MobileConfirmation
 import com.nova.agent.feature.tasks.MobileTask
@@ -25,7 +26,15 @@ class MobileTaskScreenTest {
         val confirmation = MobileConfirmation("confirmation-1", "R2", "Turn Wi-Fi off")
         val state = MobileTaskUiState(
             task = MobileTask("task-1", "Open Settings", MobileTaskStatus.WAITING_FOR_CONFIRMATION),
-            events = listOf(MobileTaskEvent("1", "task-1", "confirmation.requested", "Turn Wi-Fi off", confirmation)),
+            events = listOf(
+                MobileTaskEvent(
+                    id = "1",
+                    taskId = "task-1",
+                    type = "confirmation.requested",
+                    summary = "Turn Wi-Fi off",
+                    confirmation = confirmation,
+                ),
+            ),
             pendingConfirmation = confirmation,
         )
 
@@ -49,5 +58,36 @@ class MobileTaskScreenTest {
         composeRule.onNodeWithTag("confirmation_reject").assertIsDisplayed()
 
         assertEquals("approve", decision)
+    }
+
+    @Test
+    fun showsCompletedWorkerStatusAndSanitizedSummary() {
+        val state = MobileTaskUiState(
+            task = MobileTask("task-1", "Open Settings", MobileTaskStatus.COMPLETED),
+            events = listOf(
+                MobileTaskEvent(
+                    id = "2",
+                    taskId = "task-1",
+                    type = "worker.completed",
+                    summary = "Android 17",
+                    status = MobileTaskStatus.COMPLETED,
+                ),
+            ),
+        )
+
+        composeRule.setContent {
+            NovaTheme {
+                MobileTaskScreen(
+                    state = state,
+                    onPromptChange = {},
+                    onCreateTask = {},
+                    onCommand = {},
+                    onDecision = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("COMPLETED").assertIsDisplayed()
+        composeRule.onNodeWithText("Android 17").assertIsDisplayed()
     }
 }
