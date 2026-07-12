@@ -166,9 +166,10 @@ yapilanlar hem de siradaki somut is burada guncellenir.
 - Debug APK: `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
 - Ayrilmis worker-goal politikasi ve yalnizca worker icin kimlik dogrulamasi tamamlandi.
 - Gateway worker lease'leri yalnizca token hash'i ile kalici; anlamsal store testleri en eski
-  guvenli gorev kilidini, tum rapor faz haritalarini ve lease kapanisini, gecersiz/suresi dolmus
-  claim redlerini, idempotent raporlari, suresi dolmus lease no-op'larini/lease sure dolumu
-  toparlamasini ve token-guvenli event'leri dogruladi.
+  guvenli gorev kilidini, tum rapor faz haritalarini ve lease kapanisini, gecersiz cihaz veya
+  desteklenmeyen politika claim redlerini, suresi dolmus ya da aktif olmayan lease icin rapor
+  redlerini, idempotent raporlari, suresi dolmus lease no-op'larini ve waiting_for_device lease
+  sure dolumu toparlamasini ve token-guvenli event'leri dogruladi.
 
 **Devam eden is**
 
