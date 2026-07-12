@@ -186,12 +186,15 @@ with both verified work and the next concrete work item.
   phase/error values are checked against the Gateway allowlists locally. `uv lock --check` and the
   standard-library worker suite pass. Live emulator, Portal, Gateway, and local Ollama integration
   is intentionally deferred to Tasks 6-7.
-- Task 5: Android tasks now carry only recognized worker lifecycle statuses from replayed events,
-  apply them only to the matching in-memory task, and render the Gateway-supplied terminal summary.
-  Strict worker-only task-creation rejections map to the safe Turkish message while other `400`
-  responses remain generic. Focused JVM tests and full unit/lint/debug-APK verification pass; the
-  terminal Compose coverage also passed on Pixel_10_Pro_XL (Android 17), rendering `COMPLETED` and
-  `Android 17` from the sanitized worker event.
+- Task 5: Gateway persists replay-safe worker reports with `status` plus only the parsed bounded
+  `summary`, `steps`, and `error_code` fields; worker tokens, hashes, and raw input never enter the
+  event payload. Android replays the Gateway event as `COMPLETED` with `Android 17` and derives the
+  visible matching-task status from the newest numeric status event, so a delayed older
+  `worker.running` event cannot regress completion. Strict worker-only task-creation rejections map
+  to the safe Turkish message only for the exact error literal; other `400` responses remain generic.
+  Focused JVM tests and full unit/lint/debug-APK verification pass; terminal Compose coverage also
+  passed on Pixel_10_Pro_XL (Android 17), rendering `COMPLETED` and `Android 17` from the sanitized
+  worker event.
 
 **In progress**
 

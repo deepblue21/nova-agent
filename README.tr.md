@@ -186,12 +186,15 @@ yapilanlar hem de siradaki somut is burada guncellenir.
   Gateway allowlist'lerine gore yerelde dogrulanir. `uv lock --check` ve standart kutuphane worker
   test paketi gecer. Canli emulator, Portal, Gateway ve yerel Ollama entegrasyonu kasitli olarak
   Gorev 6-7'ye ertelenmistir.
-- Gorev 5: Android gorevleri replay edilen event'lerden sadece taninan worker yasam dongusu
-  durumlarini tasir, bunlari sadece eslesen bellek-ici goreve uygular ve Gateway'in sagladigi
-  terminal ozeti gosterir. Sadece strict worker gorev-olusturma reddi guvenli Turkce mesaja
-  donusur; diger `400` yanitlari genel kalir. Odakli JVM testleri ile tam unit/lint/debug APK
-  dogrulamasi gecer; terminal Compose kapsami Pixel_10_Pro_XL (Android 17) uzerinde basariyla
-  calisir ve sanitize edilmis worker event'inden `COMPLETED` ile `Android 17` durumunu gosterir.
+- Gorev 5: Gateway replay-guvenli worker raporlarinda `status` ile birlikte sadece parse edilmis
+  sinirli `summary`, `steps` ve `error_code` alanlarini kalici event payload'ina yazar; worker token,
+  hash ve ham girdi hicbir zaman event'e girmez. Android Gateway event'ini `COMPLETED` ve `Android 17`
+  olarak replay eder; gorunen eslesen-gorev durumunu en yeni sayisal status event'inden turettigi icin
+  gec gelen eski `worker.running` event'i tamamlanmayi geri alamaz. Guvenli Turkce mesaj sadece exact
+  worker hata metni icin kullanilir; diger `400` yanitlari genel kalir. Odakli JVM testleri ile tam
+  unit/lint/debug APK dogrulamasi gecer; terminal Compose kapsami Pixel_10_Pro_XL (Android 17)
+  uzerinde basariyla calisir ve sanitize edilmis worker event'inden `COMPLETED` ile `Android 17`
+  durumunu gosterir.
 
 **Devam eden is**
 

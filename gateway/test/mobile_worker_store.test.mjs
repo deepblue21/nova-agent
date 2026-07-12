@@ -133,6 +133,31 @@ test("a report retry with the same lease and report ID returns the saved event o
   assert.equal(retry.event.id, first.event.id);
 });
 
+test("reports persist only the safe bounded worker report fields in the event payload", async () => {
+  const { client, state } = createClient({ taskStatus: "executing" });
+  state.lease.token_hash = (await import("../lib/keys.mjs")).sha256hex(LEASE_TOKEN);
+  const store = createMobileWorkerStore({ q: client.query, withTx: async fn => fn(client), now: () => new Date("2026-07-11T12:00:00Z") });
+
+  const out = await store.report(reportInput({
+    summary: " Android 17 ",
+    steps: 3,
+    error_code: "execution_failed",
+    raw: "untrusted raw report input",
+    token_hash: "untrusted token hash",
+  }));
+
+  assert.deepEqual(out.event.payload, {
+    status: "completed",
+    summary: "Android 17",
+    steps: 3,
+    error_code: "execution_failed",
+  });
+  assert.deepEqual(state.events[0].payload, out.event.payload);
+  assert.equal(JSON.stringify(out.event.payload).includes(LEASE_TOKEN), false);
+  assert.equal("token_hash" in out.event.payload, false);
+  assert.equal("raw" in out.event.payload, false);
+});
+
 test("expired active leases become waiting_for_device without replaying a device action", async () => {
   const { client, state } = createClient({ taskStatus: "executing", leaseExpired: true });
   const store = createMobileWorkerStore({ q: client.query, withTx: async fn => fn(client) });

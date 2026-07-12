@@ -121,6 +121,12 @@ class MobileTaskClientTest {
         )
         assertEquals(
             "Görev servisi hatası",
+            taskFailureMessage("""{"error":" task is not supported by this emulator worker "}""") { client, baseUrl, callback ->
+                client.createTask(baseUrl, "", "Open Settings", callback)
+            },
+        )
+        assertEquals(
+            "Görev servisi hatası",
             taskFailureMessage(strictWorkerError) { client, baseUrl, callback ->
                 client.getTask(baseUrl, "", "task-1", callback)
             },

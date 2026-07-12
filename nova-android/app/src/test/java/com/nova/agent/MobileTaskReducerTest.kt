@@ -7,6 +7,7 @@ import com.nova.agent.feature.tasks.MobileTaskMutation
 import com.nova.agent.feature.tasks.MobileTaskStatus
 import com.nova.agent.feature.tasks.MobileTaskUiState
 import com.nova.agent.feature.tasks.reduceMobileTask
+import com.nova.agent.net.MobileTaskClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -73,6 +74,49 @@ class MobileTaskReducerTest {
         assertEquals("Android 17", matchingState.events.single().summary)
         assertEquals(false, matchingState.loading)
         assertEquals(MobileTaskStatus.EXECUTING, otherTaskState.task?.status)
+    }
+
+    @Test
+    fun replaysPersistedCompletedWorkerEventWithSanitizedSummary() {
+        val event = MobileTaskClient.parseEvent(
+            """{"id":"44","task_id":"task-1","type":"worker.completed","payload":{"status":"completed","summary":"Android 17","steps":3,"error_code":"execution_failed"}}""",
+            null,
+        )
+        val state = reduceMobileTask(
+            MobileTaskUiState(task = MobileTask("task-1", "Open Settings", MobileTaskStatus.EXECUTING)),
+            MobileTaskMutation.EventReceived(requireNotNull(event)),
+        )
+
+        assertEquals(MobileTaskStatus.COMPLETED, state.task?.status)
+        assertEquals("Android 17", state.events.single().summary)
+    }
+
+    @Test
+    fun doesNotRegressCompletedTaskWhenOlderRunningEventArrivesLate() {
+        val completed = MobileTaskEvent(
+            id = "10",
+            taskId = "task-1",
+            type = "worker.completed",
+            summary = "Android 17",
+            status = MobileTaskStatus.COMPLETED,
+        )
+        val lateRunning = MobileTaskEvent(
+            id = "2",
+            taskId = "task-1",
+            type = "worker.running",
+            summary = "executing",
+            status = MobileTaskStatus.EXECUTING,
+        )
+        val state = reduceMobileTask(
+            reduceMobileTask(
+                MobileTaskUiState(task = MobileTask("task-1", "Open Settings", MobileTaskStatus.EXECUTING)),
+                MobileTaskMutation.EventReceived(completed),
+            ),
+            MobileTaskMutation.EventReceived(lateRunning),
+        )
+
+        assertEquals(MobileTaskStatus.COMPLETED, state.task?.status)
+        assertEquals(listOf("2", "10"), state.events.map { it.id })
     }
 
     @Test

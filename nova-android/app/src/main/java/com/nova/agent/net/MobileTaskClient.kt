@@ -219,7 +219,7 @@ class MobileTaskClient(
         }
 
         private fun hasStrictWorkerUnsupportedError(responseBody: String): Boolean = try {
-            JSONObject(responseBody).optString("error").trim() == STRICT_WORKER_UNSUPPORTED_ERROR
+            JSONObject(responseBody).optString("error") == STRICT_WORKER_UNSUPPORTED_ERROR
         } catch (_: Exception) {
             false
         }

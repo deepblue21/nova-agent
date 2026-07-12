@@ -47,12 +47,12 @@ function expiresAt(now) {
   return new Date(now().getTime() + LEASE_MS);
 }
 
-async function insertEvent(client, taskId, type, status) {
+async function insertEvent(client, taskId, type, payload) {
   const result = await client.query(
     `INSERT INTO mobile_task_events (task_id, type, payload)
      VALUES ($1,$2,$3)
      RETURNING ${EVENT_COLUMNS}`,
-    [taskId, type, { status }],
+    [taskId, type, payload],
   );
   return normalizeEvent(result.rows[0]);
 }
@@ -92,8 +92,8 @@ async function claimNext(transaction, { deviceId, policy, now, randomBytes }) {
     );
     const updatedTask = updatedResult.rows[0];
     const events = [
-      await insertEvent(client, task.id, "worker.claimed", updatedTask.status),
-      await insertEvent(client, task.id, "worker.executing", updatedTask.status),
+      await insertEvent(client, task.id, "worker.claimed", { status: updatedTask.status }),
+      await insertEvent(client, task.id, "worker.executing", { status: updatedTask.status }),
     ];
     const { token_hash, ...lease } = leaseResult.rows[0];
     return { task: updatedTask, lease: { ...lease, token }, events };
@@ -190,7 +190,11 @@ async function report(transaction, input) {
       [status, taskId],
     );
     const task = updated.rows[0];
-    const event = await insertEvent(client, taskId, type, status);
+    const payload = { status };
+    for (const field of ["summary", "steps", "error_code"]) {
+      if (report[field] !== undefined) payload[field] = report[field];
+    }
+    const event = await insertEvent(client, taskId, type, payload);
     await client.query(
       `INSERT INTO mobile_worker_reports (lease_id, report_id, phase, event_id, task_status)
        VALUES ($1,$2,$3,$4,$5)`,
@@ -221,7 +225,7 @@ async function expireLeases(transaction, at) {
         [lease.task_id],
       );
       const task = taskResult.rows[0];
-      const event = await insertEvent(client, lease.task_id, "worker.lease_expired", task.status);
+      const event = await insertEvent(client, lease.task_id, "worker.lease_expired", { status: task.status });
       expired.push({ task, event });
     }
     return expired;
