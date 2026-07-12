@@ -195,12 +195,16 @@ yapilanlar hem de siradaki somut is burada guncellenir.
   unit/lint/debug APK dogrulamasi gecer; terminal Compose kapsami Pixel_10_Pro_XL (Android 17)
   uzerinde basariyla calisir ve sanitize edilmis worker event'inden `COMPLETED` ile `Android 17`
   durumunu gosterir.
+- Android uyarlanabilir launcher ikonu: manifest standart ve yuvarlak launcher ikonlarini grafit
+  `#10242D`, guvenli bolgede turkuaz ve acik sinyal, amber merkez ve tek-path temali monokrom
+  siluet iceren native API 26+ adaptive XML kaynaklarina baglar. Kaynak isleme, lint, debug APK
+  paketi ve kurulum gecti; `emulator-5554`, `com.nova.agent/.MainActivity` sonucunu cozer.
 
-**Devam eden is**
+**Siradaki is**
 
 - Gorev 6: Yerel worker'i erisilebilir yap ve WSL ADB'yi hazirla.
 
-**Siradaki isler**
+**Gorev 6 sonrasi**
 
 1. Yerel worker'i erisilebilir yap ve WSL ADB'yi hazirla.
 2. Portal'i kur ve `emulator-5554` uzerinde guvenli Ayarlar/surum akisini kanitla.

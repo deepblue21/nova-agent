@@ -195,12 +195,16 @@ with both verified work and the next concrete work item.
   Focused JVM tests and full unit/lint/debug-APK verification pass; terminal Compose coverage also
   passed on Pixel_10_Pro_XL (Android 17), rendering `COMPLETED` and `Android 17` from the sanitized
   worker event.
+- Android adaptive launcher icon: the manifest now resolves standard and round launcher icons to
+  native API 26+ adaptive XML with graphite `#10242D`, a safe-zone turquoise and light signal, an
+  amber core, and a single-path themed monochrome silhouette. Resource processing, lint, debug APK
+  assembly, and installation passed; `emulator-5554` resolves `com.nova.agent/.MainActivity`.
 
-**In progress**
+**Next**
 
 - Task 6: Make the local worker reachable and prepare WSL ADB.
 
-**Next**
+**After Task 6**
 
 1. Make the local worker reachable and prepare WSL ADB.
 2. Install Portal and prove the safe Settings/version workflow on `emulator-5554`.
