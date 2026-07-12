@@ -29,6 +29,7 @@ SAFE_MOBILERUN_ENV = {
     "DROIDRUN_STREAM_SCREENSHOTS": "false",
     "MOBILERUN_STREAM_SCREENSHOTS": "false",
 }
+PROCESS_TERMINATE_GRACE_SECONDS = 1.0
 
 
 def _safe_result_summary(reason: object) -> str:
@@ -97,17 +98,26 @@ class MobilerunTaskRunner:
                 timeout=self._settings.readiness_timeout_seconds,
             )
         except asyncio.TimeoutError as error:
-            with suppress(ProcessLookupError):
-                process.terminate()
-            await process.wait()
+            await self._stop_readiness_process(process)
             raise DeviceUnavailable("emulator readiness check timed out") from error
         except asyncio.CancelledError:
-            with suppress(ProcessLookupError):
-                process.terminate()
-            await process.wait()
+            await self._stop_readiness_process(process)
             raise
         if process.returncode != 0 or b"Portal is installed and accessible." not in stdout:
             raise DeviceUnavailable("emulator readiness check failed")
+
+    async def _stop_readiness_process(self, process: asyncio.subprocess.Process) -> None:
+        with suppress(ProcessLookupError):
+            process.terminate()
+        try:
+            await asyncio.wait_for(process.wait(), timeout=PROCESS_TERMINATE_GRACE_SECONDS)
+            return
+        except asyncio.TimeoutError:
+            pass
+        with suppress(ProcessLookupError):
+            process.kill()
+        with suppress(asyncio.TimeoutError, ProcessLookupError):
+            await asyncio.wait_for(process.wait(), timeout=PROCESS_TERMINATE_GRACE_SECONDS)
 
     async def _run_agent(self, task_id: str, prompt: str, device_id: str) -> RunOutcome:
         MobileAgent, config = self._config_for(device_id)

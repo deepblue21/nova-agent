@@ -184,7 +184,8 @@ yapilanlar hem de siradaki somut is burada guncellenir.
   Ozel Mobilerun ping'i sinirli surede sonlanir ve process temizlenir, ekran goruntusu akisi zorla
   kapatilir, Ollama HTTP timeout'lari `waiting_for_compute` olur ve rapor phase/error degerleri
   Gateway allowlist'lerine gore yerelde dogrulanir. `uv lock --check` ve standart kutuphane worker
-  test paketi gecer.
+  test paketi gecer. Canli emulator, Portal, Gateway ve yerel Ollama entegrasyonu kasitli olarak
+  Gorev 6-7'ye ertelenmistir; siradaki is Gorev 5 olarak kalir.
 
 **Devam eden is**
 

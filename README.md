@@ -184,7 +184,8 @@ with both verified work and the next concrete work item.
   execution when pause, cancel, or lease loss wins. Private Mobilerun ping is bounded and reaped,
   screenshot streaming is forced off, Ollama HTTP timeouts map to `waiting_for_compute`, and report
   phase/error values are checked against the Gateway allowlists locally. `uv lock --check` and the
-  standard-library worker suite pass.
+  standard-library worker suite pass. Live emulator, Portal, Gateway, and local Ollama integration
+  is intentionally deferred to Tasks 6-7; Task 5 remains next.
 
 **In progress**
 

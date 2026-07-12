@@ -28,6 +28,7 @@ class FakeProcess:
         self.returncode = returncode
         self.communicate = AsyncMock(return_value=(stdout, stderr))
         self.terminate = Mock()
+        self.kill = Mock()
         self.wait = AsyncMock()
 
 
@@ -38,14 +39,37 @@ class MobilerunTaskRunnerTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(DeviceUnavailable):
                 await MobilerunTaskRunner(settings()).readiness("emulator-5554")
 
-    async def test_ping_timeout_terminates_private_subprocess_and_maps_to_device_unavailable(self) -> None:
+    async def test_ping_timeout_kills_unreaped_private_subprocess_and_maps_to_device_unavailable(self) -> None:
         process = FakeProcess(b"")
         process.communicate.side_effect = asyncio.TimeoutError
-        with patch("horus_mobile_worker.runner.asyncio.create_subprocess_exec", new=AsyncMock(return_value=process)):
+        async def wait_forever() -> None:
+            await asyncio.Event().wait()
+        process.wait.side_effect = wait_forever
+        with patch("horus_mobile_worker.runner.PROCESS_TERMINATE_GRACE_SECONDS", 0.001), patch(
+            "horus_mobile_worker.runner.asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=process),
+        ):
             with self.assertRaises(DeviceUnavailable):
-                await MobilerunTaskRunner(settings()).readiness("emulator-5554")
+                await asyncio.wait_for(MobilerunTaskRunner(settings()).readiness("emulator-5554"), timeout=0.1)
         process.terminate.assert_called_once_with()
-        process.wait.assert_awaited_once_with()
+        process.kill.assert_called_once_with()
+        self.assertEqual(process.wait.await_count, 2)
+
+    async def test_ping_cancellation_kills_unreaped_private_subprocess(self) -> None:
+        process = FakeProcess(b"")
+        process.communicate.side_effect = asyncio.CancelledError
+        async def wait_forever() -> None:
+            await asyncio.Event().wait()
+        process.wait.side_effect = wait_forever
+        with patch("horus_mobile_worker.runner.PROCESS_TERMINATE_GRACE_SECONDS", 0.001), patch(
+            "horus_mobile_worker.runner.asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=process),
+        ):
+            with self.assertRaises(asyncio.CancelledError):
+                await asyncio.wait_for(MobilerunTaskRunner(settings()).readiness("emulator-5554"), timeout=0.1)
+        process.terminate.assert_called_once_with()
+        process.kill.assert_called_once_with()
+        self.assertEqual(process.wait.await_count, 2)
 
     async def test_screenshot_streaming_flags_are_forced_false(self) -> None:
         process = FakeProcess(b"Portal is installed and accessible.\n")
