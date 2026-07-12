@@ -179,9 +179,12 @@ with both verified work and the next concrete work item.
   the mounted router in both worker modes without exposing unexpected store-error details.
 - Task 4: the isolated `mobile-worker` package pins `mobilerun==0.6.10` and `httpx`, accepts only
   `emulator-5554` and local Ollama, redacts its worker token, keeps lease headers at the worker HTTP
-  boundary, cancels on inactive status or lease loss, and emits only bounded safe reports and logs.
-  Mobilerun Portal readiness stays private; `uv lock --check` and the standard-library worker suite
-  pass.
+  boundary, and emits only bounded safe reports and logs. Fresh active-lease checks now precede
+  readiness, agent work, and every report; one monitored-task path cancels and awaits readiness or
+  execution when pause, cancel, or lease loss wins. Private Mobilerun ping is bounded and reaped,
+  screenshot streaming is forced off, Ollama HTTP timeouts map to `waiting_for_compute`, and report
+  phase/error values are checked against the Gateway allowlists locally. `uv lock --check` and the
+  standard-library worker suite pass.
 
 **In progress**
 

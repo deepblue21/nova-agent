@@ -15,6 +15,17 @@ def claimed() -> ClaimedTask:
 
 
 class GatewayClientTests(unittest.IsolatedAsyncioTestCase):
+    async def test_report_rejects_invalid_phase_and_error_code_before_request(self) -> None:
+        requests = []
+        async def handler(request): requests.append(request); return httpx.Response(200)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            client = GatewayClient("http://gateway.test", "worker-secret", http_client=http)
+            with self.assertRaisesRegex(ValueError, "phase"):
+                await client.report(claimed(), phase="arbitrary")
+            with self.assertRaisesRegex(ValueError, "error_code"):
+                await client.report(claimed(), phase="failed", error_code="arbitrary")
+        self.assertEqual(requests, [])
+
     async def test_versioned_gateway_url_does_not_duplicate_v1_prefix(self) -> None:
         paths = []
         async def handler(request): paths.append(request.url.path); return httpx.Response(204)

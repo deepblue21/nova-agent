@@ -178,9 +178,13 @@ yapilanlar hem de siradaki somut is burada guncellenir.
   rotalari, worker iki moddayken de mount edilen router'dan gecer ve beklenmeyen store hata ayrintilari sizmaz.
 - Gorev 4: izole `mobile-worker` paketi `mobilerun==0.6.10` ve `httpx` surumlerini kilitler;
   yalnizca `emulator-5554` ve yerel Ollama kabul eder, worker token'ini redakte eder, lease
-  header'larini worker HTTP sinirinda tutar, aktif olmayan durum veya lease kaybinda iptal eder ve
-  sadece sinirli guvenli raporlar ile loglar uretir. Mobilerun Portal hazirligi ozeldir;
-  `uv lock --check` ve standart kutuphane worker test paketi gecer.
+  header'larini worker HTTP sinirinda tutar ve sadece sinirli guvenli raporlar ile loglar uretir.
+  Hazirlik, ajan isi ve her rapordan once aktif lease yeniden denetlenir; ortak izlenen-gorev yolu
+  duraklatma, iptal veya lease kaybi kazandiginda hazirligi ya da calistirmayi iptal edip bekler.
+  Ozel Mobilerun ping'i sinirli surede sonlanir ve process temizlenir, ekran goruntusu akisi zorla
+  kapatilir, Ollama HTTP timeout'lari `waiting_for_compute` olur ve rapor phase/error degerleri
+  Gateway allowlist'lerine gore yerelde dogrulanir. `uv lock --check` ve standart kutuphane worker
+  test paketi gecer.
 
 **Devam eden is**
 

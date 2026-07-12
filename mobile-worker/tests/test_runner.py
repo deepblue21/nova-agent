@@ -1,9 +1,13 @@
+import asyncio
+import os
 import unittest
 from dataclasses import replace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
+
+import httpx
 
 from horus_mobile_worker.config import WorkerSettings
-from horus_mobile_worker.runner import DeviceUnavailable, MobilerunTaskRunner
+from horus_mobile_worker.runner import ComputeUnavailable, DeviceUnavailable, MobilerunTaskRunner
 
 
 def settings() -> WorkerSettings:
@@ -23,6 +27,8 @@ class FakeProcess:
     def __init__(self, stdout: bytes, stderr: bytes = b"", returncode: int = 0) -> None:
         self.returncode = returncode
         self.communicate = AsyncMock(return_value=(stdout, stderr))
+        self.terminate = Mock()
+        self.wait = AsyncMock()
 
 
 class MobilerunTaskRunnerTests(unittest.IsolatedAsyncioTestCase):
@@ -31,6 +37,67 @@ class MobilerunTaskRunnerTests(unittest.IsolatedAsyncioTestCase):
         with patch("horus_mobile_worker.runner.asyncio.create_subprocess_exec", new=AsyncMock(return_value=process)):
             with self.assertRaises(DeviceUnavailable):
                 await MobilerunTaskRunner(settings()).readiness("emulator-5554")
+
+    async def test_ping_timeout_terminates_private_subprocess_and_maps_to_device_unavailable(self) -> None:
+        process = FakeProcess(b"")
+        process.communicate.side_effect = asyncio.TimeoutError
+        with patch("horus_mobile_worker.runner.asyncio.create_subprocess_exec", new=AsyncMock(return_value=process)):
+            with self.assertRaises(DeviceUnavailable):
+                await MobilerunTaskRunner(settings()).readiness("emulator-5554")
+        process.terminate.assert_called_once_with()
+        process.wait.assert_awaited_once_with()
+
+    async def test_screenshot_streaming_flags_are_forced_false(self) -> None:
+        process = FakeProcess(b"Portal is installed and accessible.\n")
+        import_env = {}
+        inherited = {
+            "MOBILERUN_STREAM_SCREENSHOTS": "true",
+            "DROIDRUN_STREAM_SCREENSHOTS": "true",
+        }
+        def stop_import(*_args, **_kwargs):
+            import_env.update({
+                "MOBILERUN_STREAM_SCREENSHOTS": os.environ.get("MOBILERUN_STREAM_SCREENSHOTS"),
+                "DROIDRUN_STREAM_SCREENSHOTS": os.environ.get("DROIDRUN_STREAM_SCREENSHOTS"),
+            })
+            raise ImportError("stop after env setup")
+        with patch.dict(os.environ, inherited, clear=False), patch(
+            "horus_mobile_worker.runner.asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=process),
+        ) as create_process:
+            runner = MobilerunTaskRunner(settings())
+            with patch("builtins.__import__", side_effect=stop_import):
+                with self.assertRaises(ImportError):
+                    runner._mobilerun_types()
+            await runner.readiness("emulator-5554")
+        self.assertEqual(import_env["MOBILERUN_STREAM_SCREENSHOTS"], "false")
+        self.assertEqual(import_env["DROIDRUN_STREAM_SCREENSHOTS"], "false")
+        child_env = create_process.await_args.kwargs["env"]
+        self.assertEqual(child_env["MOBILERUN_STREAM_SCREENSHOTS"], "false")
+        self.assertEqual(child_env["DROIDRUN_STREAM_SCREENSHOTS"], "false")
+
+    async def test_httpx_timeout_maps_to_compute_unavailable(self) -> None:
+        class Agent:
+            def __init__(self, **_kwargs): pass
+            async def run(self): raise httpx.ReadTimeout("timed out")
+        runner = MobilerunTaskRunner(settings())
+        with patch.object(runner, "_config_for", return_value=(Agent, object())):
+            with self.assertRaises(ComputeUnavailable):
+                await runner.run(task_id="task-1", prompt="safe", device_id="emulator-5554")
+
+    async def test_cancel_targets_tracked_task_without_sdk_cancel_method(self) -> None:
+        runner = MobilerunTaskRunner(settings())
+        started = asyncio.Event()
+        async def blocked():
+            started.set()
+            await asyncio.Event().wait()
+        tracked = asyncio.create_task(blocked())
+        runner._tasks["task-1"] = tracked
+        sdk_handler = Mock(cancel_run=AsyncMock())
+        runner._handlers = {"task-1": sdk_handler}
+        await started.wait()
+        await runner.cancel("task-1")
+        self.assertTrue(tracked.cancelled())
+        sdk_handler.cancel_run.assert_not_awaited()
 
 
 if __name__ == "__main__":

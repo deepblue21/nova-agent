@@ -3,7 +3,10 @@ from uuid import uuid4
 
 import httpx
 
-from .models import ClaimedTask, Lease, Task, WorkerPhase
+from .models import ClaimedTask, ErrorCode, Lease, Task, WorkerPhase
+
+VALID_PHASES = frozenset({"observing", "running", "completed", "failed", "waiting_for_device", "waiting_for_compute"})
+VALID_ERROR_CODES = frozenset({"device_unavailable", "compute_unavailable", "execution_limit", "execution_failed"})
 
 
 class GatewayError(RuntimeError):
@@ -69,7 +72,11 @@ class GatewayClient:
             raise GatewayError("gateway returned an invalid status")
         return status
 
-    async def report(self, claimed: ClaimedTask, *, phase: WorkerPhase, summary: str | None = None, steps: int | None = None, error_code: str | None = None) -> None:
+    async def report(self, claimed: ClaimedTask, *, phase: WorkerPhase, summary: str | None = None, steps: int | None = None, error_code: ErrorCode | None = None) -> None:
+        if phase not in VALID_PHASES:
+            raise ValueError("invalid worker report phase")
+        if error_code is not None and error_code not in VALID_ERROR_CODES:
+            raise ValueError("invalid worker report error_code")
         body: dict[str, Any] = {"lease_id": claimed.lease.id, "report_id": str(uuid4()), "phase": phase}
         for key, value in (("summary", summary), ("steps", steps), ("error_code", error_code)):
             if value is not None:

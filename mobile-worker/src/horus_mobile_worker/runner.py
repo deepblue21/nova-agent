@@ -23,6 +23,14 @@ class StepLimitExceeded(RuntimeError):
     pass
 
 
+SAFE_MOBILERUN_ENV = {
+    "DROIDRUN_TELEMETRY_ENABLED": "false",
+    "MOBILERUN_TELEMETRY_ENABLED": "false",
+    "DROIDRUN_STREAM_SCREENSHOTS": "false",
+    "MOBILERUN_STREAM_SCREENSHOTS": "false",
+}
+
+
 def _safe_result_summary(reason: object) -> str:
     match = re.search(r"\bAndroid\s+(\d+(?:\.\d+)*)\b", str(reason), re.IGNORECASE)
     return f"Android {match.group(1)}" if match else "Android version workflow completed"
@@ -32,11 +40,9 @@ class MobilerunTaskRunner:
     def __init__(self, settings: WorkerSettings) -> None:
         self._settings = settings
         self._tasks: dict[str, asyncio.Task[RunOutcome]] = {}
-        self._handlers: dict[str, Any] = {}
 
     def _mobilerun_types(self) -> tuple[Any, ...]:
-        os.environ["DROIDRUN_TELEMETRY_ENABLED"] = "false"
-        os.environ["MOBILERUN_TELEMETRY_ENABLED"] = "false"
+        os.environ.update(SAFE_MOBILERUN_ENV)
         logging.getLogger("mobilerun").disabled = True
         from mobilerun import (
             AgentConfig,
@@ -83,27 +89,37 @@ class MobilerunTaskRunner:
             "mobilerun", "ping", "--device", device_id,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env={**os.environ, "DROIDRUN_TELEMETRY_ENABLED": "false", "MOBILERUN_TELEMETRY_ENABLED": "false"},
+            env={**os.environ, **SAFE_MOBILERUN_ENV},
         )
-        stdout, _stderr = await process.communicate()
+        try:
+            stdout, _stderr = await asyncio.wait_for(
+                process.communicate(),
+                timeout=self._settings.readiness_timeout_seconds,
+            )
+        except asyncio.TimeoutError as error:
+            with suppress(ProcessLookupError):
+                process.terminate()
+            await process.wait()
+            raise DeviceUnavailable("emulator readiness check timed out") from error
+        except asyncio.CancelledError:
+            with suppress(ProcessLookupError):
+                process.terminate()
+            await process.wait()
+            raise
         if process.returncode != 0 or b"Portal is installed and accessible." not in stdout:
             raise DeviceUnavailable("emulator readiness check failed")
 
     async def _run_agent(self, task_id: str, prompt: str, device_id: str) -> RunOutcome:
         MobileAgent, config = self._config_for(device_id)
         try:
-            handler = MobileAgent(goal=prompt, config=config, credentials=None, timeout=int(self._settings.execution_timeout_seconds)).run()
-            self._handlers[task_id] = handler
-            result = await handler
+            result = await MobileAgent(goal=prompt, config=config, credentials=None, timeout=int(self._settings.execution_timeout_seconds)).run()
         except asyncio.CancelledError:
             raise
         except Exception as error:
             module = type(error).__module__.lower()
-            if isinstance(error, (httpx.ConnectError, httpx.NetworkError)) or any(name in module for name in ("ollama", "openai", "llm")):
+            if isinstance(error, (httpx.TimeoutException, httpx.NetworkError)) or any(name in module for name in ("ollama", "openai", "llm")):
                 raise ComputeUnavailable("local Ollama is unavailable") from error
             raise
-        finally:
-            self._handlers.pop(task_id, None)
         steps = min(max(int(result.steps or 0), 0), self._settings.max_steps)
         if not bool(result.success) and steps >= self._settings.max_steps:
             raise StepLimitExceeded("worker step limit reached")
@@ -123,10 +139,6 @@ class MobilerunTaskRunner:
             self._tasks.pop(task_id, None)
 
     async def cancel(self, task_id: str) -> None:
-        handler = self._handlers.get(task_id)
-        if handler is not None:
-            with suppress(Exception):
-                await handler.cancel_run(timeout=2.0)
         task = self._tasks.get(task_id)
         if task is not None and not task.done():
             task.cancel()

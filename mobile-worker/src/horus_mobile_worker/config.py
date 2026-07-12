@@ -39,6 +39,7 @@ class WorkerSettings:
     max_steps: int
     status_poll_seconds: float
     execution_timeout_seconds: float
+    readiness_timeout_seconds: float = 15.0
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> "WorkerSettings":
@@ -59,6 +60,7 @@ class WorkerSettings:
             max_steps=max(1, min(max_steps, 8)),
             status_poll_seconds=_float(values, "MOBILE_WORKER_STATUS_POLL_SECONDS", 1.0, 0.01),
             execution_timeout_seconds=_float(values, "MOBILE_WORKER_EXECUTION_TIMEOUT_SECONDS", 120.0, 1.0),
+            readiness_timeout_seconds=_float(values, "MOBILE_WORKER_READINESS_TIMEOUT_SECONDS", 15.0, 1.0),
         )
 
     def redacted(self) -> dict[str, object]:

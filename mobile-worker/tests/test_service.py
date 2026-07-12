@@ -52,6 +52,21 @@ class BlockingFakeRunner(FakeRunner):
         await asyncio.Event().wait()
 
 
+class BlockingReadinessRunner(FakeRunner):
+    def __init__(self, outcome=None):
+        super().__init__(outcome or RunOutcome(True, "unexpected", 1))
+        self.readiness_started = asyncio.Event()
+        self.readiness_cancelled = False
+    async def readiness(self, device_id):
+        self.calls.append(f"ready:{device_id}")
+        self.readiness_started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.readiness_cancelled = True
+            raise
+
+
 class WorkerServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_safe_claim_runs_and_reports_sanitized_completion(self) -> None:
         client = FakeGatewayClient(claim=ClaimedTask(task(), lease()))
@@ -65,18 +80,31 @@ class WorkerServiceTests(unittest.IsolatedAsyncioTestCase):
             client = FakeGatewayClient(claim=ClaimedTask(task(), lease()), statuses=[status])
             runner = FakeRunner(RunOutcome(True, "unexpected", 1))
             await WorkerService(client, runner, settings()).run_once()
-            self.assertEqual(runner.calls, ["ready:emulator-5554"])
-            self.assertEqual([r.phase for r in client.reports], ["observing"])
+            self.assertEqual(runner.calls, [])
+            self.assertEqual(client.reports, [])
+
+    async def test_inactive_transition_during_readiness_cancels_it_without_terminal_report(self) -> None:
+        client = FakeGatewayClient(claim=ClaimedTask(task(), lease()), statuses=["executing", "executing", "paused"])
+        runner = BlockingReadinessRunner()
+        await WorkerService(client, runner, settings()).run_once()
+        self.assertTrue(runner.readiness_cancelled)
+        self.assertEqual([r.phase for r in client.reports], ["observing"])
+
+    async def test_readiness_failure_after_lease_loss_emits_no_terminal_report(self) -> None:
+        client = FakeGatewayClient(claim=ClaimedTask(task(), lease()), statuses=["executing", "executing", LeaseLost("safe")])
+        runner = FakeRunner(DeviceUnavailable("raw"))
+        await WorkerService(client, runner, settings()).run_once()
+        self.assertEqual([r.phase for r in client.reports], ["observing"])
 
     async def test_pause_during_execution_cancels_runner_without_terminal_report(self) -> None:
-        client = FakeGatewayClient(claim=ClaimedTask(task(), lease()), statuses=["executing", "paused"])
+        client = FakeGatewayClient(claim=ClaimedTask(task(), lease()), statuses=["executing"] * 4 + ["paused"])
         runner = BlockingFakeRunner()
         await WorkerService(client, runner, settings()).run_once()
         self.assertEqual(runner.cancelled_task_ids, [task().id])
         self.assertEqual([r.phase for r in client.reports], ["observing", "running"])
 
     async def test_lease_loss_cancels_runner_without_terminal_report(self) -> None:
-        client = FakeGatewayClient(claim=ClaimedTask(task(), lease()), statuses=["executing", LeaseLost("safe")])
+        client = FakeGatewayClient(claim=ClaimedTask(task(), lease()), statuses=["executing"] * 4 + [LeaseLost("safe")])
         runner = BlockingFakeRunner()
         await WorkerService(client, runner, settings()).run_once()
         self.assertEqual(runner.cancelled_task_ids, [task().id])
@@ -90,6 +118,12 @@ class WorkerServiceTests(unittest.IsolatedAsyncioTestCase):
             terminal = client.reports[-1]
             self.assertEqual((terminal.phase, terminal.error_code), (phase, code))
             self.assertNotIn("raw", terminal.summary)
+
+    async def test_httpx_timeout_maps_to_waiting_for_compute(self) -> None:
+        client = FakeGatewayClient(claim=ClaimedTask(task(), lease()))
+        await WorkerService(client, FakeRunner(ComputeUnavailable("timeout")), settings()).run_once()
+        terminal = client.reports[-1]
+        self.assertEqual((terminal.phase, terminal.error_code), ("waiting_for_compute", "compute_unavailable"))
 
     async def test_unsuccessful_outcome_maps_to_safe_failed_report(self) -> None:
         client = FakeGatewayClient(claim=ClaimedTask(task(), lease()))
