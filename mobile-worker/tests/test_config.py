@@ -1,8 +1,11 @@
 import os
+import subprocess
+import sys
 import unittest
 from unittest.mock import patch
 
 from horus_mobile_worker.config import WorkerSettings
+from horus_mobile_worker.wsl_ollama import resolve_wsl_ollama_url
 
 
 class WorkerSettingsTests(unittest.TestCase):
@@ -60,6 +63,75 @@ class WorkerSettingsTests(unittest.TestCase):
         for overrides in invalid_values:
             with self.subTest(overrides=overrides), self.assertRaisesRegex(ValueError, "MOBILE_WORKER_ADB_SERVER"):
                 WorkerSettings.from_env(self.env(**overrides))
+
+    def test_resolves_wsl_ollama_url_from_one_private_src_address(self) -> None:
+        command: list[str] | None = None
+
+        def run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+            nonlocal command
+            command = args
+            self.assertNotIn("shell", kwargs)
+            return subprocess.CompletedProcess(args, 0, stdout="1.1.1.1 via 172.19.96.1 dev eth0 src 172.19.99.210 uid 0\n")
+
+        url = resolve_wsl_ollama_url("Ubuntu-24.04", run=run, platform_name="win32")
+
+        self.assertEqual(url, "http://172.19.99.210:11434")
+        self.assertEqual(command, ["wsl.exe", "--distribution", "Ubuntu-24.04", "--exec", "ip", "-4", "route", "get", "1.1.1.1"])
+
+    def test_rejects_invalid_wsl_distro_identifier(self) -> None:
+        with self.assertRaisesRegex(ValueError, "distro"):
+            resolve_wsl_ollama_url("Ubuntu; whoami", run=lambda *_args, **_kwargs: None, platform_name="win32")
+
+    def test_rejects_raw_ollama_url_with_wsl_mode(self) -> None:
+        with self.assertRaisesRegex(ValueError, "MOBILE_WORKER_OLLAMA_URL"):
+            WorkerSettings.from_env(self.env(MOBILE_WORKER_OLLAMA_WSL_DISTRO="Ubuntu-24.04"))
+
+    def test_uses_derived_wsl_ollama_url_when_raw_url_is_empty(self) -> None:
+        with patch("horus_mobile_worker.config.resolve_wsl_ollama_url", return_value="http://172.19.99.210:11434") as resolve:
+            settings = WorkerSettings.from_env(self.env(
+                MOBILE_WORKER_OLLAMA_URL="",
+                MOBILE_WORKER_OLLAMA_WSL_DISTRO="Ubuntu-24.04",
+            ))
+
+        self.assertEqual(settings.ollama_url, "http://172.19.99.210:11434")
+        resolve.assert_called_once_with("Ubuntu-24.04", run=subprocess.run, platform_name=sys.platform)
+
+    def test_rejects_wsl_mode_outside_windows(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Windows"):
+            resolve_wsl_ollama_url("Ubuntu-24.04", run=lambda *_args, **_kwargs: None, platform_name="linux")
+
+    def test_rejects_wsl_lookup_timeout_and_nonzero_exit(self) -> None:
+        def timed_out(*_args: object, **_kwargs: object) -> None:
+            raise subprocess.TimeoutExpired("wsl.exe", 5)
+
+        with self.subTest(result="timeout"), self.assertRaisesRegex(ValueError, "timed out"):
+            resolve_wsl_ollama_url("Ubuntu-24.04", run=timed_out, platform_name="win32")
+        with self.subTest(result="nonzero"), self.assertRaisesRegex(ValueError, "failed"):
+            resolve_wsl_ollama_url(
+                "Ubuntu-24.04",
+                run=lambda args, **_kwargs: subprocess.CompletedProcess(args, 1, stdout="", stderr="not running"),
+                platform_name="win32",
+            )
+
+    def test_rejects_missing_or_multiple_wsl_src_addresses(self) -> None:
+        for output in (
+            "1.1.1.1 via 172.19.96.1 dev eth0\n",
+            "1.1.1.1 via 172.19.96.1 dev eth0 src 172.19.99.210 src 172.19.99.211\n",
+        ):
+            with self.subTest(output=output), self.assertRaisesRegex(ValueError, "exactly one"):
+                resolve_wsl_ollama_url(
+                    "Ubuntu-24.04",
+                    run=lambda args, **_kwargs: subprocess.CompletedProcess(args, 0, stdout=output),
+                    platform_name="win32",
+                )
+
+    def test_rejects_wsl_src_outside_172_16_range(self) -> None:
+        with self.assertRaisesRegex(ValueError, "172.16.0.0/12"):
+            resolve_wsl_ollama_url(
+                "Ubuntu-24.04",
+                run=lambda args, **_kwargs: subprocess.CompletedProcess(args, 0, stdout="1.1.1.1 via 10.0.0.1 dev eth0 src 10.0.0.2\n"),
+                platform_name="win32",
+            )
 
 
 if __name__ == "__main__": unittest.main()

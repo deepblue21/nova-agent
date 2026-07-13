@@ -205,11 +205,16 @@ yapilanlar hem de siradaki somut is burada guncellenir.
   kurali, public ADB, Portal veya Mobilerun workaround'u kullanilmadi.
 - Gorev 6A: odakli worker testleri, uzak ADB endpoint ayarlarinin dogrulanmasini ve Mobilerun readiness
   ping'ine aktarilmasini dogruladi. WSL-to-Windows bridge'in kendisi hala dogrulanmadi.
+- Gorev 1: Windows yerel worker, Ollama URL'sini yalnizca dogrulanmis WSL distro'sunun
+  `ip -4 route get 1.1.1.1` ciktisindan turetir. Yalnizca arguman-listesi kullanan `wsl.exe`
+  cagrisi, `172.16.0.0/12` icinde tam olarak bir `src` IPv4 adresi kabul eder ve
+  `http://<ip>:11434` olusturur; gecersiz distro degerleri, Windows disi hostlar, basarisiz
+  sorgular, diger araliklar ve WSL modunda bos olmayan ham Ollama URL'si reddedilir. Odakli
+  konfigurasyon testleri gecer.
 
 **Siradaki is**
 
-- Dis firewall/WSL bridge'i `adb devices` tam olarak `emulator-5554\tdevice` yazana kadar kanitla; sonra
-  Portal'i kur ve ayni emulator uzerinde guvenli Ayarlar/surum akisini kanitla.
+- Windows yerel Mobilerun worker launcher'ini uygula.
 
 Ayrintili uygulama sirasi:
 [`docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md`](./docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md).

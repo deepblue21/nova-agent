@@ -205,11 +205,15 @@ with both verified work and the next concrete work item.
   request was canceled. No broad firewall rule, public ADB, Portal, or Mobilerun workaround was used.
 - Task 6A: focused worker tests verify validated remote ADB endpoint settings and propagation to
   the Mobilerun readiness ping. The WSL-to-Windows bridge itself remains unverified.
+- Task 1: the Windows-native worker can derive its Ollama URL only from a validated WSL distro's
+  `ip -4 route get 1.1.1.1` output. It uses an argument-list-only `wsl.exe` invocation, accepts
+  exactly one `src` IPv4 address in `172.16.0.0/12`, and constructs `http://<ip>:11434`; invalid
+  distro values, non-Windows hosts, failed lookups, other ranges, and a nonempty raw Ollama URL in
+  WSL mode are rejected. Focused configuration tests pass.
 
 **Next**
 
-- Prove the external firewall/WSL bridge until `adb devices` prints exactly `emulator-5554\tdevice`;
-  then install Portal and prove the safe Settings/version workflow on that emulator.
+- Build the Windows-native Mobilerun worker launcher.
 
 The detailed implementation sequence is in
 [`docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md`](./docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md).

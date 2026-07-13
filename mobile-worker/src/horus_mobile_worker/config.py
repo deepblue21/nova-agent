@@ -1,8 +1,12 @@
 from ipaddress import AddressValueError, IPv4Address
 import os
 import re
+import subprocess
+import sys
 from dataclasses import asdict, dataclass
 from urllib.parse import urlsplit
+
+from .wsl_ollama import resolve_wsl_ollama_url
 
 
 def _required(env: dict[str, str], name: str) -> str:
@@ -78,6 +82,15 @@ class WorkerSettings:
         device_id = _required(values, "MOBILE_WORKER_DEVICE_ID")
         if device_id != "emulator-5554":
             raise ValueError("MOBILE_WORKER_DEVICE_ID must be emulator-5554")
+        raw_ollama_url = values.get("MOBILE_WORKER_OLLAMA_URL", "").strip()
+        wsl_distro = values.get("MOBILE_WORKER_OLLAMA_WSL_DISTRO", "")
+        if wsl_distro and raw_ollama_url:
+            raise ValueError("MOBILE_WORKER_OLLAMA_WSL_DISTRO cannot be used with MOBILE_WORKER_OLLAMA_URL")
+        ollama_url = (
+            resolve_wsl_ollama_url(wsl_distro, run=subprocess.run, platform_name=sys.platform)
+            if wsl_distro
+            else _http_url(raw_ollama_url or "http://127.0.0.1:11434", "MOBILE_WORKER_OLLAMA_URL", local_only=True)
+        )
         try:
             max_steps = int(values.get("MOBILE_WORKER_MAX_STEPS", "8"))
         except ValueError as error:
@@ -86,7 +99,7 @@ class WorkerSettings:
             gateway_url=_http_url(_required(values, "HORUS_GATEWAY_URL"), "HORUS_GATEWAY_URL"),
             worker_token=_required(values, "MOBILE_WORKER_TOKEN"),
             device_id=device_id,
-            ollama_url=_http_url(values.get("MOBILE_WORKER_OLLAMA_URL", "http://127.0.0.1:11434").strip(), "MOBILE_WORKER_OLLAMA_URL", local_only=True),
+            ollama_url=ollama_url,
             ollama_model=_required(values, "MOBILE_WORKER_OLLAMA_MODEL"),
             max_steps=max(1, min(max_steps, 8)),
             status_poll_seconds=_float(values, "MOBILE_WORKER_STATUS_POLL_SECONDS", 1.0, 0.01),
