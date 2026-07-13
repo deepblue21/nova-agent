@@ -220,8 +220,9 @@ with both verified work and the next concrete work item.
 
 **Next**
 
-- Run the real local Portal and Gateway smoke after the Windows preflight confirms the exact
-  emulator and derived WSL Ollama readiness.
+- Set up the local Portal, then run the real runtime checks for the exact emulator and derived
+  WSL Ollama readiness, followed by the Gateway smoke. `-PrepareOnly` does not perform those
+  operations.
 
 The detailed implementation sequence is in
 [`docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md`](./docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md).

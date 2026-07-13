@@ -10,7 +10,10 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 function Import-WorkerEnvironment {
-    param([Parameter(Mandatory = $true)][string]$Path)
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string[]]$AllowedKeys
+    )
 
     $loaded = 0
     $lineNumber = 0
@@ -24,13 +27,23 @@ function Import-WorkerEnvironment {
         if (!$entry.Success) {
             throw "Malformed environment entry at line $lineNumber in mobile-worker/.env"
         }
-        Set-Item -Path "Env:$($entry.Groups['name'].Value)" -Value $entry.Groups['value'].Value
+        $name = $entry.Groups['name'].Value
+        if ($AllowedKeys -notcontains $name) {
+            throw "Unsupported environment key $name at line $lineNumber in mobile-worker/.env"
+        }
+        Set-Item -Path "Env:$name" -Value $entry.Groups['value'].Value
         $loaded++
     }
     if ($loaded -eq 0) {
         throw "mobile-worker/.env must contain at least one KEY=value entry"
     }
     return $loaded
+}
+
+function Clear-ProxyEnvironment {
+    foreach ($name in @("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy")) {
+        Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue
+    }
 }
 
 function Find-Adb {
@@ -57,6 +70,22 @@ $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $scriptDirectory ".."))
 $workerDirectory = Join-Path $projectRoot "mobile-worker"
 $canonicalEnvFile = Join-Path $workerDirectory ".env"
 $windowsVenv = Join-Path $workerDirectory ".venv-windows"
+$allowedWorkerEnvironmentKeys = @(
+    "MOBILE_WORKER_ENABLED",
+    "MOBILE_WORKER_TOKEN",
+    "MOBILE_WORKER_DEVICE_ID",
+    "MOBILE_WORKER_ADB_SERVER_HOST",
+    "MOBILE_WORKER_ADB_SERVER_PORT",
+    "MOBILE_WORKER_LEASE_MS",
+    "MOBILE_WORKER_GOAL_POLICY",
+    "HORUS_GATEWAY_URL",
+    "MOBILE_WORKER_OLLAMA_URL",
+    "MOBILE_WORKER_OLLAMA_WSL_DISTRO",
+    "MOBILE_WORKER_OLLAMA_MODEL",
+    "MOBILE_WORKER_MAX_STEPS",
+    "MOBILE_WORKER_STATUS_POLL_SECONDS",
+    "MOBILE_WORKER_EXECUTION_TIMEOUT_SECONDS"
+)
 
 if ([string]::IsNullOrWhiteSpace($EnvFile)) {
     $EnvFile = $canonicalEnvFile
@@ -77,12 +106,12 @@ if ($Distro -notmatch "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$") {
 
 $uv = Get-Command uv -CommandType Application -ErrorAction Stop
 $wsl = Get-Command wsl.exe -CommandType Application -ErrorAction Stop
+$loadedVariables = Import-WorkerEnvironment -Path $canonicalEnvFile -AllowedKeys $allowedWorkerEnvironmentKeys
+Clear-ProxyEnvironment
 $python312 = & $uv.Source python find 3.12 2>$null
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($python312)) {
     throw "uv could not find a local Python 3.12 interpreter"
 }
-
-$loadedVariables = Import-WorkerEnvironment -Path $canonicalEnvFile
 $adb = Find-Adb -SdkRoots @($env:ANDROID_SDK_ROOT, $env:ANDROID_HOME, (Join-Path $env:LOCALAPPDATA "Android\\Sdk"))
 
 $env:ADBUTILS_ADB_PATH = $adb.Adb

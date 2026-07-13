@@ -221,8 +221,8 @@ yapilanlar hem de siradaki somut is burada guncellenir.
 
 **Siradaki is**
 
-- Windows preflight tam emulator ve turetilmis WSL Ollama hazirligini onayladiktan sonra gercek
-  yerel Portal ve Gateway smoke calistir.
+- Yerel Portal'i kur, sonra tam emulator ve turetilmis WSL Ollama hazirligi icin gercek runtime
+  kontrollerini calistir ve Gateway smoke ile devam et. `-PrepareOnly` bu islemleri yapmaz.
 
 Ayrintili uygulama sirasi:
 [`docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md`](./docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md).
