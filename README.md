@@ -203,11 +203,13 @@ with both verified work and the next concrete work item.
 - Task 6 status: Linux ADB is installed and loopback Gateway wiring is verified, but the
   WSL-to-Windows ADB bridge is NOT verified. Firewall elevation was requested and the Windows UAC
   request was canceled. No broad firewall rule, public ADB, Portal, or Mobilerun workaround was used.
+- Task 6A: focused worker tests verify validated remote ADB endpoint settings and propagation to
+  the Mobilerun readiness ping. The WSL-to-Windows bridge itself remains unverified.
 
 **Next**
 
-- Task 7 remains blocked until the WSL ADB bridge prints exactly `emulator-5554\tdevice`; then install
-  Portal and prove the safe Settings/version workflow on that emulator.
+- Prove the external firewall/WSL bridge until `adb devices` prints exactly `emulator-5554\tdevice`;
+  then install Portal and prove the safe Settings/version workflow on that emulator.
 
 The detailed implementation sequence is in
 [`docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md`](./docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md).

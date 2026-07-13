@@ -43,7 +43,19 @@ Run one worker pass from the WSL worker shell:
 cd /mnt/c/Users/salih/Project_Horus/mobile-worker
 set -a; source .env; set +a
 export PATH="$HOME/.local/bin:$PATH"
+export ANDROID_ADB_SERVER_HOST="$MOBILE_WORKER_ADB_SERVER_HOST"
+export ANDROID_ADB_SERVER_PORT="$MOBILE_WORKER_ADB_SERVER_PORT"
+mobilerun ping --device emulator-5554
 uv run horus-mobile-worker --once
 ```
+
+`host.docker.internal` is only the WSL-to-Windows host bridge; it is never an Android or UI payload value.
+Before enabling the worker, retain a separate bridge proof from the same shell:
+
+```bash
+adb -H "$ANDROID_ADB_SERVER_HOST" -P "$ANDROID_ADB_SERVER_PORT" devices
+```
+
+The bridge remains unverified until that command lists exactly `emulator-5554` followed by whitespace and `device`. Do not expose the ADB port publicly.
 
 With the worker running and a temporary user API key exported only in the invoking shell, `npm run smoke:mobile-worker` creates the exact allowlisted Settings/version task and waits up to 120 seconds for the audited worker event sequence. The smoke never prints either token.

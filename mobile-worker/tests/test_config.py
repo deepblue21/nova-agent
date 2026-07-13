@@ -31,5 +31,31 @@ class WorkerSettingsTests(unittest.TestCase):
         self.assertEqual(settings.redacted()["worker_token"], "<redacted>")
         self.assertNotIn("worker-secret", repr(settings.redacted()))
 
+    def test_accepts_a_host_docker_internal_adb_endpoint(self) -> None:
+        settings = WorkerSettings.from_env(self.env(
+            MOBILE_WORKER_ADB_SERVER_HOST="host.docker.internal",
+            MOBILE_WORKER_ADB_SERVER_PORT="5037",
+        ))
+        self.assertEqual(settings.adb_server_host, "host.docker.internal")
+        self.assertEqual(settings.adb_server_port, 5037)
+        self.assertEqual(settings.redacted()["adb_server_host"], "host.docker.internal")
+        self.assertEqual(settings.redacted()["adb_server_port"], 5037)
+
+    def test_rejects_invalid_adb_endpoint_values(self) -> None:
+        invalid_values = (
+            {"MOBILE_WORKER_ADB_SERVER_HOST": ""},
+            {"MOBILE_WORKER_ADB_SERVER_HOST": "http://adb.example"},
+            {"MOBILE_WORKER_ADB_SERVER_HOST": "adb.example/path"},
+            {"MOBILE_WORKER_ADB_SERVER_HOST": "adb host"},
+            {"MOBILE_WORKER_ADB_SERVER_HOST": "user:pass@adb"},
+            {"MOBILE_WORKER_ADB_SERVER_HOST": "adb.example:5037"},
+            {"MOBILE_WORKER_ADB_SERVER_PORT": "abc"},
+            {"MOBILE_WORKER_ADB_SERVER_PORT": "0"},
+            {"MOBILE_WORKER_ADB_SERVER_PORT": "65536"},
+        )
+        for overrides in invalid_values:
+            with self.subTest(overrides=overrides), self.assertRaisesRegex(ValueError, "MOBILE_WORKER_ADB_SERVER"):
+                WorkerSettings.from_env(self.env(**overrides))
+
 
 if __name__ == "__main__": unittest.main()

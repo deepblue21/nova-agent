@@ -1,4 +1,5 @@
 import os
+import re
 from dataclasses import asdict, dataclass
 from urllib.parse import urlsplit
 
@@ -29,6 +30,25 @@ def _float(env: dict[str, str], name: str, default: float, minimum: float) -> fl
     return value
 
 
+def _adb_server_host(env: dict[str, str]) -> str:
+    name = "MOBILE_WORKER_ADB_SERVER_HOST"
+    value = env.get(name, "127.0.0.1")
+    if not value or value != value.strip() or any(character in value for character in ":/@\\") or not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?", value):
+        raise ValueError(f"{name} must be a hostname or IPv4 literal without URLs, paths, or credentials")
+    return value
+
+
+def _adb_server_port(env: dict[str, str]) -> int:
+    name = "MOBILE_WORKER_ADB_SERVER_PORT"
+    value = env.get(name, "5037")
+    if not re.fullmatch(r"[0-9]+", value):
+        raise ValueError(f"{name} must be a numeric port")
+    port = int(value)
+    if not 1 <= port <= 65535:
+        raise ValueError(f"{name} must be between 1 and 65535")
+    return port
+
+
 @dataclass(frozen=True)
 class WorkerSettings:
     gateway_url: str
@@ -40,6 +60,8 @@ class WorkerSettings:
     status_poll_seconds: float
     execution_timeout_seconds: float
     readiness_timeout_seconds: float = 15.0
+    adb_server_host: str = "127.0.0.1"
+    adb_server_port: int = 5037
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> "WorkerSettings":
@@ -61,6 +83,8 @@ class WorkerSettings:
             status_poll_seconds=_float(values, "MOBILE_WORKER_STATUS_POLL_SECONDS", 1.0, 0.01),
             execution_timeout_seconds=_float(values, "MOBILE_WORKER_EXECUTION_TIMEOUT_SECONDS", 120.0, 1.0),
             readiness_timeout_seconds=_float(values, "MOBILE_WORKER_READINESS_TIMEOUT_SECONDS", 15.0, 1.0),
+            adb_server_host=_adb_server_host(values),
+            adb_server_port=_adb_server_port(values),
         )
 
     def redacted(self) -> dict[str, object]:

@@ -43,7 +43,7 @@ class MobilerunTaskRunner:
         self._tasks: dict[str, asyncio.Task[RunOutcome]] = {}
 
     def _mobilerun_types(self) -> tuple[Any, ...]:
-        os.environ.update(SAFE_MOBILERUN_ENV)
+        os.environ.update(self._mobilerun_env())
         logging.getLogger("mobilerun").disabled = True
         from mobilerun import (
             AgentConfig,
@@ -59,6 +59,13 @@ class MobilerunTaskRunner:
         )
         logging.getLogger("mobilerun").disabled = True
         return (AgentConfig, CredentialsConfig, DeviceConfig, LLMProfile, LoggingConfig, MobileAgent, MobileConfig, TelemetryConfig, ToolsConfig, TracingConfig)
+
+    def _mobilerun_env(self) -> dict[str, str]:
+        return {
+            **SAFE_MOBILERUN_ENV,
+            "ANDROID_ADB_SERVER_HOST": self._settings.adb_server_host,
+            "ANDROID_ADB_SERVER_PORT": str(self._settings.adb_server_port),
+        }
 
     def _config_for(self, device_id: str) -> tuple[Any, Any]:
         if device_id != "emulator-5554":
@@ -90,7 +97,7 @@ class MobilerunTaskRunner:
             "mobilerun", "ping", "--device", device_id,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env={**os.environ, **SAFE_MOBILERUN_ENV},
+            env={**os.environ, **self._mobilerun_env()},
         )
         try:
             stdout, _stderr = await asyncio.wait_for(
