@@ -211,10 +211,18 @@ yapilanlar hem de siradaki somut is burada guncellenir.
   `http://<ip>:11434` olusturur; gecersiz distro degerleri, Windows disi hostlar, basarisiz
   sorgular, diger araliklar ve WSL modunda bos olmayan ham Ollama URL'si reddedilir. Odakli
   konfigurasyon testleri gecer.
+- Gorev 2: Windows yerel launcher yalnizca ignore edilen `mobile-worker/.env` dosyasini okur,
+  hazirlik cikisinda tum yuklenen degerleri redakte eder, Windows `adb.exe` dosyasini bulur,
+  worker'i `127.0.0.1:5037` degerine zorlar ve ayri `mobile-worker/.venv-windows` kullanir.
+  Dogrulanmis WSL distro secilmeden once ham Ollama URL'sini siler; Task 1 bu nedenle ikinci bir
+  endpoint kabul etmek yerine WSL NAT adresini turetir. Yerel-only preflight venv olusturmaz,
+  paket sync yapmaz ve ADB, firewall, WSL veya Ollama durumunu degistirmez. ADB, Ollama ve worker
+  LAN'a acilmaz; Portal kurulumu daha sonraki acik bir islemdir.
 
 **Siradaki is**
 
-- Windows yerel Mobilerun worker launcher'ini uygula.
+- Windows preflight tam emulator ve turetilmis WSL Ollama hazirligini onayladiktan sonra gercek
+  yerel Portal ve Gateway smoke calistir.
 
 Ayrintili uygulama sirasi:
 [`docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md`](./docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md).

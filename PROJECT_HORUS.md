@@ -59,3 +59,19 @@ adb -H "$ANDROID_ADB_SERVER_HOST" -P "$ANDROID_ADB_SERVER_PORT" devices
 The bridge remains unverified until that command lists exactly `emulator-5554` followed by whitespace and `device`. Do not expose the ADB port publicly.
 
 With the worker running and a temporary user API key exported only in the invoking shell, `npm run smoke:mobile-worker` creates the exact allowlisted Settings/version task and waits up to 120 seconds for the audited worker event sequence. The smoke never prints either token.
+
+## Windows-Native Worker
+
+The Windows-native path runs the worker beside the emulator and uses the existing loopback ADB endpoint at `127.0.0.1:5037`. From PowerShell, create the ignored `mobile-worker/.env` from its example, then validate local prerequisites without creating a virtual environment or changing ADB, firewall, WSL, or Ollama state:
+
+```powershell
+.\scripts\start-windows-mobile-worker.ps1 -PrepareOnly
+```
+
+Run a single worker pass with its separate `mobile-worker/.venv-windows` environment:
+
+```powershell
+.\scripts\start-windows-mobile-worker.ps1 -Once
+```
+
+The launcher accepts only the canonical ignored `mobile-worker/.env`, parses noncomment `KEY=value` entries without echoing values, forces loopback ADB, and removes any raw `MOBILE_WORKER_OLLAMA_URL`. It passes the validated `-Distro` value (default `Ubuntu`) to Task 1's resolver, which derives the WSL NAT Ollama address only from a `172.16.0.0/12` route source. Do not expose ADB, Ollama, or the worker to the LAN. Portal setup remains a later explicit task, after local readiness and the real Portal/Gateway smoke.

@@ -87,6 +87,20 @@ SSH tüneli kullan ya da her alt-alan için kimlik doğrulamalı bir Caddy route
 - **Dosya/görsel girişleri:** remote image URL fetch opt-in'dir, localhost/private IP hedefleri engellenir, redirect ve byte limitleri uygulanır. `/v1/media` yalnız allowlist MIME tiplerini ve geçerli base64'i kabul eder; HTML/SVG gibi aktif içerikler default kabul edilmez.
 - **Sırlar sunucuda:** Gateway provider modunda sağlayıcı anahtarları yalnız `gateway/.env`'de; tarayıcıya gitmez.
 
+## Windows native mobile worker
+
+The Windows launcher accepts only the ignored `mobile-worker/.env`; it parses
+noncomment `KEY=value` entries without executing them and never prints loaded
+values. Its prepare-only mode validates local paths and tools but does not create
+an environment, sync packages, start or stop ADB, change firewall rules, or modify
+WSL/Ollama state.
+
+The worker is forced to the existing loopback ADB endpoint at `127.0.0.1:5037`.
+It removes a raw Ollama URL and lets the Windows-only resolver derive the WSL NAT
+address from one validated `172.16.0.0/12` route source. Do not publish ADB,
+Ollama, the worker, or Portal to the LAN. Portal setup is a later explicit
+operation after local readiness and real Portal/Gateway smoke evidence.
+
 ## Açık bildirimi (disclosure)
 
 Bir güvenlik açığı bulursan lütfen public issue açmadan önce sorumlu şekilde bildir.

@@ -210,10 +210,18 @@ with both verified work and the next concrete work item.
   exactly one `src` IPv4 address in `172.16.0.0/12`, and constructs `http://<ip>:11434`; invalid
   distro values, non-Windows hosts, failed lookups, other ranges, and a nonempty raw Ollama URL in
   WSL mode are rejected. Focused configuration tests pass.
+- Task 2: the Windows-native launcher reads only the ignored `mobile-worker/.env`, redacts every
+  loaded value in its prepare-only output, finds Windows `adb.exe`, forces the worker to
+  `127.0.0.1:5037`, and uses a separate `mobile-worker/.venv-windows`. It deletes any raw Ollama
+  URL before selecting the validated WSL distro, so Task 1 derives the WSL NAT address rather than
+  accepting a second endpoint. The local-only preflight does not create a venv, sync packages, or
+  change ADB, firewall, WSL, or Ollama state. ADB, Ollama, and the worker remain unpublished to the
+  LAN; Portal setup remains an explicit later action.
 
 **Next**
 
-- Build the Windows-native Mobilerun worker launcher.
+- Run the real local Portal and Gateway smoke after the Windows preflight confirms the exact
+  emulator and derived WSL Ollama readiness.
 
 The detailed implementation sequence is in
 [`docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md`](./docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md).
