@@ -46,6 +46,10 @@ function Clear-ProxyEnvironment {
     }
 }
 
+function Clear-UvEnvironment {
+    Remove-Item -LiteralPath "Env:UV_ENV_FILE" -ErrorAction SilentlyContinue
+}
+
 function Clear-WorkerEnvironment {
     param([Parameter(Mandatory = $true)][string[]]$Names)
 
@@ -115,6 +119,7 @@ $wsl = Get-Command wsl.exe -CommandType Application -ErrorAction Stop
 Clear-WorkerEnvironment -Names $allowedWorkerEnvironmentKeys
 $loadedVariables = Import-WorkerEnvironment -Path $canonicalEnvFile -AllowedKeys $allowedWorkerEnvironmentKeys
 Clear-ProxyEnvironment
+Clear-UvEnvironment
 $python312 = & $uv.Source python find 3.12 2>$null
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($python312)) {
     throw "uv could not find a local Python 3.12 interpreter"

@@ -9,6 +9,7 @@ $launcher = Join-Path $PSScriptRoot "start-windows-mobile-worker.ps1"
 $envFile = Join-Path $projectRoot "mobile-worker\.env"
 $powershellExecutable = Join-Path $PSHOME "powershell.exe"
 $proxyNames = @("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy")
+$uvEnvironmentNames = @("UV_ENV_FILE")
 $acceptedWorkerKeys = @(
     "MOBILE_WORKER_TOKEN",
     "MOBILE_WORKER_DEVICE_ID",
@@ -157,7 +158,7 @@ try {
         "exit /b 1"
     ) | Set-Content -LiteralPath (Join-Path $binDirectory "uv.cmd") -Encoding ascii
 
-    $environmentNames = @("PATH", "PATHEXT", "ANDROID_SDK_ROOT", "HORUS_TEST_ENV_CAPTURE_DIRECTORY") + $proxyNames + $acceptedWorkerKeys
+    $environmentNames = @("PATH", "PATHEXT", "ANDROID_SDK_ROOT", "HORUS_TEST_ENV_CAPTURE_DIRECTORY") + $proxyNames + $uvEnvironmentNames + $acceptedWorkerKeys
     foreach ($name in $environmentNames) {
         $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
         [Environment]::SetEnvironmentVariable($name, $null, "Process")
@@ -215,6 +216,14 @@ MOBILE_WORKER_ADB_SERVER_PORT=5037
         foreach ($boundary in $uvBoundaries) {
             Assert-EnvironmentNamesAbsent -Environment (Get-CapturedEnvironment -Boundary $boundary) -Names $proxyNames -Boundary $boundary
         }
+    }
+
+    Remove-CapturedEnvironments
+    $uvEnvFileResult = Invoke-LauncherFixture -Content $workerSettingsWithoutReadinessTimeout -ParentEnvironment @{ UV_ENV_FILE = (Join-Path $temporaryRoot "untrusted-uv.env") }
+    Assert-True -Condition ($uvEnvFileResult.ExitCode -eq 0) -Message "UV_ENV_FILE must not prevent the launcher pass"
+    Assert-SecretIsRedacted -Output $uvEnvFileResult.Output -Message "UV_ENV_FILE launch output must not emit secrets"
+    foreach ($boundary in $uvBoundaries) {
+        Assert-EnvironmentNamesAbsent -Environment (Get-CapturedEnvironment -Boundary $boundary) -Names $uvEnvironmentNames -Boundary $boundary
     }
 
     foreach ($workerKey in $acceptedWorkerKeys) {
