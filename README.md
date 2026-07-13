@@ -218,6 +218,15 @@ with both verified work and the next concrete work item.
   change ADB, firewall, WSL, or Ollama state. ADB, Ollama, and the worker remain unpublished to the
   LAN; Portal setup remains an explicit later action.
 
+  From this checkout path, `C:\Users\salih\Project_Horus`, run exactly:
+
+  ```powershell
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-windows-mobile-worker.ps1 -PrepareOnly
+  ```
+
+  `-PrepareOnly` does not set up Portal, assert the exact emulator device state, call Ollama, sync
+  packages, or run the worker. It is a local launcher preflight only.
+
 **Next**
 
 - Set up the local Portal, then run the real runtime checks for the exact emulator and derived

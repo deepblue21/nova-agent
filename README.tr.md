@@ -219,6 +219,15 @@ yapilanlar hem de siradaki somut is burada guncellenir.
   paket sync yapmaz ve ADB, firewall, WSL veya Ollama durumunu degistirmez. ADB, Ollama ve worker
   LAN'a acilmaz; Portal kurulumu daha sonraki acik bir islemdir.
 
+  Bu checkout yolunda, `C:\Users\salih\Project_Horus`, tam olarak su komutu calistir:
+
+  ```powershell
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-windows-mobile-worker.ps1 -PrepareOnly
+  ```
+
+  `-PrepareOnly` Portal kurmaz, emulatorun tam cihaz durumunu dogrulamaz, Ollama cagirmaz, paketleri
+  sync etmez ve worker'i calistirmaz. Yalnizca yerel launcher preflight kontroludur.
+
 **Siradaki is**
 
 - Yerel Portal'i kur, sonra tam emulator ve turetilmis WSL Ollama hazirligi icin gercek runtime

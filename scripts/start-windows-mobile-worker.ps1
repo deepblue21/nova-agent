@@ -71,20 +71,18 @@ $workerDirectory = Join-Path $projectRoot "mobile-worker"
 $canonicalEnvFile = Join-Path $workerDirectory ".env"
 $windowsVenv = Join-Path $workerDirectory ".venv-windows"
 $allowedWorkerEnvironmentKeys = @(
-    "MOBILE_WORKER_ENABLED",
     "MOBILE_WORKER_TOKEN",
     "MOBILE_WORKER_DEVICE_ID",
     "MOBILE_WORKER_ADB_SERVER_HOST",
     "MOBILE_WORKER_ADB_SERVER_PORT",
-    "MOBILE_WORKER_LEASE_MS",
-    "MOBILE_WORKER_GOAL_POLICY",
     "HORUS_GATEWAY_URL",
     "MOBILE_WORKER_OLLAMA_URL",
     "MOBILE_WORKER_OLLAMA_WSL_DISTRO",
     "MOBILE_WORKER_OLLAMA_MODEL",
     "MOBILE_WORKER_MAX_STEPS",
     "MOBILE_WORKER_STATUS_POLL_SECONDS",
-    "MOBILE_WORKER_EXECUTION_TIMEOUT_SECONDS"
+    "MOBILE_WORKER_EXECUTION_TIMEOUT_SECONDS",
+    "MOBILE_WORKER_READINESS_TIMEOUT_SECONDS"
 )
 
 if ([string]::IsNullOrWhiteSpace($EnvFile)) {
