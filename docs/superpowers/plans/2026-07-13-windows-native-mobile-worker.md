@@ -51,6 +51,7 @@
 
 **Files:**
 - Create: `scripts/start-windows-mobile-worker.ps1`
+- Modify: `.gitignore`
 - Modify: `mobile-worker/.env.example`
 - Modify: `PROJECT_HORUS.md`
 - Modify: `SECURITY.md`
@@ -69,6 +70,8 @@
   expected missing-script failure.
 - [ ] Implement the launcher with a separate Windows Python 3.12 environment,
   loopback ADB environment, and no firewall/server mutation.
+- [ ] Ignore `mobile-worker/.venv-windows/` so the Windows environment never
+  appears in a release diff or replaces the existing Linux `.venv`.
 - [ ] Run the prepare-only proof and the Python worker tests; document the
   exact Windows path, WSL NAT safety rule, and no-LAN policy in both READMEs.
 - [ ] Commit with `feat: add Windows mobile worker launcher`.
