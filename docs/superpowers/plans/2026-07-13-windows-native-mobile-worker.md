@@ -26,6 +26,8 @@
 - Create: `mobile-worker/src/horus_mobile_worker/wsl_ollama.py`
 - Modify: `mobile-worker/src/horus_mobile_worker/config.py`
 - Modify: `mobile-worker/tests/test_config.py`
+- Modify: `README.md`
+- Modify: `README.tr.md`
 
 **Interfaces:**
 - Produces `resolve_wsl_ollama_url(distro, *, run, platform_name) -> str` and
@@ -41,6 +43,8 @@
 - [ ] Implement argument-list-only WSL execution, strict output parsing, and
   configuration integration; do not accept user-provided remote URLs.
 - [ ] Run `python -m unittest discover -s tests -v` and `uv lock --check`.
+- [ ] Update both README living-delivery sections with the verified resolver
+  behavior and name the Windows launcher as the next work item.
 - [ ] Commit with `feat: resolve Windows worker WSL Ollama`.
 
 ### Task 2: Windows Native Launcher and Operational Documentation
