@@ -35,14 +35,19 @@ class FakeProcess:
 class MobilerunTaskRunnerTests(unittest.IsolatedAsyncioTestCase):
     async def test_readiness_passes_configured_adb_endpoint_to_ping(self) -> None:
         process = FakeProcess(b"Portal is installed and accessible.\n")
+        runner_settings = replace(
+            settings(),
+            adb_server_host="host.docker.internal",
+            adb_server_port=5038,
+        )
         with patch(
             "horus_mobile_worker.runner.asyncio.create_subprocess_exec",
             new=AsyncMock(return_value=process),
         ) as create_process:
-            await MobilerunTaskRunner(settings()).readiness("emulator-5554")
+            await MobilerunTaskRunner(runner_settings).readiness("emulator-5554")
         child_env = create_process.await_args.kwargs["env"]
-        self.assertEqual(child_env["ANDROID_ADB_SERVER_HOST"], "127.0.0.1")
-        self.assertEqual(child_env["ANDROID_ADB_SERVER_PORT"], "5037")
+        self.assertEqual(child_env["ANDROID_ADB_SERVER_HOST"], "host.docker.internal")
+        self.assertEqual(child_env["ANDROID_ADB_SERVER_PORT"], "5038")
 
     async def test_readiness_rejects_private_ping_error_even_with_zero_exit(self) -> None:
         process = FakeProcess(b"Error: Could not find device emulator-5554\n")

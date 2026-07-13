@@ -1,3 +1,4 @@
+from ipaddress import AddressValueError, IPv4Address
 import os
 import re
 from dataclasses import asdict, dataclass
@@ -33,7 +34,15 @@ def _float(env: dict[str, str], name: str, default: float, minimum: float) -> fl
 def _adb_server_host(env: dict[str, str]) -> str:
     name = "MOBILE_WORKER_ADB_SERVER_HOST"
     value = env.get(name, "127.0.0.1")
-    if not value or value != value.strip() or any(character in value for character in ":/@\\") or not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?", value):
+    dotted_decimal = re.fullmatch(r"[0-9]+(?:\.[0-9]+){3}", value)
+    if dotted_decimal:
+        try:
+            IPv4Address(value)
+        except AddressValueError:
+            raise ValueError(f"{name} must be a hostname or IPv4 literal without URLs, paths, or credentials") from None
+        return value
+    labels = value.split(".")
+    if not value or value != value.strip() or len(value) > 253 or any(character in value for character in ":/@\\") or not all(re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", label) for label in labels):
         raise ValueError(f"{name} must be a hostname or IPv4 literal without URLs, paths, or credentials")
     return value
 

@@ -41,6 +41,10 @@ class WorkerSettingsTests(unittest.TestCase):
         self.assertEqual(settings.redacted()["adb_server_host"], "host.docker.internal")
         self.assertEqual(settings.redacted()["adb_server_port"], 5037)
 
+    def test_rejects_malformed_dns_adb_host(self) -> None:
+        with self.assertRaisesRegex(ValueError, "MOBILE_WORKER_ADB_SERVER_HOST"):
+            WorkerSettings.from_env(self.env(MOBILE_WORKER_ADB_SERVER_HOST="a..b"))
+
     def test_rejects_invalid_adb_endpoint_values(self) -> None:
         invalid_values = (
             {"MOBILE_WORKER_ADB_SERVER_HOST": ""},
