@@ -62,7 +62,7 @@ With the worker running and a temporary user API key exported only in the invoki
 
 ## Windows-Native Worker
 
-The Windows-native path runs the worker beside the emulator and uses the existing loopback ADB endpoint at `127.0.0.1:5037`. From PowerShell, create the ignored `mobile-worker/.env` from its example, then validate local prerequisites without creating a virtual environment or changing ADB, firewall, WSL, or Ollama state:
+The Windows-native path runs the worker beside the emulator and uses the existing loopback ADB endpoint at `127.0.0.1:5037`. From PowerShell, create the ignored `mobile-worker/.env` from its worker-only example, then validate local prerequisites without creating a virtual environment or changing ADB, firewall, WSL, or Ollama state:
 
 ```powershell
 .\scripts\start-windows-mobile-worker.ps1 -PrepareOnly
@@ -74,4 +74,4 @@ Run a single worker pass with its separate `mobile-worker/.venv-windows` environ
 .\scripts\start-windows-mobile-worker.ps1 -Once
 ```
 
-The launcher accepts only the canonical ignored `mobile-worker/.env`, parses noncomment `KEY=value` entries without echoing values, forces loopback ADB, and removes any raw `MOBILE_WORKER_OLLAMA_URL`. It passes the validated `-Distro` value (default `Ubuntu`) to Task 1's resolver, which derives the WSL NAT Ollama address only from a `172.16.0.0/12` route source. Do not expose ADB, Ollama, or the worker to the LAN. Portal setup remains a later explicit task, after local readiness and the real Portal/Gateway smoke.
+The launcher treats that file as the complete worker configuration: before importing its explicit allowlisted values, it removes all supported worker settings inherited from the calling process. Omitted values are therefore not inherited. Gateway-only keys are rejected, including `MOBILE_WORKER_ENABLED`, `MOBILE_WORKER_LEASE_MS`, and `MOBILE_WORKER_GOAL_POLICY`. The launcher forces loopback ADB and removes any raw `MOBILE_WORKER_OLLAMA_URL`; it passes the validated `-Distro` value (default `Ubuntu`) to Task 1's resolver, which derives the WSL NAT Ollama address only from a `172.16.0.0/12` route source. The example's raw loopback Ollama URL is for non-Windows mode and is removed by the Windows launcher. Do not expose ADB, Ollama, or the worker to the LAN. Portal setup remains a later explicit task, after local readiness and the real Portal/Gateway smoke.

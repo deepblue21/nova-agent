@@ -46,6 +46,14 @@ function Clear-ProxyEnvironment {
     }
 }
 
+function Clear-WorkerEnvironment {
+    param([Parameter(Mandatory = $true)][string[]]$Names)
+
+    foreach ($name in $Names) {
+        Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue
+    }
+}
+
 function Find-Adb {
     param([Parameter(Mandatory = $true)][AllowEmptyString()][string[]]$SdkRoots)
 
@@ -104,6 +112,7 @@ if ($Distro -notmatch "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$") {
 
 $uv = Get-Command uv -CommandType Application -ErrorAction Stop
 $wsl = Get-Command wsl.exe -CommandType Application -ErrorAction Stop
+Clear-WorkerEnvironment -Names $allowedWorkerEnvironmentKeys
 $loadedVariables = Import-WorkerEnvironment -Path $canonicalEnvFile -AllowedKeys $allowedWorkerEnvironmentKeys
 Clear-ProxyEnvironment
 $python312 = & $uv.Source python find 3.12 2>$null

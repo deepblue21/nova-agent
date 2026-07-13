@@ -211,9 +211,12 @@ yapilanlar hem de siradaki somut is burada guncellenir.
   `http://<ip>:11434` olusturur; gecersiz distro degerleri, Windows disi hostlar, basarisiz
   sorgular, diger araliklar ve WSL modunda bos olmayan ham Ollama URL'si reddedilir. Odakli
   konfigurasyon testleri gecer.
-- Gorev 2: Windows yerel launcher yalnizca ignore edilen `mobile-worker/.env` dosyasini okur,
-  hazirlik cikisinda tum yuklenen degerleri redakte eder, Windows `adb.exe` dosyasini bulur,
-  worker'i `127.0.0.1:5037` degerine zorlar ve ayri `mobile-worker/.venv-windows` kullanir.
+- Gorev 2: Windows yerel launcher, ignore edilen yalnizca worker ayarlarini iceren
+  `mobile-worker/.env` dosyasini tam konfigurasyon olarak kullanir: parent process'ten gelen tum
+  desteklenen worker ayarlarini temizler, sonra sadece dosyada acikca allowlist'e alinmis degerleri
+  yukler ve gateway-only anahtarlari reddeder. Hazirlik cikisinda tum yuklenen degerleri redakte
+  eder, Windows `adb.exe` dosyasini bulur, worker'i `127.0.0.1:5037` degerine zorlar ve ayri
+  `mobile-worker/.venv-windows` kullanir.
   Dogrulanmis WSL distro secilmeden once ham Ollama URL'sini siler; Task 1 bu nedenle ikinci bir
   endpoint kabul etmek yerine WSL NAT adresini turetir. Yerel-only preflight venv olusturmaz,
   paket sync yapmaz ve ADB, firewall, WSL veya Ollama durumunu degistirmez. ADB, Ollama ve worker
@@ -230,8 +233,9 @@ yapilanlar hem de siradaki somut is burada guncellenir.
 
 **Siradaki is**
 
-- Yerel Portal'i kur, sonra tam emulator ve turetilmis WSL Ollama hazirligi icin gercek runtime
-  kontrollerini calistir ve Gateway smoke ile devam et. `-PrepareOnly` bu islemleri yapmaz.
+- Yerel Portal'i kur, sonra duzeltilmis yalnizca worker ayarlarini iceren `.env.example` ile tam
+  emulator ve turetilmis WSL Ollama hazirligi icin gercek runtime kontrollerini calistir ve Gateway
+  smoke ile devam et. `-PrepareOnly` bu islemleri yapmaz.
 
 Ayrintili uygulama sirasi:
 [`docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md`](./docs/superpowers/plans/2026-07-11-mobilerun-emulator-worker.md).
