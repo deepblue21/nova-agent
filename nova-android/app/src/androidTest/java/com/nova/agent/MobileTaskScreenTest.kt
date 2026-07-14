@@ -1,5 +1,7 @@
 package com.nova.agent
 
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -81,6 +83,36 @@ class MobileTaskScreenTest {
         composeRule.onAllNodesWithText("İptal et").assertCountEquals(0)
         composeRule.onAllNodesWithTag("task_timeline").assertCountEquals(0)
         composeRule.onNodeWithTag("confirmation_panel").assertIsDisplayed()
+    }
+
+    @Test
+    fun modalHasOnlyLabeledDecisionClickActions() {
+        composeRule.setContent {
+            NovaTheme {
+                MobileTaskScreen(
+                    state = confirmationState(),
+                    connection = GatewayConnectionUiState(GatewayConnectionStatus.READY, "PC hazır"),
+                    onPromptChange = {},
+                    onCreateTask = {},
+                    onCommand = {},
+                    onDecision = {},
+                    onNewTask = {},
+                    onOpenSettings = {},
+                    onRetryConnection = {},
+                )
+            }
+        }
+
+        val clickAction = SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick)
+        composeRule.onAllNodes(clickAction).assertCountEquals(2)
+        composeRule.onNodeWithTag("confirmation_approve")
+            .assert(clickAction)
+            .assert(hasText("Onayla"))
+        composeRule.onNodeWithTag("confirmation_reject")
+            .assert(clickAction)
+            .assert(hasText("Reddet"))
+        composeRule.onAllNodesWithText("Duraklat").assertCountEquals(0)
+        composeRule.onAllNodesWithText("İptal et").assertCountEquals(0)
     }
 
     @Test

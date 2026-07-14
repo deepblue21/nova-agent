@@ -2,8 +2,6 @@ package com.nova.agent.feature.tasks
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,12 +23,12 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
@@ -96,16 +94,16 @@ fun MobileTaskScreen(
         }
 
         state.pendingConfirmation?.let { confirmation ->
-            val interactionSource = remember { MutableInteractionSource() }
             Box(
                 Modifier.fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.66f))
-                    .clickable(
-                        interactionSource = interactionSource,
-                        indication = null,
-                        onClick = {},
-                    )
-                    .clearAndSetSemantics {},
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                awaitPointerEvent().changes.forEach { it.consume() }
+                            }
+                        }
+                    },
             )
             val taskPrompt = state.task?.prompt
             val summary = state.events.asReversed()

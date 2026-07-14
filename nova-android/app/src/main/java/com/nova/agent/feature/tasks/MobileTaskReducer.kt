@@ -17,6 +17,7 @@ val MobileTaskUiState.canResolveConfirmation: Boolean
 sealed interface MobileTaskMutation {
     data class PromptChanged(val value: String) : MobileTaskMutation
     data class TaskLoaded(val task: MobileTask) : MobileTaskMutation
+    data class ConfirmationResolved(val task: MobileTask) : MobileTaskMutation
     data class EventReceived(val event: MobileTaskEvent) : MobileTaskMutation
     data class Failed(val message: String) : MobileTaskMutation
     data object Loading : MobileTaskMutation
@@ -27,6 +28,12 @@ sealed interface MobileTaskMutation {
 fun reduceMobileTask(state: MobileTaskUiState, mutation: MobileTaskMutation): MobileTaskUiState = when (mutation) {
     is MobileTaskMutation.PromptChanged -> state.copy(prompt = mutation.value)
     is MobileTaskMutation.TaskLoaded -> state.copy(task = mutation.task, loading = false, error = null)
+    is MobileTaskMutation.ConfirmationResolved -> state.copy(
+        task = mutation.task,
+        pendingConfirmation = null,
+        loading = false,
+        error = null,
+    )
     is MobileTaskMutation.Failed -> state.copy(loading = false, error = mutation.message)
     MobileTaskMutation.Loading -> state.copy(loading = true)
     MobileTaskMutation.ErrorCleared -> state.copy(error = null)

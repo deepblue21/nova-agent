@@ -205,6 +205,30 @@ class MobileTaskReducerTest {
         assertFalse(ready.copy(pendingConfirmation = null).canResolveConfirmation)
     }
 
+    @Test
+    fun successfulDecisionResponsePreventsSecondResolutionWithoutSse() {
+        val confirmation = MobileConfirmation("confirmation-1", "R2", "waiting_for_confirmation")
+        val waiting = MobileTaskUiState(
+            task = MobileTask("task-1", "Ayarlar'ı aç", MobileTaskStatus.WAITING_FOR_CONFIRMATION),
+            pendingConfirmation = confirmation,
+        )
+        val loading = reduceMobileTask(waiting, MobileTaskMutation.Loading)
+        val response = MobileTask("task-1", "Ayarlar'ı aç", MobileTaskStatus.EXECUTING)
+        val resolved = reduceMobileTask(loading, MobileTaskMutation.ConfirmationResolved(response))
+
+        assertEquals(response, resolved.task)
+        assertFalse(resolved.loading)
+        assertNull(resolved.pendingConfirmation)
+        assertFalse(resolved.canResolveConfirmation)
+
+        val delayedSse = reduceMobileTask(
+            resolved,
+            MobileTaskMutation.EventReceived(event("50", "confirmation.approved", "executing")),
+        )
+        assertNull(delayedSse.pendingConfirmation)
+        assertFalse(delayedSse.canResolveConfirmation)
+    }
+
     private fun event(
         id: String,
         type: String,

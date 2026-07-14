@@ -93,14 +93,23 @@ class MobileTaskViewModel(app: Application) : AndroidViewModel(app) {
             confirmation.id,
             decision,
         ) { result ->
-            onMain { acceptTaskResult(result) }
+            onMain { acceptTaskResult(result, confirmationResolved = true) }
         }
     }
 
-    private fun acceptTaskResult(result: Result<MobileTask>) {
+    private fun acceptTaskResult(
+        result: Result<MobileTask>,
+        confirmationResolved: Boolean = false,
+    ) {
         result.fold(
             onSuccess = { task ->
-                update(MobileTaskMutation.TaskLoaded(task))
+                update(
+                    if (confirmationResolved) {
+                        MobileTaskMutation.ConfirmationResolved(task)
+                    } else {
+                        MobileTaskMutation.TaskLoaded(task)
+                    },
+                )
                 if (isTerminal(task)) disconnect() else connect(task.id)
             },
             onFailure = ::showFailure,
