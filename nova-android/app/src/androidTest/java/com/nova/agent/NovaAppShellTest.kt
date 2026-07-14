@@ -2,6 +2,9 @@ package com.nova.agent
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Text
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -23,25 +26,28 @@ class NovaAppShellTest {
 
     @Test
     fun showsFixedDestinationsAndRoutesClicks() {
-        var selected = Mode.TASKS
+        val selected = mutableListOf<Mode>()
         composeRule.setContent {
             NovaTheme {
                 NovaAppShell(
                     mode = Mode.TASKS,
                     connection = GatewayConnectionUiState(GatewayConnectionStatus.READY, "PC hazır"),
-                    onModeChange = { selected = it },
+                    onModeChange = selected::add,
                     onSettings = {},
                     onNewChat = {},
-                ) { Box { Text("İçerik") } }
+                ) { Box { Text("Görev alanı") } }
             }
         }
 
-        composeRule.onNodeWithTag("primary_navigation").assertIsDisplayed()
-        composeRule.onNodeWithText("Görevler").assertIsDisplayed()
+        composeRule.onNodeWithTag("primary_navigation")
+            .assertIsDisplayed()
+            .assert(SemanticsMatcher.keyNotDefined(SemanticsActions.ScrollBy))
+        composeRule.onNodeWithText("Görev alanı").assertIsDisplayed()
         composeRule.onNodeWithText("Sohbet").assertIsDisplayed().performClick()
-        composeRule.onNodeWithText("Ses").assertIsDisplayed()
+        composeRule.onNodeWithText("Ses").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("Görevler").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("PC hazır").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Ayarlar").assertIsDisplayed()
-        assertEquals(Mode.CHAT, selected)
+        assertEquals(listOf(Mode.CHAT, Mode.VOICE, Mode.TASKS), selected)
     }
 }
