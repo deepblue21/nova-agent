@@ -38,6 +38,11 @@ class MobileTaskViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearError() = update(MobileTaskMutation.ErrorCleared)
 
+    fun newTask() {
+        disconnect()
+        update(MobileTaskMutation.Reset)
+    }
+
     fun createTask() {
         val prompt = state.prompt.trim()
         if (prompt.isEmpty() || state.loading) return

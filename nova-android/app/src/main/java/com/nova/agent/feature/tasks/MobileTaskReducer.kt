@@ -18,6 +18,7 @@ sealed interface MobileTaskMutation {
     data class Failed(val message: String) : MobileTaskMutation
     data object Loading : MobileTaskMutation
     data object ErrorCleared : MobileTaskMutation
+    data object Reset : MobileTaskMutation
 }
 
 fun reduceMobileTask(state: MobileTaskUiState, mutation: MobileTaskMutation): MobileTaskUiState = when (mutation) {
@@ -26,6 +27,7 @@ fun reduceMobileTask(state: MobileTaskUiState, mutation: MobileTaskMutation): Mo
     is MobileTaskMutation.Failed -> state.copy(loading = false, error = mutation.message)
     MobileTaskMutation.Loading -> state.copy(loading = true)
     MobileTaskMutation.ErrorCleared -> state.copy(error = null)
+    MobileTaskMutation.Reset -> MobileTaskUiState()
     is MobileTaskMutation.EventReceived -> {
         if (state.events.any { it.id == mutation.event.id }) {
             state

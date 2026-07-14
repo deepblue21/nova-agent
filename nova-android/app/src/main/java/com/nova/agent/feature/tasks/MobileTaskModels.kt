@@ -25,3 +25,30 @@ data class MobileTaskEvent(
     val status: MobileTaskStatus? = null,
     val confirmation: MobileConfirmation? = null,
 )
+
+val MobileTaskStatus.userLabel: String
+    get() = when (this) {
+        MobileTaskStatus.QUEUED -> "Sıraya alındı"
+        MobileTaskStatus.ROUTING -> "Yönlendiriliyor"
+        MobileTaskStatus.OBSERVING -> "Cihaz inceleniyor"
+        MobileTaskStatus.PLANNING -> "Plan hazırlanıyor"
+        MobileTaskStatus.EXECUTING -> "Eylem uygulanıyor"
+        MobileTaskStatus.VERIFYING -> "Sonuç doğrulanıyor"
+        MobileTaskStatus.WAITING_FOR_CONFIRMATION -> "Onay bekleniyor"
+        MobileTaskStatus.WAITING_FOR_DEVICE -> "Telefon bekleniyor"
+        MobileTaskStatus.WAITING_FOR_COMPUTE -> "PC bekleniyor"
+        MobileTaskStatus.PAUSED -> "Duraklatıldı"
+        MobileTaskStatus.COMPLETED -> "Tamamlandı"
+        MobileTaskStatus.FAILED -> "Başarısız"
+        MobileTaskStatus.CANCELLED -> "İptal edildi"
+    }
+
+val MobileTaskEvent.userLabel: String
+    get() = status?.userLabel ?: when (type) {
+        "worker.claimed" -> "Görev alındı"
+        "worker.executing", "worker.running" -> "Eylem uygulanıyor"
+        "worker.observing" -> "Cihaz inceleniyor"
+        "worker.completed" -> "Tamamlandı"
+        "confirmation.requested" -> "Onay bekleniyor"
+        else -> "Görev güncellendi"
+    }

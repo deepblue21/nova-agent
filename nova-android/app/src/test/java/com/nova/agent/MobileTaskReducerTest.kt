@@ -7,6 +7,7 @@ import com.nova.agent.feature.tasks.MobileTaskMutation
 import com.nova.agent.feature.tasks.MobileTaskStatus
 import com.nova.agent.feature.tasks.MobileTaskUiState
 import com.nova.agent.feature.tasks.reduceMobileTask
+import com.nova.agent.feature.tasks.userLabel
 import com.nova.agent.net.MobileTaskClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -142,6 +143,27 @@ class MobileTaskReducerTest {
         assertEquals("Bağlantı hatası", withEvent.error)
         assertEquals(MobileTaskStatus.CANCELLED, complete.task?.status)
         assertNull(reduceMobileTask(complete, MobileTaskMutation.ErrorCleared).error)
+    }
+
+    @Test
+    fun exposesTurkishLabelsWithoutChangingWireStatus() {
+        assertEquals("Sıraya alındı", MobileTaskStatus.QUEUED.userLabel)
+        assertEquals("Eylem uygulanıyor", MobileTaskStatus.EXECUTING.userLabel)
+        assertEquals("Tamamlandı", MobileTaskStatus.COMPLETED.userLabel)
+        assertEquals("worker.completed", event("1", "worker.completed", "Android 17").type)
+    }
+
+    @Test
+    fun resetsTaskFlowToItsEmptyState() {
+        val active = MobileTaskUiState(
+            prompt = "Ayarlar'ı aç",
+            task = MobileTask("task-1", "Ayarlar'ı aç", MobileTaskStatus.COMPLETED),
+            events = listOf(event("1", "worker.completed", "Tamamlandı")),
+            loading = true,
+            error = "Eski hata",
+        )
+
+        assertEquals(MobileTaskUiState(), reduceMobileTask(active, MobileTaskMutation.Reset))
     }
 
     private fun event(

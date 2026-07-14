@@ -11,6 +11,8 @@ import com.nova.agent.feature.tasks.MobileTaskEvent
 import com.nova.agent.feature.tasks.MobileTaskScreen
 import com.nova.agent.feature.tasks.MobileTaskStatus
 import com.nova.agent.feature.tasks.MobileTaskUiState
+import com.nova.agent.net.GatewayConnectionStatus
+import com.nova.agent.net.GatewayConnectionUiState
 import com.nova.agent.ui.theme.NovaTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -42,16 +44,18 @@ class MobileTaskScreenTest {
             NovaTheme {
                 MobileTaskScreen(
                     state = state,
+                    connection = GatewayConnectionUiState(GatewayConnectionStatus.READY, "PC hazır"),
                     onPromptChange = {},
                     onCreateTask = {},
                     onCommand = {},
                     onDecision = { decision = it },
+                    onNewTask = {},
+                    onOpenSettings = {},
+                    onRetryConnection = {},
                 )
             }
         }
 
-        composeRule.onNodeWithTag("task_prompt").assertIsDisplayed()
-        composeRule.onNodeWithTag("task_submit").assertIsDisplayed()
         composeRule.onNodeWithTag("task_timeline").assertIsDisplayed()
         composeRule.onNodeWithTag("confirmation_panel").assertIsDisplayed()
         composeRule.onNodeWithTag("confirmation_approve").assertIsDisplayed().performClick()
@@ -79,15 +83,106 @@ class MobileTaskScreenTest {
             NovaTheme {
                 MobileTaskScreen(
                     state = state,
+                    connection = GatewayConnectionUiState(GatewayConnectionStatus.READY, "PC hazır"),
                     onPromptChange = {},
                     onCreateTask = {},
                     onCommand = {},
                     onDecision = {},
+                    onNewTask = {},
+                    onOpenSettings = {},
+                    onRetryConnection = {},
                 )
             }
         }
 
-        composeRule.onNodeWithText("COMPLETED").assertIsDisplayed()
+        composeRule.onNodeWithText("Tamamlandı").assertIsDisplayed()
         composeRule.onNodeWithText("Android 17").assertIsDisplayed()
+    }
+
+    @Test
+    fun showsTaskFirstEmptyStateAndQuickPrompt() {
+        var prompt = ""
+        composeRule.setContent {
+            NovaTheme {
+                MobileTaskScreen(
+                    state = MobileTaskUiState(),
+                    connection = GatewayConnectionUiState(GatewayConnectionStatus.READY, "PC hazır"),
+                    onPromptChange = { prompt = it },
+                    onCreateTask = {},
+                    onCommand = {},
+                    onDecision = {},
+                    onNewTask = {},
+                    onOpenSettings = {},
+                    onRetryConnection = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Telefonunda ne yapmamı istersin?").assertIsDisplayed()
+        composeRule.onNodeWithText("Android sürümünü bul").performClick()
+        assertEquals("Android sürümünü bul", prompt)
+    }
+
+    @Test
+    fun blocksSubmissionAndOffersSettingsWhenGatewayIsUnavailable() {
+        var opened = false
+        composeRule.setContent {
+            NovaTheme {
+                MobileTaskScreen(
+                    state = MobileTaskUiState(prompt = "Ayarlar'ı aç"),
+                    connection = GatewayConnectionUiState(
+                        GatewayConnectionStatus.UNREACHABLE,
+                        "Bağlantı yok",
+                    ),
+                    onPromptChange = {},
+                    onCreateTask = {},
+                    onCommand = {},
+                    onDecision = {},
+                    onNewTask = {},
+                    onOpenSettings = { opened = true },
+                    onRetryConnection = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Bağlantıyı ayarla").performClick()
+        assertEquals(true, opened)
+    }
+
+    @Test
+    fun showsLocalizedLifecycleAndNewTaskAction() {
+        var newTask = false
+        val state = MobileTaskUiState(
+            task = MobileTask("task-1", "Android sürümünü bul", MobileTaskStatus.COMPLETED),
+            events = listOf(
+                MobileTaskEvent(
+                    "1",
+                    "task-1",
+                    "worker.completed",
+                    "Android 17",
+                    MobileTaskStatus.COMPLETED,
+                ),
+            ),
+        )
+        composeRule.setContent {
+            NovaTheme {
+                MobileTaskScreen(
+                    state = state,
+                    connection = GatewayConnectionUiState(GatewayConnectionStatus.READY, "PC hazır"),
+                    onPromptChange = {},
+                    onCreateTask = {},
+                    onCommand = {},
+                    onDecision = {},
+                    onNewTask = { newTask = true },
+                    onOpenSettings = {},
+                    onRetryConnection = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Tamamlandı").assertIsDisplayed()
+        composeRule.onNodeWithText("Android 17").assertIsDisplayed()
+        composeRule.onNodeWithText("Yeni görev").performClick()
+        assertEquals(true, newTask)
     }
 }

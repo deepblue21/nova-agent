@@ -2,42 +2,43 @@ package com.nova.agent.feature.tasks
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Stop
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nova.agent.net.GatewayConnectionStatus
+import com.nova.agent.net.GatewayConnectionUiState
 import com.nova.agent.ui.theme.Bg
 import com.nova.agent.ui.theme.Coral
 import com.nova.agent.ui.theme.Cyan
@@ -51,115 +52,263 @@ import com.nova.agent.ui.theme.TextMain
 @Composable
 fun MobileTaskScreen(
     state: MobileTaskUiState,
+    connection: GatewayConnectionUiState = GatewayConnectionUiState(),
     onPromptChange: (String) -> Unit,
     onCreateTask: () -> Unit,
     onCommand: (String) -> Unit,
     onDecision: (String) -> Unit,
+    onNewTask: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+    onRetryConnection: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier.fillMaxSize().background(Bg)) {
-        TaskComposer(
-            prompt = state.prompt,
-            loading = state.loading,
-            onPromptChange = onPromptChange,
-            onCreateTask = onCreateTask,
+    val connected = connection.status == GatewayConnectionStatus.READY
+    Box(modifier.fillMaxSize().background(Bg)) {
+        if (state.task == null && state.events.isEmpty()) {
+            TaskEmptyState(
+                prompt = state.prompt,
+                connection = connection,
+                connected = connected,
+                loading = state.loading,
+                error = state.error,
+                onPromptChange = onPromptChange,
+                onQuickPrompt = onPromptChange,
+                onCreateTask = onCreateTask,
+                onOpenSettings = onOpenSettings,
+                onRetryConnection = onRetryConnection,
+            )
+        } else {
+            ActiveTaskContent(
+                state = state,
+                onCommand = onCommand,
+                onNewTask = onNewTask,
+            )
+        }
+
+        state.pendingConfirmation?.let { confirmation ->
+            val interactionSource = remember { MutableInteractionSource() }
+            Box(
+                Modifier.fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.66f))
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = {},
+                    ),
+            )
+            ConfirmationPanel(
+                confirmation = confirmation,
+                onDecision = onDecision,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        }
+    }
+}
+
+@Composable
+private fun TaskEmptyState(
+    prompt: String,
+    connection: GatewayConnectionUiState,
+    connected: Boolean,
+    loading: Boolean,
+    error: String?,
+    onPromptChange: (String) -> Unit,
+    onQuickPrompt: (String) -> Unit,
+    onCreateTask: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onRetryConnection: () -> Unit,
+) {
+    Column(
+        Modifier.fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            "Telefonunda ne yapmamı istersin?",
+            color = TextMain,
+            fontSize = 24.sp,
+            lineHeight = 30.sp,
+            fontWeight = FontWeight.Bold,
         )
+        Text(connection.message, color = if (connected) Cyan else Muted, fontSize = 13.sp)
+
+        QuickPrompt("Android sürümünü bul", onQuickPrompt)
+        QuickPrompt("Ayarlar'ı aç", onQuickPrompt)
+        QuickPrompt("Bir uygulamayı aç", onQuickPrompt)
+
+        Box(
+            Modifier.fillMaxWidth()
+                .defaultMinSize(minHeight = 120.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Surface1)
+                .border(1.dp, Line, RoundedCornerShape(12.dp))
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+        ) {
+            if (prompt.isEmpty()) {
+                Text("Görevi ayrıntılarıyla yaz", color = Muted2, fontSize = 15.sp)
+            }
+            BasicTextField(
+                value = prompt,
+                onValueChange = onPromptChange,
+                enabled = !loading,
+                minLines = 3,
+                maxLines = 5,
+                textStyle = TextStyle(color = TextMain, fontSize = 15.sp, lineHeight = 21.sp),
+                cursorBrush = SolidColor(Cyan),
+                modifier = Modifier.fillMaxWidth().testTag("task_prompt"),
+            )
+        }
+
+        error?.let { ErrorText(it) }
+
+        when {
+            connected -> Button(
+                onClick = onCreateTask,
+                enabled = prompt.isNotBlank() && !loading,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Cyan,
+                    contentColor = Color(0xFF04121A),
+                ),
+                modifier = Modifier.fillMaxWidth().height(52.dp).testTag("task_submit"),
+            ) {
+                Text("Görevi başlat", fontWeight = FontWeight.Bold)
+            }
+
+            connection.status in SETTINGS_CONNECTION_STATUSES -> {
+                Button(
+                    onClick = onOpenSettings,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                ) {
+                    Text("Bağlantıyı ayarla")
+                }
+                if (connection.status == GatewayConnectionStatus.UNREACHABLE) {
+                    OutlinedButton(
+                        onClick = onRetryConnection,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                    ) {
+                        Text("Tekrar dene")
+                    }
+                }
+            }
+
+            else -> Button(
+                onClick = {},
+                enabled = false,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+            ) {
+                Text("Bağlantı kontrol ediliyor")
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickPrompt(label: String, onQuickPrompt: (String) -> Unit) {
+    OutlinedButton(
+        onClick = { onQuickPrompt(label) },
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth().height(48.dp),
+    ) {
+        Text(label)
+    }
+}
+
+@Composable
+private fun ActiveTaskContent(
+    state: MobileTaskUiState,
+    onCommand: (String) -> Unit,
+    onNewTask: () -> Unit,
+) {
+    Column(Modifier.fillMaxSize()) {
         state.task?.let { task ->
-            TaskControls(task, state.loading, onCommand)
+            TaskStatusCard(
+                task = task,
+                loading = state.loading,
+                onCommand = onCommand,
+                onNewTask = onNewTask,
+            )
         }
         state.error?.let { error ->
-            Text(
-                error,
-                color = Coral,
-                fontSize = 13.sp,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            )
+            ErrorText(error, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
         }
         TaskTimeline(
             events = state.events,
             modifier = Modifier.weight(1f).fillMaxWidth(),
         )
-        state.pendingConfirmation?.let { confirmation ->
-            ConfirmationBand(confirmation, onDecision)
-        }
     }
 }
 
 @Composable
-private fun TaskComposer(
-    prompt: String,
+private fun TaskStatusCard(
+    task: MobileTask,
     loading: Boolean,
-    onPromptChange: (String) -> Unit,
-    onCreateTask: () -> Unit,
+    onCommand: (String) -> Unit,
+    onNewTask: () -> Unit,
 ) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    val terminal = task.status.isTerminal()
+    Column(
+        Modifier.fillMaxWidth()
+            .background(Surface1)
+            .border(1.dp, Line)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(
-            Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(8.dp)).background(Surface1)
-                .border(1.dp, Line, RoundedCornerShape(8.dp)).padding(horizontal = 14.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            if (prompt.isEmpty()) Text("Telefon görevi", color = Muted2, fontSize = 15.sp)
-            BasicTextField(
-                value = prompt,
-                onValueChange = onPromptChange,
-                enabled = !loading,
-                singleLine = true,
-                textStyle = TextStyle(color = TextMain, fontSize = 15.sp),
-                modifier = Modifier.fillMaxWidth().testTag("task_prompt"),
-            )
-        }
-        Spacer(Modifier.width(10.dp))
-        IconButton(
-            onClick = onCreateTask,
-            enabled = prompt.isNotBlank() && !loading,
-            modifier = Modifier.size(52.dp).clip(RoundedCornerShape(8.dp)).background(Cyan).testTag("task_submit"),
-        ) {
-            Icon(Icons.Filled.Send, "Görevi başlat", tint = Color(0xFF04121A))
-        }
-    }
-}
-
-@Composable
-private fun TaskControls(task: MobileTask, loading: Boolean, onCommand: (String) -> Unit) {
-    val terminal = task.status in setOf(
-        MobileTaskStatus.COMPLETED,
-        MobileTaskStatus.FAILED,
-        MobileTaskStatus.CANCELLED,
-    )
-    Row(
-        Modifier.fillMaxWidth().border(width = 1.dp, color = Line).padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(task.status.name.replace('_', ' '), color = Muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
-        if (!terminal) {
-            if (task.status == MobileTaskStatus.PAUSED) {
-                TaskIconAction(Icons.Filled.PlayArrow, "Devam et", loading) { onCommand("resume") }
-            } else {
-                TaskIconAction(Icons.Filled.Pause, "Duraklat", loading) { onCommand("pause") }
+        Text(
+            "Durum: ${task.status.userLabel}",
+            color = if (terminal) Cyan else TextMain,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            task.prompt,
+            color = Muted,
+            fontSize = 14.sp,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (terminal) {
+            Button(
+                onClick = onNewTask,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Cyan,
+                    contentColor = Color(0xFF04121A),
+                ),
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+            ) {
+                Text("Yeni görev", fontWeight = FontWeight.Bold)
             }
-            Spacer(Modifier.width(8.dp))
-            TaskIconAction(Icons.Filled.Stop, "İptal et", loading, Coral) { onCommand("cancel") }
+        } else {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Button(
+                    onClick = {
+                        onCommand(if (task.status == MobileTaskStatus.PAUSED) "resume" else "pause")
+                    },
+                    enabled = !loading,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f).height(48.dp),
+                ) {
+                    Text(if (task.status == MobileTaskStatus.PAUSED) "Devam et" else "Duraklat")
+                }
+                OutlinedButton(
+                    onClick = { onCommand("cancel") },
+                    enabled = !loading,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Coral),
+                    modifier = Modifier.weight(1f).height(48.dp),
+                ) {
+                    Text("İptal et")
+                }
+            }
         }
-    }
-}
-
-@Composable
-private fun TaskIconAction(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    contentDescription: String,
-    loading: Boolean,
-    tint: Color = Cyan,
-    onClick: () -> Unit,
-) {
-    IconButton(
-        onClick = onClick,
-        enabled = !loading,
-        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(Surface2),
-    ) {
-        Icon(icon, contentDescription, tint = tint)
     }
 }
 
@@ -167,14 +316,16 @@ private fun TaskIconAction(
 private fun TaskTimeline(events: List<MobileTaskEvent>, modifier: Modifier = Modifier) {
     LazyColumn(
         modifier = modifier.testTag("task_timeline"),
-        verticalArrangement = Arrangement.spacedBy(0.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 4.dp),
     ) {
         items(events, key = { it.id }) { event ->
             Column(
-                Modifier.fillMaxWidth().border(width = 1.dp, color = Line).padding(horizontal = 16.dp, vertical = 12.dp),
+                Modifier.fillMaxWidth()
+                    .border(1.dp, Line)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
             ) {
-                Text(event.type, color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(3.dp))
+                Text(event.userLabel, color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(4.dp))
                 Text(
                     event.summary,
                     color = TextMain,
@@ -188,28 +339,70 @@ private fun TaskTimeline(events: List<MobileTaskEvent>, modifier: Modifier = Mod
 }
 
 @Composable
-private fun ConfirmationBand(confirmation: MobileConfirmation, onDecision: (String) -> Unit) {
+private fun ConfirmationPanel(
+    confirmation: MobileConfirmation,
+    onDecision: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(
-        Modifier.fillMaxWidth().background(Surface2).border(width = 1.dp, color = Coral.copy(alpha = 0.5f))
-            .padding(horizontal = 16.dp, vertical = 14.dp).testTag("confirmation_panel"),
+        modifier.fillMaxWidth()
+            .background(Surface2)
+            .border(1.dp, Coral.copy(alpha = 0.5f))
+            .padding(horizontal = 16.dp, vertical = 16.dp)
+            .testTag("confirmation_panel"),
     ) {
-        Text("${confirmation.riskLevel} onayı", color = Coral, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(4.dp))
-        Text(confirmation.actionSummary, color = TextMain, fontSize = 15.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-        Spacer(Modifier.height(12.dp))
+        Text(
+            "${confirmation.riskLevel} onayı",
+            color = Coral,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            confirmation.actionSummary,
+            color = TextMain,
+            fontSize = 15.sp,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(
+            OutlinedButton(
                 onClick = { onDecision("reject") },
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Surface1, contentColor = TextMain),
-                modifier = Modifier.weight(1f).testTag("confirmation_reject"),
-            ) { Text("Reddet") }
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.weight(1f).height(48.dp).testTag("confirmation_reject"),
+            ) {
+                Text("Reddet")
+            }
             Button(
                 onClick = { onDecision("approve") },
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Cyan, contentColor = Color(0xFF04121A)),
-                modifier = Modifier.weight(1f).testTag("confirmation_approve"),
-            ) { Text("Onayla") }
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Cyan,
+                    contentColor = Color(0xFF04121A),
+                ),
+                modifier = Modifier.weight(1f).height(48.dp).testTag("confirmation_approve"),
+            ) {
+                Text("Onayla")
+            }
         }
     }
 }
+
+@Composable
+private fun ErrorText(message: String, modifier: Modifier = Modifier) {
+    Text(message, color = Coral, fontSize = 13.sp, modifier = modifier.fillMaxWidth())
+}
+
+private fun MobileTaskStatus.isTerminal(): Boolean = this in setOf(
+    MobileTaskStatus.COMPLETED,
+    MobileTaskStatus.FAILED,
+    MobileTaskStatus.CANCELLED,
+)
+
+private val SETTINGS_CONNECTION_STATUSES = setOf(
+    GatewayConnectionStatus.UNKNOWN,
+    GatewayConnectionStatus.AUTH_REQUIRED,
+    GatewayConnectionStatus.INVALID_URL,
+    GatewayConnectionStatus.UNREACHABLE,
+)
