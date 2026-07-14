@@ -1,9 +1,19 @@
 package com.nova.agent
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.unit.dp
+import com.nova.agent.data.ChatMessage
 import com.nova.agent.data.VoiceState
 import com.nova.agent.feature.chat.ChatScreen
 import com.nova.agent.feature.voice.VoiceScreen
@@ -42,5 +52,40 @@ class AssistantScreensTest {
         }
 
         composeRule.onNodeWithContentDescription("Dinlemeyi başlat").assertIsDisplayed()
+    }
+
+    @Test
+    fun streamingTallResponseKeepsTailVisible() {
+        var streamingContent by mutableStateOf(
+            List(40) { index -> "Akış satırı ${index + 1}" }.joinToString("\n"),
+        )
+        composeRule.setContent {
+            NovaTheme {
+                Box(Modifier.width(320.dp).height(240.dp)) {
+                    ChatScreen(
+                        messages = listOf(
+                            ChatMessage(
+                                role = "assistant",
+                                content = streamingContent,
+                                streaming = true,
+                            ),
+                        ),
+                        busy = true,
+                        onSend = {},
+                        onStop = {},
+                        onRegenerate = {},
+                    )
+                }
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.runOnIdle {
+            streamingContent += "\n" +
+                List(20) { index -> "Yeni akış satırı ${index + 1}" }.joinToString("\n")
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("chat_stream_tail").assertIsDisplayed()
     }
 }

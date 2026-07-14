@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -83,7 +84,7 @@ fun ChatScreen(
             val listState = rememberLazyListState()
             val lastMessageContent = messages.lastOrNull()?.content
             LaunchedEffect(messages.size, lastMessageContent, busy) {
-                listState.animateScrollToItem(messages.lastIndex)
+                listState.animateScrollToItem(messages.size)
             }
             LazyColumn(
                 state = listState,
@@ -96,6 +97,11 @@ fun ChatScreen(
                         message = message,
                         isLast = index == messages.lastIndex,
                         onRegenerate = onRegenerate,
+                    )
+                }
+                item {
+                    Spacer(
+                        Modifier.fillMaxWidth().height(1.dp).testTag("chat_stream_tail"),
                     )
                 }
             }
