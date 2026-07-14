@@ -16,9 +16,14 @@ import com.nova.agent.data.MODELS
 import com.nova.agent.data.Mode
 import com.nova.agent.data.SettingsStore
 import com.nova.agent.data.VoiceState
+import com.nova.agent.net.GatewayConnectionClient
+import com.nova.agent.net.GatewayConnectionResult
+import com.nova.agent.net.GatewayConnectionStatus
+import com.nova.agent.net.GatewayConnectionUiState
 import com.nova.agent.net.NovaClient
 import com.nova.agent.voice.SpeechManager
 import kotlinx.coroutines.launch
+import okhttp3.Call
 import okhttp3.sse.EventSource
 
 private const val DEFAULT_SUB = "Konuşmak için mikrofona dokun"
@@ -27,31 +32,73 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
 
     private val store = SettingsStore(app)
     private val client = NovaClient()
+    private val connectionClient = GatewayConnectionClient()
     private val speech = SpeechManager(app)
     private val main = Handler(Looper.getMainLooper())
     private fun onMain(block: () -> Unit) { main.post(block) }
 
     val messages = mutableStateListOf<ChatMessage>()
     var settings by mutableStateOf(AppSettings()); private set
+    var connectionState by mutableStateOf(GatewayConnectionUiState()); private set
     var busy by mutableStateOf(false); private set
-    var mode by mutableStateOf(Mode.VOICE)
+    var mode by mutableStateOf(Mode.TASKS)
     var voiceState by mutableStateOf(VoiceState.IDLE); private set
     var voiceSub by mutableStateOf(DEFAULT_SUB); private set
     var level by mutableStateOf(0.08f); private set
 
     private var es: EventSource? = null
+    private var connectionCall: Call? = null
     private val sb = StringBuilder()
 
     init {
         speech.initTts()
-        viewModelScope.launch { settings = store.load() }
+        viewModelScope.launch {
+            settings = store.load()
+            if (settings.baseUrl.isNotBlank()) testConnection(settings.baseUrl, settings.token)
+        }
     }
 
     // ---------- ayarlar ----------
     fun setModel(id: String) = persist(settings.copy(modelId = id))
     fun setEffort(id: String) = persist(settings.copy(effort = id))
-    fun toggleReasoning() = persist(settings.copy(reasoning = !settings.reasoning))
-    fun saveConnection(baseUrl: String, token: String) = persist(settings.copy(baseUrl = baseUrl.trim(), token = token.trim()))
+    fun setReasoning(enabled: Boolean) = persist(settings.copy(reasoning = enabled))
+    fun toggleReasoning() = setReasoning(!settings.reasoning)
+
+    fun saveConnection(baseUrl: String, token: String) {
+        val updated = settings.copy(baseUrl = baseUrl.trim(), token = token.trim())
+        persist(updated)
+        testConnection(updated.baseUrl, updated.token)
+    }
+
+    fun testConnection(baseUrl: String = settings.baseUrl, token: String = settings.token) {
+        connectionCall?.cancel()
+        connectionState = GatewayConnectionUiState(
+            GatewayConnectionStatus.CHECKING,
+            "Bağlanıyor",
+        )
+        connectionCall = connectionClient.test(baseUrl, token) { result ->
+            onMain {
+                connectionState = when (result) {
+                    GatewayConnectionResult.Ready -> GatewayConnectionUiState(
+                        GatewayConnectionStatus.READY,
+                        "PC hazır",
+                    )
+                    GatewayConnectionResult.AuthRequired -> GatewayConnectionUiState(
+                        GatewayConnectionStatus.AUTH_REQUIRED,
+                        "Kimlik doğrulama gerekli",
+                    )
+                    GatewayConnectionResult.InvalidUrl -> GatewayConnectionUiState(
+                        GatewayConnectionStatus.INVALID_URL,
+                        "Gateway adresi geçersiz",
+                    )
+                    is GatewayConnectionResult.Failure -> GatewayConnectionUiState(
+                        GatewayConnectionStatus.UNREACHABLE,
+                        result.message,
+                    )
+                }
+            }
+        }
+    }
 
     private fun persist(s: AppSettings) {
         settings = s
@@ -169,6 +216,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        connectionCall?.cancel()
         es?.cancel()
         speech.destroy()
         super.onCleared()
