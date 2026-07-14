@@ -28,11 +28,26 @@ import okhttp3.sse.EventSource
 
 private const val DEFAULT_SUB = "Konuşmak için mikrofona dokun"
 
+internal class LatestConnectionProbe {
+    private var generation = 0L
+
+    fun start(): Long = ++generation
+
+    fun complete(probe: Long, block: () -> Unit) {
+        if (probe == generation) block()
+    }
+
+    fun invalidate() {
+        generation++
+    }
+}
+
 class NovaViewModel(app: Application) : AndroidViewModel(app) {
 
     private val store = SettingsStore(app)
     private val client = NovaClient()
     private val connectionClient = GatewayConnectionClient()
+    private val connectionProbes = LatestConnectionProbe()
     private val speech = SpeechManager(app)
     private val main = Handler(Looper.getMainLooper())
     private fun onMain(block: () -> Unit) { main.post(block) }
@@ -71,6 +86,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun testConnection(baseUrl: String = settings.baseUrl, token: String = settings.token) {
+        val probe = connectionProbes.start()
         connectionCall?.cancel()
         connectionState = GatewayConnectionUiState(
             GatewayConnectionStatus.CHECKING,
@@ -78,23 +94,25 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         )
         connectionCall = connectionClient.test(baseUrl, token) { result ->
             onMain {
-                connectionState = when (result) {
-                    GatewayConnectionResult.Ready -> GatewayConnectionUiState(
-                        GatewayConnectionStatus.READY,
-                        "PC hazır",
-                    )
-                    GatewayConnectionResult.AuthRequired -> GatewayConnectionUiState(
-                        GatewayConnectionStatus.AUTH_REQUIRED,
-                        "Kimlik doğrulama gerekli",
-                    )
-                    GatewayConnectionResult.InvalidUrl -> GatewayConnectionUiState(
-                        GatewayConnectionStatus.INVALID_URL,
-                        "Gateway adresi geçersiz",
-                    )
-                    is GatewayConnectionResult.Failure -> GatewayConnectionUiState(
-                        GatewayConnectionStatus.UNREACHABLE,
-                        result.message,
-                    )
+                connectionProbes.complete(probe) {
+                    connectionState = when (result) {
+                        GatewayConnectionResult.Ready -> GatewayConnectionUiState(
+                            GatewayConnectionStatus.READY,
+                            "PC hazır",
+                        )
+                        GatewayConnectionResult.AuthRequired -> GatewayConnectionUiState(
+                            GatewayConnectionStatus.AUTH_REQUIRED,
+                            "Kimlik doğrulama gerekli",
+                        )
+                        GatewayConnectionResult.InvalidUrl -> GatewayConnectionUiState(
+                            GatewayConnectionStatus.INVALID_URL,
+                            "Gateway adresi geçersiz",
+                        )
+                        is GatewayConnectionResult.Failure -> GatewayConnectionUiState(
+                            GatewayConnectionStatus.UNREACHABLE,
+                            result.message,
+                        )
+                    }
                 }
             }
         }
@@ -216,6 +234,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        connectionProbes.invalidate()
         connectionCall?.cancel()
         es?.cancel()
         speech.destroy()
