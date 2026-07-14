@@ -16,12 +16,93 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import okhttp3.sse.EventSource
 
+private class MobileTaskRequestConnection(
+    val baseUrl: String,
+    val token: String,
+)
+
+internal class MobileTaskRequestSettings(
+    initial: AppSettings = AppSettings(),
+    private val client: MobileTaskClient = MobileTaskClient(),
+) {
+    private var generation = 0L
+    private var connection = initial.toRequestConnection()
+
+    @Synchronized
+    fun beginStoreLoad(): Long = generation
+
+    @Synchronized
+    fun applyStoreLoad(loadGeneration: Long, loaded: AppSettings) {
+        if (loadGeneration == generation) connection = loaded.toRequestConnection()
+    }
+
+    @Synchronized
+    fun updateConnectionSettings(baseUrl: String, token: String) {
+        generation += 1
+        connection = MobileTaskRequestConnection(baseUrl.trim(), token.trim())
+    }
+
+    @Synchronized
+    private fun current(): MobileTaskRequestConnection = connection
+
+    fun createTask(prompt: String, callback: (Result<MobileTask>) -> Unit) {
+        val request = current()
+        client.createTask(request.baseUrl, request.token, prompt, callback)
+    }
+
+    fun command(
+        taskId: String,
+        command: String,
+        callback: (Result<MobileTask>) -> Unit,
+    ) {
+        val request = current()
+        client.command(request.baseUrl, request.token, taskId, command, callback = callback)
+    }
+
+    fun resolveConfirmation(
+        taskId: String,
+        confirmationId: String,
+        decision: String,
+        callback: (Result<MobileTask>) -> Unit,
+    ) {
+        val request = current()
+        client.resolveConfirmation(
+            request.baseUrl,
+            request.token,
+            taskId,
+            confirmationId,
+            decision,
+            callback,
+        )
+    }
+
+    fun streamEvents(
+        taskId: String,
+        lastEventId: String?,
+        callbacks: MobileTaskClient.EventCallbacks,
+    ): EventSource {
+        val request = current()
+        return client.streamEvents(
+            request.baseUrl,
+            request.token,
+            taskId,
+            lastEventId,
+            callbacks,
+        )
+    }
+
+    private fun AppSettings.toRequestConnection() = MobileTaskRequestConnection(
+        baseUrl = baseUrl.trim(),
+        token = token.trim(),
+    )
+}
+
 class MobileTaskViewModel(app: Application) : AndroidViewModel(app) {
     private val store = SettingsStore(app)
-    private val client = MobileTaskClient()
     private val main = Handler(Looper.getMainLooper())
 
-    private var settings = AppSettings()
+    private val requestSettings = MobileTaskRequestSettings()
+    private val initialSettingsLoad = requestSettings.beginStoreLoad()
     private var eventSource: EventSource? = null
     private var reconnectJob: Job? = null
     private var reconnectAttempt = 0
@@ -31,7 +112,13 @@ class MobileTaskViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     init {
-        viewModelScope.launch { settings = store.load() }
+        viewModelScope.launch {
+            requestSettings.applyStoreLoad(initialSettingsLoad, store.load())
+        }
+    }
+
+    fun updateConnectionSettings(baseUrl: String, token: String) {
+        requestSettings.updateConnectionSettings(baseUrl, token)
     }
 
     fun updatePrompt(value: String) = update(MobileTaskMutation.PromptChanged(value))
@@ -49,7 +136,7 @@ class MobileTaskViewModel(app: Application) : AndroidViewModel(app) {
 
         disconnect()
         update(MobileTaskMutation.Loading)
-        client.createTask(settings.baseUrl, settings.token, prompt) { result ->
+        requestSettings.createTask(prompt) { result ->
             onMain {
                 result.fold(
                     onSuccess = { task ->
@@ -76,7 +163,7 @@ class MobileTaskViewModel(app: Application) : AndroidViewModel(app) {
     private fun command(value: String) {
         val task = state.task ?: return
         update(MobileTaskMutation.Loading)
-        client.command(settings.baseUrl, settings.token, task.id, value) { result ->
+        requestSettings.command(task.id, value) { result ->
             onMain { acceptTaskResult(result) }
         }
     }
@@ -86,9 +173,7 @@ class MobileTaskViewModel(app: Application) : AndroidViewModel(app) {
         val task = state.task ?: return
         val confirmation = state.pendingConfirmation ?: return
         update(MobileTaskMutation.Loading)
-        client.resolveConfirmation(
-            settings.baseUrl,
-            settings.token,
+        requestSettings.resolveConfirmation(
             task.id,
             confirmation.id,
             decision,
@@ -123,9 +208,7 @@ class MobileTaskViewModel(app: Application) : AndroidViewModel(app) {
         stopStream()
         val generation = streamGeneration
         val lastEventId = state.events.lastOrNull()?.id
-        eventSource = client.streamEvents(
-            settings.baseUrl,
-            settings.token,
+        eventSource = requestSettings.streamEvents(
             taskId,
             lastEventId,
             object : MobileTaskClient.EventCallbacks {

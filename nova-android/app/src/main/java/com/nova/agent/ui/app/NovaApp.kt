@@ -6,12 +6,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.nova.agent.NovaViewModel
+import com.nova.agent.data.AppSettings
 import com.nova.agent.data.Mode
 import com.nova.agent.feature.chat.ChatScreen
 import com.nova.agent.feature.settings.SettingsPanel
 import com.nova.agent.feature.tasks.MobileTaskScreen
 import com.nova.agent.feature.tasks.MobileTaskViewModel
 import com.nova.agent.feature.voice.VoiceScreen
+import com.nova.agent.net.GatewayConnectionUiState
 
 @Composable
 fun NovaApp(
@@ -66,15 +68,45 @@ fun NovaApp(
     }
 
     if (showSettings) {
-        SettingsPanel(
+        NovaSettingsPanel(
             settings = vm.settings,
             connection = vm.connectionState,
             onTestConnection = vm::testConnection,
-            onSaveConnection = vm::saveConnection,
+            onUpdateTaskConnection = taskVm::updateConnectionSettings,
+            onSaveAssistantConnection = vm::saveConnection,
             onModelChange = vm::setModel,
             onEffortChange = vm::setEffort,
             onReasoningChange = vm::setReasoning,
             onClose = { showSettings = false },
         )
     }
+}
+
+@Composable
+internal fun NovaSettingsPanel(
+    settings: AppSettings,
+    connection: GatewayConnectionUiState,
+    onTestConnection: (String, String) -> Unit,
+    onUpdateTaskConnection: (String, String) -> Unit,
+    onSaveAssistantConnection: (String, String) -> Unit,
+    onModelChange: (String) -> Unit,
+    onEffortChange: (String) -> Unit,
+    onReasoningChange: (Boolean) -> Unit,
+    onClose: () -> Unit,
+) {
+    SettingsPanel(
+        settings = settings,
+        connection = connection,
+        onTestConnection = onTestConnection,
+        onSaveConnection = { baseUrl, token ->
+            val trimmedBaseUrl = baseUrl.trim()
+            val trimmedToken = token.trim()
+            onUpdateTaskConnection(trimmedBaseUrl, trimmedToken)
+            onSaveAssistantConnection(trimmedBaseUrl, trimmedToken)
+        },
+        onModelChange = onModelChange,
+        onEffortChange = onEffortChange,
+        onReasoningChange = onReasoningChange,
+        onClose = onClose,
+    )
 }
