@@ -11,6 +11,9 @@ data class MobileTaskUiState(
     val error: String? = null,
 )
 
+val MobileTaskUiState.canResolveConfirmation: Boolean
+    get() = !loading && task != null && pendingConfirmation != null
+
 sealed interface MobileTaskMutation {
     data class PromptChanged(val value: String) : MobileTaskMutation
     data class TaskLoaded(val task: MobileTask) : MobileTaskMutation

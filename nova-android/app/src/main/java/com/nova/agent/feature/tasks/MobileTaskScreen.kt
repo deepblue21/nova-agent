@@ -32,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,26 +64,35 @@ fun MobileTaskScreen(
     modifier: Modifier = Modifier,
 ) {
     val connected = connection.status == GatewayConnectionStatus.READY
+    val confirmationPending = state.pendingConfirmation != null
     Box(modifier.fillMaxSize().background(Bg)) {
-        if (state.task == null && state.events.isEmpty()) {
-            TaskEmptyState(
-                prompt = state.prompt,
-                connection = connection,
-                connected = connected,
-                loading = state.loading,
-                error = state.error,
-                onPromptChange = onPromptChange,
-                onQuickPrompt = onPromptChange,
-                onCreateTask = onCreateTask,
-                onOpenSettings = onOpenSettings,
-                onRetryConnection = onRetryConnection,
-            )
-        } else {
-            ActiveTaskContent(
-                state = state,
-                onCommand = onCommand,
-                onNewTask = onNewTask,
-            )
+        Box(
+            Modifier.fillMaxSize().then(
+                if (confirmationPending) Modifier.clearAndSetSemantics {} else Modifier,
+            ),
+        ) {
+            if (state.task == null && state.events.isEmpty()) {
+                TaskEmptyState(
+                    prompt = state.prompt,
+                    connection = connection,
+                    connected = connected,
+                    loading = state.loading,
+                    actionsEnabled = !confirmationPending,
+                    error = state.error,
+                    onPromptChange = onPromptChange,
+                    onQuickPrompt = onPromptChange,
+                    onCreateTask = onCreateTask,
+                    onOpenSettings = onOpenSettings,
+                    onRetryConnection = onRetryConnection,
+                )
+            } else {
+                ActiveTaskContent(
+                    state = state,
+                    actionsEnabled = !confirmationPending,
+                    onCommand = onCommand,
+                    onNewTask = onNewTask,
+                )
+            }
         }
 
         state.pendingConfirmation?.let { confirmation ->
@@ -94,10 +104,19 @@ fun MobileTaskScreen(
                         interactionSource = interactionSource,
                         indication = null,
                         onClick = {},
-                    ),
+                    )
+                    .clearAndSetSemantics {},
             )
+            val taskPrompt = state.task?.prompt
+            val summary = state.events.asReversed()
+                .firstOrNull { it.confirmation?.id == confirmation.id }
+                ?.userSummary(taskPrompt)
+                ?: taskPrompt?.trim()?.takeIf { it.isNotEmpty() }
+                ?: "Onay bekleniyor"
             ConfirmationPanel(
                 confirmation = confirmation,
+                actionSummary = summary,
+                decisionEnabled = state.canResolveConfirmation,
                 onDecision = onDecision,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
@@ -111,6 +130,7 @@ private fun TaskEmptyState(
     connection: GatewayConnectionUiState,
     connected: Boolean,
     loading: Boolean,
+    actionsEnabled: Boolean,
     error: String?,
     onPromptChange: (String) -> Unit,
     onQuickPrompt: (String) -> Unit,
@@ -133,9 +153,9 @@ private fun TaskEmptyState(
         )
         Text(connection.message, color = if (connected) Cyan else Muted, fontSize = 13.sp)
 
-        QuickPrompt("Android sürümünü bul", onQuickPrompt)
-        QuickPrompt("Ayarlar'ı aç", onQuickPrompt)
-        QuickPrompt("Bir uygulamayı aç", onQuickPrompt)
+        QuickPrompt("Android sürümünü bul", actionsEnabled, onQuickPrompt)
+        QuickPrompt("Ayarlar'ı aç", actionsEnabled, onQuickPrompt)
+        QuickPrompt("Bir uygulamayı aç", actionsEnabled, onQuickPrompt)
 
         Box(
             Modifier.fillMaxWidth()
@@ -151,7 +171,7 @@ private fun TaskEmptyState(
             BasicTextField(
                 value = prompt,
                 onValueChange = onPromptChange,
-                enabled = !loading,
+                enabled = actionsEnabled && !loading,
                 minLines = 3,
                 maxLines = 5,
                 textStyle = TextStyle(color = TextMain, fontSize = 15.sp, lineHeight = 21.sp),
@@ -165,7 +185,7 @@ private fun TaskEmptyState(
         when {
             connected -> Button(
                 onClick = onCreateTask,
-                enabled = prompt.isNotBlank() && !loading,
+                enabled = actionsEnabled && prompt.isNotBlank() && !loading,
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Cyan,
@@ -179,6 +199,7 @@ private fun TaskEmptyState(
             connection.status in SETTINGS_CONNECTION_STATUSES -> {
                 Button(
                     onClick = onOpenSettings,
+                    enabled = actionsEnabled,
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                 ) {
@@ -187,6 +208,7 @@ private fun TaskEmptyState(
                 if (connection.status == GatewayConnectionStatus.UNREACHABLE) {
                     OutlinedButton(
                         onClick = onRetryConnection,
+                        enabled = actionsEnabled,
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                     ) {
@@ -208,9 +230,10 @@ private fun TaskEmptyState(
 }
 
 @Composable
-private fun QuickPrompt(label: String, onQuickPrompt: (String) -> Unit) {
+private fun QuickPrompt(label: String, enabled: Boolean, onQuickPrompt: (String) -> Unit) {
     OutlinedButton(
         onClick = { onQuickPrompt(label) },
+        enabled = enabled,
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth().height(48.dp),
     ) {
@@ -221,6 +244,7 @@ private fun QuickPrompt(label: String, onQuickPrompt: (String) -> Unit) {
 @Composable
 private fun ActiveTaskContent(
     state: MobileTaskUiState,
+    actionsEnabled: Boolean,
     onCommand: (String) -> Unit,
     onNewTask: () -> Unit,
 ) {
@@ -229,6 +253,7 @@ private fun ActiveTaskContent(
             TaskStatusCard(
                 task = task,
                 loading = state.loading,
+                actionsEnabled = actionsEnabled,
                 onCommand = onCommand,
                 onNewTask = onNewTask,
             )
@@ -238,6 +263,7 @@ private fun ActiveTaskContent(
         }
         TaskTimeline(
             events = state.events,
+            taskPrompt = state.task?.prompt,
             modifier = Modifier.weight(1f).fillMaxWidth(),
         )
     }
@@ -247,6 +273,7 @@ private fun ActiveTaskContent(
 private fun TaskStatusCard(
     task: MobileTask,
     loading: Boolean,
+    actionsEnabled: Boolean,
     onCommand: (String) -> Unit,
     onNewTask: () -> Unit,
 ) {
@@ -274,6 +301,7 @@ private fun TaskStatusCard(
         if (terminal) {
             Button(
                 onClick = onNewTask,
+                enabled = actionsEnabled,
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Cyan,
@@ -292,7 +320,7 @@ private fun TaskStatusCard(
                     onClick = {
                         onCommand(if (task.status == MobileTaskStatus.PAUSED) "resume" else "pause")
                     },
-                    enabled = !loading,
+                    enabled = actionsEnabled && !loading,
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.weight(1f).height(48.dp),
                 ) {
@@ -300,7 +328,7 @@ private fun TaskStatusCard(
                 }
                 OutlinedButton(
                     onClick = { onCommand("cancel") },
-                    enabled = !loading,
+                    enabled = actionsEnabled && !loading,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Coral),
                     modifier = Modifier.weight(1f).height(48.dp),
@@ -313,7 +341,11 @@ private fun TaskStatusCard(
 }
 
 @Composable
-private fun TaskTimeline(events: List<MobileTaskEvent>, modifier: Modifier = Modifier) {
+private fun TaskTimeline(
+    events: List<MobileTaskEvent>,
+    taskPrompt: String?,
+    modifier: Modifier = Modifier,
+) {
     LazyColumn(
         modifier = modifier.testTag("task_timeline"),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 4.dp),
@@ -327,7 +359,7 @@ private fun TaskTimeline(events: List<MobileTaskEvent>, modifier: Modifier = Mod
                 Text(event.userLabel, color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    event.summary,
+                    event.userSummary(taskPrompt),
                     color = TextMain,
                     fontSize = 14.sp,
                     maxLines = 3,
@@ -341,6 +373,8 @@ private fun TaskTimeline(events: List<MobileTaskEvent>, modifier: Modifier = Mod
 @Composable
 private fun ConfirmationPanel(
     confirmation: MobileConfirmation,
+    actionSummary: String,
+    decisionEnabled: Boolean,
     onDecision: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -359,7 +393,7 @@ private fun ConfirmationPanel(
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            confirmation.actionSummary,
+            actionSummary,
             color = TextMain,
             fontSize = 15.sp,
             maxLines = 3,
@@ -369,6 +403,7 @@ private fun ConfirmationPanel(
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(
                 onClick = { onDecision("reject") },
+                enabled = decisionEnabled,
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.weight(1f).height(48.dp).testTag("confirmation_reject"),
             ) {
@@ -376,6 +411,7 @@ private fun ConfirmationPanel(
             }
             Button(
                 onClick = { onDecision("approve") },
+                enabled = decisionEnabled,
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Cyan,

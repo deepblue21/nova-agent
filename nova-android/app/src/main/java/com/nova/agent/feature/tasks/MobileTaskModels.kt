@@ -52,3 +52,15 @@ val MobileTaskEvent.userLabel: String
         "confirmation.requested" -> "Onay bekleniyor"
         else -> "Görev güncellendi"
     }
+
+fun MobileTaskEvent.userSummary(taskPrompt: String?): String {
+    val value = summary.trim()
+    val wireStatus = MobileTaskStatus.fromWireOrNull(value)
+    val parserFallback = value.isEmpty() || value == type || wireStatus != null
+    if (!parserFallback) return value
+
+    if (type == "confirmation.requested") {
+        taskPrompt?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+    }
+    return wireStatus?.userLabel ?: userLabel
+}

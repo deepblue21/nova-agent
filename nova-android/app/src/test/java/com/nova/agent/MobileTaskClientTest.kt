@@ -66,15 +66,28 @@ class MobileTaskClientTest {
     }
 
     @Test
-    fun parsesConfirmationRequestedEvent() {
+    fun parsesContractShapedConfirmationRequestedEvent() {
         val event = MobileTaskClient.parseEvent(
-            """{"id":"43","task_id":"task-1","type":"confirmation.requested","payload":{"confirmation_id":"confirmation-1","risk_level":"R2","action_summary":"Turn Wi-Fi off"}}""",
+            """{"id":"43","task_id":"task-1","type":"confirmation.requested","payload":{"confirmation_id":"confirmation-1","risk_level":"R2","status":"waiting_for_confirmation"}}""",
             null,
         )
 
         assertNotNull(event)
         assertEquals("confirmation-1", event?.confirmation?.id)
         assertEquals("R2", event?.confirmation?.riskLevel)
+        assertEquals(MobileTaskStatus.WAITING_FOR_CONFIRMATION, event?.status)
+        assertEquals("waiting_for_confirmation", event?.summary)
+        assertEquals("waiting_for_confirmation", event?.confirmation?.actionSummary)
+    }
+
+    @Test
+    fun preservesExplicitConfirmationActionSummary() {
+        val event = MobileTaskClient.parseEvent(
+            """{"id":"46","task_id":"task-1","type":"confirmation.requested","payload":{"confirmation_id":"confirmation-2","risk_level":"R2","action_summary":"Turn Wi-Fi off"}}""",
+            null,
+        )
+
+        assertEquals("Turn Wi-Fi off", event?.summary)
         assertEquals("Turn Wi-Fi off", event?.confirmation?.actionSummary)
     }
 

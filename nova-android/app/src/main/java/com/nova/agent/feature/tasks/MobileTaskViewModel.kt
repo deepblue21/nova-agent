@@ -82,6 +82,7 @@ class MobileTaskViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun decide(decision: String) {
+        if (!state.canResolveConfirmation) return
         val task = state.task ?: return
         val confirmation = state.pendingConfirmation ?: return
         update(MobileTaskMutation.Loading)

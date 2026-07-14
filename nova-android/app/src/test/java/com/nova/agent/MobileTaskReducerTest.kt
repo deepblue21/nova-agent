@@ -6,11 +6,15 @@ import com.nova.agent.feature.tasks.MobileTaskEvent
 import com.nova.agent.feature.tasks.MobileTaskMutation
 import com.nova.agent.feature.tasks.MobileTaskStatus
 import com.nova.agent.feature.tasks.MobileTaskUiState
+import com.nova.agent.feature.tasks.canResolveConfirmation
 import com.nova.agent.feature.tasks.reduceMobileTask
 import com.nova.agent.feature.tasks.userLabel
+import com.nova.agent.feature.tasks.userSummary
 import com.nova.agent.net.MobileTaskClient
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MobileTaskReducerTest {
@@ -164,6 +168,41 @@ class MobileTaskReducerTest {
         )
 
         assertEquals(MobileTaskUiState(), reduceMobileTask(active, MobileTaskMutation.Reset))
+    }
+
+    @Test
+    fun derivesSafeUiSummariesFromContractWireFallbacks() {
+        val confirmation = requireNotNull(
+            MobileTaskClient.parseEvent(
+                """{"id":"43","task_id":"task-1","type":"confirmation.requested","payload":{"confirmation_id":"confirmation-1","risk_level":"R2","status":"waiting_for_confirmation"}}""",
+                null,
+            ),
+        )
+        val queued = requireNotNull(
+            MobileTaskClient.parseEvent(
+                """{"id":"44","task_id":"task-1","type":"task.state","payload":{"status":"queued"}}""",
+                null,
+            ),
+        )
+
+        assertEquals("Ayarlar'ı aç", confirmation.userSummary("Ayarlar'ı aç"))
+        assertEquals("Sıraya alındı", queued.userSummary("Ayarlar'ı aç"))
+        assertEquals("waiting_for_confirmation", confirmation.summary)
+        assertEquals("queued", queued.summary)
+    }
+
+    @Test
+    fun blocksConfirmationDecisionsWhileARequestIsInFlight() {
+        val confirmation = MobileConfirmation("confirmation-1", "R2", "waiting_for_confirmation")
+        val ready = MobileTaskUiState(
+            task = MobileTask("task-1", "Ayarlar'ı aç", MobileTaskStatus.WAITING_FOR_CONFIRMATION),
+            pendingConfirmation = confirmation,
+        )
+
+        assertTrue(ready.canResolveConfirmation)
+        assertFalse(ready.copy(loading = true).canResolveConfirmation)
+        assertFalse(ready.copy(task = null).canResolveConfirmation)
+        assertFalse(ready.copy(pendingConfirmation = null).canResolveConfirmation)
     }
 
     private fun event(
