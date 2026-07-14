@@ -18,6 +18,8 @@ val Cyan = Color(0xFF38E1D6)
 val Azure = Color(0xFF2BA0FF)
 val Violet = Color(0xFF786EFF)
 val Coral = Color(0xFFFF8A5B)
+val Amber = Color(0xFFFFC857)
+val Success = Color(0xFF53D6A6)
 
 private val NovaColors = darkColorScheme(
     primary = Cyan,
