@@ -169,7 +169,7 @@ yapilanlar hem de siradaki somut is burada guncellenir.
   Android 17 `emulator-5554` uzerinde 19 connected test, sifir lint hatasi (11 uyari ve 1 bilgi),
   debug APK kurulum ve launcher resolution ile gecti. Fiziksel ADB serial bagli olmadigi icin
   fiziksel telefon testi yapilmadi. Dogrulanan APK SHA-256:
-  `E3F1A29FF5C6AF4B5A4CF6494296E0A3700E57B2B3EF2F5D4043466AB6EFF575`.
+  `F945C1AC3B9D88561DF361DA902D0BA8A0122A9587CEB668230C9858C318C4EA`.
 - Uygulama ici Gateway testi yerel QA kimligiyle `PC hazir` durumuna ulasti. Sabit baglanti istemi
   PC modelinde tamamladi; UI-tree orneklemesine gore TTFT 48,337 sn, toplam 48,341 sn ve sanitize
   rota `ollama/gemma4:latest` idi. Burada ham model govdesi veya kimlik bilgisi tutulmaz.

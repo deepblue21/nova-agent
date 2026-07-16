@@ -170,7 +170,7 @@ with both verified work and the next concrete work item.
   19 connected Android tests on Android 17 `emulator-5554`, zero lint errors (11 warnings and one
   informational issue), and a successful debug APK install/launcher resolution. No physical ADB
   serial was connected, so physical-phone testing was not performed. The verified APK SHA-256 is
-  `E3F1A29FF5C6AF4B5A4CF6494296E0A3700E57B2B3EF2F5D4043466AB6EFF575`.
+  `F945C1AC3B9D88561DF361DA902D0BA8A0122A9587CEB668230C9858C318C4EA`.
 - The in-app Gateway probe reached `PC ready` with a local QA identity. The fixed connectivity
   prompt completed through the PC model with UI-tree-sampled TTFT 48.337 s, total 48.341 s, and
   sanitized route `ollama/gemma4:latest`; no raw model body or credential is recorded here.

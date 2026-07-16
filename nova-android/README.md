@@ -104,7 +104,7 @@ Derleme + statik denetim:
   grafik/buffer baskısı ile Compose işinin birlikte etkisini gösterdi; kanıtlanmış tek bir uygulama
   hotspot'u bulunmadı. Fiziksel donanımda release-build performans kontrolü takip maddesidir.
 - Doğrulanan debug APK SHA-256:
-  `E3F1A29FF5C6AF4B5A4CF6494296E0A3700E57B2B3EF2F5D4043466AB6EFF575`.
+  `F945C1AC3B9D88561DF361DA902D0BA8A0122A9587CEB668230C9858C318C4EA`.
 
 ---
 
