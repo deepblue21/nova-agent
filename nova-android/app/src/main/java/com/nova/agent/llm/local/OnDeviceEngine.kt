@@ -2,6 +2,7 @@ package com.nova.agent.llm.local
 
 import android.content.Context
 import com.google.ai.edge.litertlm.Backend
+import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
@@ -99,8 +100,10 @@ class OnDeviceEngine(private val appContext: Context) {
                 object : MessageCallback {
                     override fun onMessage(message: Message) {
                         if (cancelled) return
-                        @Suppress("USELESS_ELVIS")
-                        val text: String = message.text ?: ""
+                        // 0.13.1 API: metin, Message.contents içindeki Content.Text parçalarındadır.
+                        val text = message.contents.contents
+                            .filterIsInstance<Content.Text>()
+                            .joinToString(separator = "") { it.text }
                         if (text.isNotEmpty()) cb.onToken(text)
                     }
 
@@ -125,11 +128,14 @@ class OnDeviceEngine(private val appContext: Context) {
     }
 
     /**
-     * Aktif üretimi iptal eder. Konuşma atılır; yarım yanıt hiçbir yerde
-     * saklanmaz. Motor yüklü kalır, sonraki istek taze konuşma kurar.
+     * Aktif üretimi iptal eder: önce gerçek native iptal (cancelProcess),
+     * sonra konuşma atılır; yarım yanıt hiçbir yerde saklanmaz. Motor yüklü
+     * kalır, sonraki istek taze konuşma kurar.
      */
     fun cancel() {
         cancelled = true
+        val conversation = synchronized(lock) { activeConversation }
+        if (conversation != null) runCatching { conversation.cancelProcess() }
         closeActiveConversation()
     }
 

@@ -37,10 +37,30 @@ class EngineRouterTest {
     }
 
     @Test
-    fun `faz 1'de yalniz gateway ve local first secilebilir`() {
-        assertTrue(ExecutionPolicy.GATEWAY_ONLY.selectableInPhase1)
-        assertTrue(ExecutionPolicy.LOCAL_FIRST.selectableInPhase1)
-        assertFalse(ExecutionPolicy.LOCAL_ONLY.selectableInPhase1)
-        assertFalse(ExecutionPolicy.HYBRID.selectableInPhase1)
+    fun `hybrid haric tum politikalar secilebilir`() {
+        assertTrue(ExecutionPolicy.GATEWAY_ONLY.selectableNow)
+        assertTrue(ExecutionPolicy.LOCAL_FIRST.selectableNow)
+        assertTrue(ExecutionPolicy.LOCAL_ONLY.selectableNow)
+        assertFalse(ExecutionPolicy.HYBRID.selectableNow)
+    }
+
+    @Test
+    fun `cevrimdisi politikada gateway devri onerilmez`() {
+        assertFalse(ExecutionPolicy.LOCAL_ONLY.allowsGatewayFallback)
+        assertTrue(ExecutionPolicy.LOCAL_FIRST.allowsGatewayFallback)
+        assertTrue(ExecutionPolicy.GATEWAY_ONLY.allowsGatewayFallback)
+    }
+
+    @Test
+    fun `cevrimdisi model yoksa kurulum ister gateway'e ASLA gitmez`() {
+        val decision = EngineRouter.decide(ExecutionPolicy.LOCAL_ONLY, "qwen3-0.6b-int4", false)
+        assertTrue(decision is RouteDecision.LocalNeedsSetup)
+        assertFalse(decision is RouteDecision.Gateway)
+    }
+
+    @Test
+    fun `cevrimdisi kurulu modelle telefonda calisir`() {
+        val decision = EngineRouter.decide(ExecutionPolicy.LOCAL_ONLY, "qwen3-0.6b-int4", true)
+        assertTrue(decision is RouteDecision.Local)
     }
 }

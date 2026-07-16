@@ -32,4 +32,23 @@ data class NovaAccent(
 val NOVA_ACCENTS = listOf(
     NovaAccent("nova", "Turkuaz", Cyan, Azure),
     NovaAccent("aurora", "Aurora", Violet, Color(0xFFB388FF)),
-  
+    NovaAccent("amber", "Amber", Amber, Coral),
+)
+
+fun accentFor(id: String?): NovaAccent =
+    NOVA_ACCENTS.firstOrNull { it.id == id } ?: NOVA_ACCENTS.first()
+
+@Composable
+fun NovaTheme(themeId: String = "nova", content: @Composable () -> Unit) {
+    val accent = accentFor(themeId)
+    val colors = darkColorScheme(
+        primary = accent.primary,
+        secondary = accent.secondary,
+        background = Bg,
+        surface = Bg2,
+        onPrimary = Color(0xFF04121A),
+        onBackground = TextMain,
+        onSurface = TextMain,
+    )
+    MaterialTheme(colorScheme = colors, content = content)
+}

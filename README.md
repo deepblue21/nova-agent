@@ -526,4 +526,20 @@ All gateway settings are environment variables (see `gateway/.env.example` for t
 ## Voice mode
 
 The UI supports browser speech recognition out of the box. For higher-quality real STT/TTS,
-run OpenAI-compatible servers and point `WHISPER_U
+run OpenAI-compatible servers and point `WHISPER_URL` / `TTS_URL` at them (the UI calls
+`/stt` and `/tts` on the gateway, which proxies to those servers). For longer local voice
+jobs, set `VOICE_QUEUE_ENABLED=1` with Redis available; the gateway then exposes
+`POST /v1/voice/jobs`, `GET /v1/voice/jobs/:id`, and `GET /v1/voice/jobs/:id/audio`.
+
+## Troubleshooting
+
+- **`401 unauthorized`** — `GATEWAY_TOKEN` is set but the UI isn't sending it. Paste the token
+  into the Gateway provider's key field in Settings.
+- **CORS error** — the UI origin isn't in `ALLOW_ORIGINS`. Add it and restart the gateway.
+- **Ollama "connection refused"** — start it with `OLLAMA_ORIGINS=* ollama serve`.
+- **`429 rate limit exceeded`** — you hit `RATE_MAX`; raise it or wait for the window.
+- **Empty/garbled stream** — confirm the provider key is set and the model id exists.
+
+## License
+
+MIT. See [`LICENSE`](./LICENSE).

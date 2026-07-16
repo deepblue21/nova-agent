@@ -118,9 +118,8 @@ private fun PolicyPicker(policy: ExecutionPolicy, onPolicyChange: (ExecutionPoli
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { option ->
                     val selected = option == policy
-                    val enabled = option.selectableInPhase1
+                    val enabled = option.selectableNow
                     val phaseNote = when (option) {
-                        ExecutionPolicy.LOCAL_ONLY -> "Faz 2"
                         ExecutionPolicy.HYBRID -> "Faz 3"
                         else -> null
                     }
@@ -184,7 +183,8 @@ private fun TargetCard(
     onOpenModels: () -> Unit,
 ) {
     val accent = MaterialTheme.colorScheme.primary
-    val localMode = policy == ExecutionPolicy.LOCAL_FIRST
+    val localMode = policy.runsOnDevice
+    val offlineMode = policy == ExecutionPolicy.LOCAL_ONLY
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -216,7 +216,7 @@ private fun TargetCard(
             Spacer(Modifier.width(14.dp))
             Column {
                 Text(
-                    if (localMode) "Yerel öncelikli" else "PC / Gateway",
+                    policy.label,
                     color = TextMain,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
@@ -246,12 +246,20 @@ private fun TargetCard(
                 Spacer(Modifier.width(8.dp))
                 Column {
                     Text(
-                        "Önce telefonda çalışır · gerekirse izin ister",
+                        if (offlineMode) {
+                            "Yalnız telefonda çalışır · devir kapalı"
+                        } else {
+                            "Önce telefonda çalışır · gerekirse izin ister"
+                        },
                         color = TextMain,
                         fontSize = 13.sp,
                     )
                     Text(
-                        "Verileriniz cihazınızda kalır. Onaysız hiçbir istem dışarı çıkmaz.",
+                        if (offlineMode) {
+                            "İstemler hiçbir koşulda cihaz dışına gönderilmez."
+                        } else {
+                            "Verileriniz cihazınızda kalır. Onaysız hiçbir istem dışarı çıkmaz."
+                        },
                         color = Muted,
                         fontSize = 11.sp,
                     )

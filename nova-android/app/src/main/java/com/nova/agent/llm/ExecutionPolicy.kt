@@ -4,8 +4,9 @@ package com.nova.agent.llm
  * Yürütme politikası. Varsayılan GATEWAY_ONLY'dir: mevcut kurulumlar
  * kendiliğinden telefona geçirilmez, davranış bire bir korunur.
  *
- * LOCAL_ONLY (Faz 2) ve HYBRID (Faz 3) arayüzde pasif gösterilir;
- * bu fazlar tamamlanmadan seçilemezler ve taklit edilmezler.
+ * LOCAL_ONLY (Çevrimdışı, Faz 2) artık seçilebilir: istekler yalnız
+ * telefonda çalışır ve hiçbir koşulda PC/buluta devredilmez.
+ * HYBRID (Faz 3) tamamlanana kadar arayüzde pasiftir; taklit edilmez.
  */
 enum class ExecutionPolicy(val id: String, val label: String) {
     GATEWAY_ONLY("gateway_only", "PC / Gateway"),
@@ -13,8 +14,17 @@ enum class ExecutionPolicy(val id: String, val label: String) {
     LOCAL_ONLY("local_only", "Çevrimdışı"),
     HYBRID("hybrid", "Hibrit");
 
-    val selectableInPhase1: Boolean
-        get() = this == GATEWAY_ONLY || this == LOCAL_FIRST
+    /** Bu sürümde seçilebilir politikalar; HYBRID Faz 3'te açılacak. */
+    val selectableNow: Boolean
+        get() = this != HYBRID
+
+    /** İstek telefonda mı çalışır. */
+    val runsOnDevice: Boolean
+        get() = this == LOCAL_FIRST || this == LOCAL_ONLY
+
+    /** Yerel hata sonrası PC'ye izinli devir önerilebilir mi. */
+    val allowsGatewayFallback: Boolean
+        get() = this != LOCAL_ONLY
 
     companion object {
         fun fromId(id: String?): ExecutionPolicy =
@@ -50,7 +60,12 @@ object EngineRouter {
                 RouteDecision.Local(localModelId)
             } else {
                 RouteDecision.LocalNeedsSetup(
-                    "Telefonda kurulu model yok. Modeller sekmesinden bir model indirin.",
+                    if (policy == ExecutionPolicy.LOCAL_ONLY) {
+                        "Çevrimdışı mod için telefonda kurulu model gerekli. " +
+                            "Modeller sekmesinden bir model indirin."
+                    } else {
+                        "Telefonda kurulu model yok. Modeller sekmesinden bir model indirin."
+                    },
                 )
             }
 

@@ -43,4 +43,31 @@ class SettingsStore(private val context: Context) {
     val flow = context.dataStore.data.map { p ->
         val def = AppSettings()
         AppSettings(
-            baseUrl = p[Keys.baseUr
+            baseUrl = p[Keys.baseUrl] ?: def.baseUrl,
+            token = p[Keys.token] ?: def.token,
+            modelId = p[Keys.modelId] ?: def.modelId,
+            effort = p[Keys.effort] ?: def.effort,
+            reasoning = p[Keys.reasoning] ?: def.reasoning,
+            executionPolicy = p[Keys.executionPolicy] ?: def.executionPolicy,
+            localModelId = p[Keys.localModelId] ?: def.localModelId,
+            localThinking = p[Keys.localThinking] ?: def.localThinking,
+            themeId = p[Keys.themeId] ?: def.themeId,
+        )
+    }
+
+    suspend fun load(): AppSettings = flow.first()
+
+    suspend fun save(s: AppSettings) {
+        context.dataStore.edit { p ->
+            p[Keys.baseUrl] = s.baseUrl
+            p[Keys.token] = s.token
+            p[Keys.modelId] = s.modelId
+            p[Keys.effort] = s.effort
+            p[Keys.reasoning] = s.reasoning
+            p[Keys.executionPolicy] = s.executionPolicy
+            p[Keys.localModelId] = s.localModelId
+            p[Keys.localThinking] = s.localThinking
+            p[Keys.themeId] = s.themeId
+        }
+    }
+}

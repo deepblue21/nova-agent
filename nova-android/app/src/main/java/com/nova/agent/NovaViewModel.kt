@@ -98,9 +98,9 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     val executionPolicy: ExecutionPolicy
         get() = ExecutionPolicy.fromId(settings.executionPolicy)
 
-    /** Yalnız Faz 1'de açık politikalar seçilebilir; diğerleri arayüzde pasiftir. */
+    /** Yalnız açık politikalar seçilebilir; HYBRID Faz 3'e kadar pasiftir. */
     fun setExecutionPolicy(policy: ExecutionPolicy) {
-        if (policy.selectableInPhase1) persist(settings.copy(executionPolicy = policy.id))
+        if (policy.selectableNow) persist(settings.copy(executionPolicy = policy.id))
     }
 
     fun setLocalModel(id: String) {
@@ -214,7 +214,10 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
             is RouteDecision.Gateway -> complete(messages.toList(), speakWhenDone)
             is RouteDecision.Local -> completeLocal(spec, speakWhenDone)
             is RouteDecision.LocalNeedsSetup -> {
-                pendingFallback = PendingFallback(decision.reason)
+                pendingFallback = PendingFallback(
+                    decision.reason,
+                    allowGateway = executionPolicy.allowsGatewayFallback,
+                )
                 if (speakWhenDone) {
                     voiceState = VoiceState.IDLE
                     voiceSub = decision.reason
@@ -226,7 +229,9 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Yerel hata sonrası kullanıcı onayıyla istemi PC Gateway'e gönderir. */
     fun approveFallback() {
-        if (pendingFallback == null || busy) return
+        val pending = pendingFallback ?: return
+        // Çevrimdışı modda devir kapalıdır; bu yol hiçbir koşulda açılmaz.
+        if (!pending.allowGateway || busy) return
         pendingFallback = null
         while (messages.isNotEmpty() && messages.last().role == "assistant") {
             messages.removeAt(messages.lastIndex)
@@ -244,4 +249,159 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     /** Cihaz-üstü akışlı üretim. Gateway yoluna (complete) hiç dokunmaz. */
     private fun completeLocal(spec: LocalModelSpec, speakWhenDone: Boolean) {
         val prior = messages.toList()
-        val prompt = prior.lastOrNull()?.takeIf { it.role == "user" }?.con
+        val prompt = prior.lastOrNull()?.takeIf { it.role == "user" }?.content ?: return
+        val history = prior.dropLast(1).map { it.role to it.content }
+
+        sb.clear()
+        messages.add(ChatMessage("assistant", "", route = "telefon/${spec.id}", streaming = true))
+        busy = true
+        activeLocal = true
+        if (speakWhenDone) { voiceState = VoiceState.THINKING; voiceSub = "Düşünüyor…"; level = 0.28f }
+
+        local.generate(
+            spec = spec,
+            history = history,
+            prompt = prompt,
+            thinking = settings.localThinking,
+            cb = object : OnDeviceEngine.Callbacks {
+                override fun onToken(text: String) {
+                    if (!activeLocal) return
+                    sb.append(text)
+                    updateLast { it.copy(content = sb.toString()) }
+                }
+
+                override fun onDone() {
+                    if (!activeLocal) return
+                    activeLocal = false
+                    finishLocal(speakWhenDone)
+                }
+
+                override fun onError(message: String) {
+                    if (!activeLocal) return
+                    activeLocal = false
+                    busy = false
+                    val partial = sb.toString()
+                    updateLast {
+                        it.copy(
+                            content = if (partial.isBlank()) "⚠️ $message" else "$partial\n\n⚠️ $message",
+                            streaming = false,
+                        )
+                    }
+                    // Sessiz devir yok: yalnız bildirim/izin kartı.
+                    pendingFallback = PendingFallback(
+                        message,
+                        allowGateway = executionPolicy.allowsGatewayFallback,
+                    )
+                    if (speakWhenDone) { voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB; level = 0.08f }
+                }
+            },
+        )
+    }
+
+    private fun finishLocal(speak: Boolean) {
+        val (thoughts, content) = ThinkingText.split(sb.toString())
+        val text = content.ifBlank { "(boş yanıt)" }
+        updateLast { it.copy(content = text, thoughts = thoughts, streaming = false) }
+        busy = false
+        if (speak) {
+            voiceState = VoiceState.SPEAKING
+            voiceSub = text.take(160)
+            level = 0.5f
+            speech.speak(
+                text,
+                onStart = {},
+                onDone = {
+                    onMain { voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB; level = 0.08f }
+                },
+            )
+        }
+    }
+
+    private fun complete(history: List<ChatMessage>, speakWhenDone: Boolean) {
+        sb.clear()
+        messages.add(ChatMessage("assistant", "", streaming = true))
+        busy = true
+        if (speakWhenDone) { voiceState = VoiceState.THINKING; voiceSub = "Düşünüyor…"; level = 0.28f }
+
+        es = client.stream(
+            baseUrl = settings.baseUrl,
+            token = settings.token,
+            model = resolveModel(),
+            effort = settings.effort,
+            reasoning = settings.reasoning,
+            history = history,
+            cb = object : NovaClient.Callbacks {
+                override fun onRoute(route: String) = onMain { updateLast { it.copy(route = route) } }
+                override fun onToken(text: String) = onMain { sb.append(text); updateLast { it.copy(content = sb.toString()) } }
+                override fun onDone() = onMain { finish(speakWhenDone) }
+                override fun onError(message: String) = onMain {
+                    sb.append(if (sb.isEmpty()) "⚠️ $message" else "\n\n⚠️ $message")
+                    updateLast { it.copy(content = sb.toString(), streaming = false) }
+                    busy = false
+                    if (speakWhenDone) { voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB }
+                }
+            }
+        )
+    }
+
+    private fun finish(speak: Boolean) {
+        val text = sb.toString().ifBlank { "(boş yanıt)" }
+        updateLast { it.copy(content = text, streaming = false) }
+        busy = false
+        es = null
+        if (speak) {
+            voiceState = VoiceState.SPEAKING
+            voiceSub = text.take(160)
+            level = 0.5f
+            speech.speak(text, onStart = {}, onDone = { onMain { voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB; level = 0.08f } })
+        }
+    }
+
+    private fun updateLast(f: (ChatMessage) -> ChatMessage) {
+        val i = messages.lastIndex
+        if (i >= 0) messages[i] = f(messages[i])
+    }
+
+    // ---------- ses ----------
+    fun startListening() {
+        if (busy) return
+        if (!speech.isRecognitionAvailable) { voiceSub = "Cihazda konuşma tanıma yok"; return }
+        voiceState = VoiceState.LISTENING
+        voiceSub = "Dinliyorum…"
+        speech.startListening(
+            onRms = { level = it },
+            onPartial = { voiceSub = it },
+            onResult = { text ->
+                if (text.isNotBlank()) {
+                    messages.add(ChatMessage("user", text))
+                    routeAndComplete(speakWhenDone = true)
+                } else { voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB; level = 0.08f }
+            },
+            onEnd = { err ->
+                if (voiceState == VoiceState.LISTENING) {
+                    voiceState = VoiceState.IDLE
+                    voiceSub = err ?: DEFAULT_SUB
+                    level = 0.08f
+                }
+            }
+        )
+    }
+
+    fun stopListeningOrSpeaking() {
+        when (voiceState) {
+            VoiceState.LISTENING -> { speech.stopListening(); voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB; level = 0.08f }
+            VoiceState.SPEAKING -> { speech.stopSpeaking(); voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB; level = 0.08f }
+            else -> {}
+        }
+    }
+
+    override fun onCleared() {
+        connectionProbes.invalidate()
+        connectionCall?.cancel()
+        es?.cancel()
+        local.shutdown()
+        speech.destroy()
+        super.onCleared()
+    }
+
+}

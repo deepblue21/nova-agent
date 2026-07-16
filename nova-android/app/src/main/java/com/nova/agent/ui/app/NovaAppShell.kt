@@ -173,4 +173,55 @@ private fun NovaTopBar(
                 Spacer(Modifier.width(6.dp))
                 Text(
                     text = localSubtitle ?: connection.message,
-                    color = Mute
+                    color = Muted,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (mode == Mode.CHAT || mode == Mode.VOICE) {
+            IconButton(onClick = onToggleVoice) {
+                if (mode == Mode.VOICE) {
+                    Icon(
+                        imageVector = Icons.Filled.ChatBubbleOutline,
+                        contentDescription = "Sohbete dön",
+                        tint = Muted,
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.Mic,
+                        contentDescription = "Ses moduna geç",
+                        tint = Muted,
+                    )
+                }
+            }
+        }
+        if (mode == Mode.CHAT) {
+            IconButton(onClick = onNewChat) {
+                Icon(
+                    imageVector = Icons.Filled.ChatBubbleOutline,
+                    contentDescription = "Yeni sohbet",
+                    tint = Muted,
+                )
+            }
+        }
+        IconButton(onClick = onSettings) {
+            Icon(
+                imageVector = Icons.Filled.Settings,
+                contentDescription = "Ayarlar",
+                tint = Muted,
+            )
+        }
+    }
+}
+
+private fun GatewayConnectionStatus.tint(): Color = when (this) {
+    GatewayConnectionStatus.READY -> Success
+    GatewayConnectionStatus.CHECKING -> Amber
+    GatewayConnectionStatus.AUTH_REQUIRED,
+    GatewayConnectionStatus.UNREACHABLE,
+    GatewayConnectionStatus.INVALID_URL,
+    -> Coral
+    GatewayConnectionStatus.UNKNOWN -> Muted
+}

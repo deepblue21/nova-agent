@@ -40,13 +40,13 @@ fun NovaApp(
     val activeDisk = activeLocalUi?.disk
     val activeInstalled = activeDisk is LocalModelDiskState.Installed
     val activeVerified = (activeDisk as? LocalModelDiskState.Installed)?.verified == true
-    val localPolicy = vm.executionPolicy == ExecutionPolicy.LOCAL_FIRST
+    val localPolicy = vm.executionPolicy.runsOnDevice
 
     NovaAppShell(
         mode = vm.mode,
         connection = vm.connectionState,
         localSubtitle = if (localPolicy) {
-            "Telefon · Yerel öncelikli · ${activeSpec.displayName}"
+            "Telefon · ${vm.executionPolicy.label} · ${activeSpec.displayName}"
         } else {
             null
         },
@@ -94,9 +94,10 @@ fun NovaApp(
             Mode.CHAT -> ChatScreen(
                 messages = vm.messages,
                 busy = vm.busy,
-                targetLabel = if (localPolicy) "Telefon" else "PC/Gateway",
+                targetLabel = if (localPolicy) "Telefon · ${vm.executionPolicy.label}" else "PC/Gateway",
                 modelLabel = vm.currentModelName(),
                 pendingFallback = vm.pendingFallback?.reason,
+                fallbackAllowsGateway = vm.pendingFallback?.allowGateway ?: true,
                 onSend = vm::send,
                 onStop = vm::stop,
                 onRegenerate = vm::regenerate,
@@ -108,4 +109,93 @@ fun NovaApp(
 
             Mode.MODELLER -> ModelsScreen(
                 models = vm.local.models,
- 
+                activeLocalId = vm.settings.localModelId,
+                localThinking = vm.settings.localThinking,
+                deviceRamGb = vm.local.deviceRamGb,
+                offlineReady = activeInstalled && activeVerified,
+                gatewayModels = MODELS,
+                gatewaySelectedId = vm.settings.modelId,
+                onDownload = { vm.local.startDownload(it.spec) },
+                onCancelDownload = { vm.local.cancelDownload(it.spec) },
+                onDelete = { vm.local.deleteModel(it.spec) },
+                onVerify = { vm.local.verifyModel(it.spec) },
+                onSelectLocal = vm::setLocalModel,
+                onLocalThinking = vm::setLocalThinking,
+                onSelectGateway = vm::setModel,
+                onStartLocalChat = {
+                    vm.setExecutionPolicy(ExecutionPolicy.LOCAL_FIRST)
+                    vm.mode = Mode.CHAT
+                },
+            )
+
+            Mode.VOICE -> VoiceScreen(
+                state = vm.voiceState,
+                subtitle = vm.voiceSub,
+                level = vm.level,
+                busy = vm.busy,
+                onStart = onRequestMic,
+                onStop = vm::stopListeningOrSpeaking,
+            )
+        }
+    }
+
+    if (showSettings) {
+        NovaSettingsPanel(
+            settings = vm.settings,
+            connection = vm.connectionState,
+            onTestConnection = vm::testConnection,
+            onUpdateTaskConnection = taskVm::updateConnectionSettings,
+            onSaveAssistantConnection = vm::saveConnection,
+            onModelChange = vm::setModel,
+            onEffortChange = vm::setEffort,
+            onReasoningChange = vm::setReasoning,
+            onThemeChange = vm::setTheme,
+            onRestoreAppliedConnection = { vm.testConnection() },
+            onClose = { showSettings = false },
+        )
+    }
+}
+
+@Composable
+internal fun NovaSettingsPanel(
+    settings: AppSettings,
+    connection: GatewayConnectionUiState,
+    onTestConnection: (String, String) -> Unit,
+    onUpdateTaskConnection: (String, String) -> Unit,
+    onSaveAssistantConnection: (String, String) -> Unit,
+    onModelChange: (String) -> Unit,
+    onEffortChange: (String) -> Unit,
+    onReasoningChange: (Boolean) -> Unit,
+    onThemeChange: (String) -> Unit = {},
+    onRestoreAppliedConnection: () -> Unit = {
+        onTestConnection(settings.baseUrl, settings.token)
+    },
+    onClose: () -> Unit,
+) {
+    SettingsPanel(
+        settings = settings,
+        connection = connection,
+        onTestConnection = onTestConnection,
+        onSaveConnection = { baseUrl, token ->
+            val trimmedBaseUrl = baseUrl.trim()
+            val trimmedToken = token.trim()
+            val canonicalBaseUrl = GatewayConnectionClient
+                .canonicalBaseUrl(trimmedBaseUrl)
+                ?.toString()
+            if (canonicalBaseUrl == null) {
+                onTestConnection(trimmedBaseUrl, trimmedToken)
+            } else {
+                onUpdateTaskConnection(canonicalBaseUrl, trimmedToken)
+                onSaveAssistantConnection(canonicalBaseUrl, trimmedToken)
+            }
+        },
+        onModelChange = onModelChange,
+        onEffortChange = onEffortChange,
+        onReasoningChange = onReasoningChange,
+        onThemeChange = onThemeChange,
+        onClose = {
+            onRestoreAppliedConnection()
+            onClose()
+        },
+    )
+}

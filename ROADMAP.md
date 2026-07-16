@@ -46,9 +46,10 @@ Telefonda **çevrimdışı çalışan agentic bir yapay zeka** + PC'deki LLM iş
 - `GATEWAY_ONLY` davranışı bire bir eskisi gibidir; mevcut testler geçer.
 - İndirme: yarım kalan indirme sürdürülür, SHA-256 uyuşmazsa dosya kurulmaz.
 
-## Faz 2 — Tam çevrimdışı (sonraki)
+## Faz 2 — Tam çevrimdışı (başladı)
 
-- `LOCAL_ONLY` politikası: ağ isteği atılmaz; Gateway bölümleri "çevrimdışı" olarak işaretlenir.
+- `LOCAL_ONLY` politikası: **eklendi (2026-07-16)** — Kontrol'den "Çevrimdışı" seçilebilir;
+  bu modda yerel hata olsa bile istem cihaz dışına gönderilmez (devir kartında PC seçeneği yoktur).
 - İndirme merkezi: lisans onaylı (Gemma) modeller, depolama yönetimi, model silme/yeniden doğrulama.
 - Yerel araç kullanımı (LiteRT-LM ToolSet): saat, hesaplama, cihaz-içi arama gibi çevrimdışı araçlar → telefonda **agentic** akışın çekirdeği.
 - Çevrimdışı ses: mevcut Android STT/TTS'in çevrimdışı paketlerle davranış testi.

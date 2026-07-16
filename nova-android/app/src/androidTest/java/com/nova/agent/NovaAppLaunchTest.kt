@@ -23,4 +23,6 @@ class NovaAppLaunchTest {
         composeRule.onNodeWithText("Kontrol").assertIsDisplayed()
         composeRule.onNodeWithText("İşler").assertIsDisplayed()
         composeRule.onNodeWithText("Sohbet").assertIsDisplayed()
-        compose
+        composeRule.onNodeWithText("Modeller").assertIsDisplayed()
+    }
+}

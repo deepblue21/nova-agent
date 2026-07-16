@@ -48,4 +48,47 @@ class NovaAppShellTest {
         composeRule.onNodeWithText("Modeller").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("PC hazır").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Ayarlar").assertIsDisplayed()
-        assertEquals(listOf(Mode.TASKS, Mode.CHAT, Mode.MODELLER), selected
+        assertEquals(listOf(Mode.TASKS, Mode.CHAT, Mode.MODELLER), selected)
+    }
+
+    @Test
+    fun chatModeExposesVoiceToggleAndLocalSubtitle() {
+        var voiceToggled = false
+        composeRule.setContent {
+            NovaTheme {
+                NovaAppShell(
+                    mode = Mode.CHAT,
+                    connection = GatewayConnectionUiState(GatewayConnectionStatus.READY, "PC hazır"),
+                    onModeChange = {},
+                    onSettings = {},
+                    onNewChat = {},
+                    localSubtitle = "Telefon · Yerel öncelikli",
+                    onToggleVoice = { voiceToggled = true },
+                ) { Box { Text("Sohbet alanı") } }
+            }
+        }
+
+        composeRule.onNodeWithText("Telefon · Yerel öncelikli").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Ses moduna geç")
+            .assertIsDisplayed()
+            .performClick()
+        assertEquals(true, voiceToggled)
+    }
+
+    @Test
+    fun voiceModeKeepsChatHighlightedAndOffersReturn() {
+        composeRule.setContent {
+            NovaTheme {
+                NovaAppShell(
+                    mode = Mode.VOICE,
+                    connection = GatewayConnectionUiState(GatewayConnectionStatus.READY, "PC hazır"),
+                    onModeChange = {},
+                    onSettings = {},
+                    onNewChat = {},
+                ) { Box { Text("Ses alanı") } }
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Sohbete dön").assertIsDisplayed()
+    }
+}

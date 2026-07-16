@@ -79,6 +79,7 @@ fun ChatScreen(
     targetLabel: String = "PC/Gateway",
     modelLabel: String = "auto",
     pendingFallback: String? = null,
+    fallbackAllowsGateway: Boolean = true,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
     onRegenerate: () -> Unit,
@@ -125,6 +126,7 @@ fun ChatScreen(
         if (pendingFallback != null) {
             FallbackConsentCard(
                 reason = pendingFallback,
+                allowGateway = fallbackAllowsGateway,
                 onApprove = onApproveFallback,
                 onReject = onRejectFallback,
             )
@@ -171,12 +173,14 @@ private fun InfoChip(label: String, description: String, onClick: () -> Unit) {
 }
 
 /**
- * İzinli devir kartı: yerel model yanıt veremediğinde istem yalnız
- * kullanıcı onayıyla PC'deki Gateway'e gönderilir. Sessiz devir yok.
+ * Yerel model yanıt veremediğinde gösterilen kart. [allowGateway] true ise
+ * istem yalnız kullanıcı onayıyla PC'deki Gateway'e gönderilir; Çevrimdışı
+ * modda devir tamamen kapalıdır. Sessiz devir hiçbir modda yok.
  */
 @Composable
 private fun FallbackConsentCard(
     reason: String,
+    allowGateway: Boolean,
     onApprove: () -> Unit,
     onReject: () -> Unit,
 ) {
@@ -195,7 +199,11 @@ private fun FallbackConsentCard(
         Text(reason, color = Muted, fontSize = 12.sp)
         Spacer(Modifier.height(4.dp))
         Text(
-            "Onaylarsan bu sohbetin istemi PC'deki Gateway'e gönderilecek.",
+            if (allowGateway) {
+                "Onaylarsan bu sohbetin istemi PC'deki Gateway'e gönderilecek."
+            } else {
+                "Çevrimdışı mod: istem cihaz dışına gönderilmez. Modeller sekmesinden durumu kontrol edebilirsin."
+            },
             color = Muted,
             fontSize = 11.sp,
         )
@@ -209,27 +217,29 @@ private fun FallbackConsentCard(
                     .border(1.dp, Line, RoundedCornerShape(12.dp))
                     .clickable(onClick = onReject)
                     .semantics {
-                        contentDescription = "Vazgeç"
+                        contentDescription = if (allowGateway) "Vazgeç" else "Anladım"
                         role = Role.Button
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                Text("Vazgeç", color = Muted, fontSize = 13.sp)
+                Text(if (allowGateway) "Vazgeç" else "Anladım", color = Muted, fontSize = 13.sp)
             }
-            Box(
-                Modifier
-                    .weight(1f)
-                    .defaultMinSize(minHeight = 44.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(chatGradient)
-                    .clickable(onClick = onApprove)
-                    .semantics {
-                        contentDescription = "PC'ye gönder"
-                        role = Role.Button
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("PC'ye gönder", color = Color(0xFF04121A), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            if (allowGateway) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .defaultMinSize(minHeight = 44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(chatGradient)
+                        .clickable(onClick = onApprove)
+                        .semantics {
+                            contentDescription = "PC'ye gönder"
+                            role = Role.Button
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("PC'ye gönder", color = Color(0xFF04121A), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
             }
         }
     }
@@ -286,4 +296,184 @@ private fun ChatMessageRow(
         Column(
             Modifier
                 .widthIn(max = 320.dp)
-       
+                .clip(RoundedCornerShape(16.dp))
+                .background(if (isUser) Cyan.copy(alpha = 0.14f) else Surface1)
+                .border(
+                    1.dp,
+                    if (isUser) Cyan.copy(alpha = 0.22f) else Line,
+                    RoundedCornerShape(16.dp),
+                )
+                .padding(horizontal = 14.dp, vertical = 11.dp),
+        ) {
+            if (!isUser && message.thoughts.isNotBlank()) {
+                Text("Düşünme", color = Muted2, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                Text(message.thoughts, color = Muted2, fontSize = 12.sp, lineHeight = 16.sp)
+                Spacer(Modifier.height(6.dp))
+            }
+            when {
+                message.content.isEmpty() && message.streaming ->
+                    Text("•••", color = Cyan, fontSize = 15.sp)
+
+                isUser ->
+                    Text(message.content, color = TextMain, fontSize = 15.sp, lineHeight = 21.sp)
+
+                else -> AssistantBody(message.content)
+            }
+        }
+        if (!isUser && message.route != null) {
+            Spacer(Modifier.height(5.dp))
+            Text("→ ${message.route}", color = Muted, fontSize = 10.sp)
+        }
+        if (!isUser && message.content.isNotEmpty() && !message.streaming) {
+            Spacer(Modifier.height(5.dp))
+            Row {
+                MessageAction(Icons.Filled.ContentCopy, "Kopyala") {
+                    clipboard.setText(AnnotatedString(message.content))
+                }
+                if (isLast) {
+                    Spacer(Modifier.width(4.dp))
+                    MessageAction(Icons.Filled.Refresh, "Yeniden oluştur", onRegenerate)
+                }
+            }
+        }
+    }
+}
+
+/** Asistan gövdesi: metin + her biri ayrı kartta, blok başına Kopyala'lı kod blokları. */
+@Composable
+private fun AssistantBody(content: String) {
+    val clipboard = LocalClipboardManager.current
+    val blocks = ChatMarkdown.splitBlocks(content)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        blocks.forEach { block ->
+            when (block) {
+                is ChatMarkdown.Block.Text ->
+                    Text(block.content, color = TextMain, fontSize = 15.sp, lineHeight = 21.sp)
+
+                is ChatMarkdown.Block.Code -> {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF04060A))
+                            .border(1.dp, Line, RoundedCornerShape(10.dp)),
+                    ) {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .background(Surface2)
+                                .padding(start = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                block.language.ifBlank { "kod" },
+                                color = Cyan,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f),
+                            )
+                            MessageAction(Icons.Filled.ContentCopy, "Kopyala") {
+                                clipboard.setText(AnnotatedString(block.content))
+                            }
+                        }
+                        Text(
+                            block.content,
+                            color = TextMain,
+                            fontSize = 12.5.sp,
+                            lineHeight = 18.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier
+                                .horizontalScroll(rememberScrollState())
+                                .padding(10.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatComposer(
+    busy: Boolean,
+    onSend: (String) -> Unit,
+    onStop: () -> Unit,
+) {
+    var draft by rememberSaveable { mutableStateOf("") }
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp).imePadding(),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        Box(
+            Modifier
+                .weight(1f)
+                .defaultMinSize(minHeight = 52.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(Surface1)
+                .border(1.dp, Line, RoundedCornerShape(18.dp))
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+        ) {
+            if (draft.isEmpty()) Text("NOVA'ya yaz…", color = Muted2, fontSize = 15.sp)
+            BasicTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                textStyle = TextStyle(color = TextMain, fontSize = 15.sp),
+                cursorBrush = SolidColor(Cyan),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        val canSend = draft.isNotBlank() && !busy
+        val actionDescription = if (busy) "Yanıtı durdur" else "Mesaj gönder"
+        Box(
+            Modifier
+                .size(52.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(if (busy) Surface2 else if (canSend) Color.Transparent else Surface2)
+                .then(
+                    if (canSend) Modifier.background(chatGradient, RoundedCornerShape(14.dp))
+                    else Modifier,
+                )
+                .clickable(enabled = canSend || busy) {
+                    if (busy) {
+                        onStop()
+                    } else {
+                        onSend(draft)
+                        draft = ""
+                    }
+                }
+                .semantics {
+                    contentDescription = actionDescription
+                    role = Role.Button
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                if (busy) Icons.Filled.Stop else Icons.AutoMirrored.Filled.Send,
+                contentDescription = null,
+                tint = if (busy) Coral else if (canSend) Color(0xFF04121A) else Muted2,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun MessageAction(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .semantics(mergeDescendants = true) {
+                contentDescription = label
+                role = Role.Button
+            }
+            .padding(horizontal = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = Muted2, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(5.dp))
+        Text(label, color = Muted2, fontSize = 11.sp)
+    }
+}

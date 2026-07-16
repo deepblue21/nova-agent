@@ -112,4 +112,56 @@ Derleme + statik denetim:
   0 lint hatası (11 uyarı, 1 bilgi). `:app:connectedDebugAndroidTest` Android 17
   `emulator-5554` üzerinde 27/27 geçti; APK aynı emülatöre kuruldu. Bu koşuda fiziksel cihaz bağlı
   değildi ve fiziksel cihaz testi yapılmadı.
-- Son regresyon sağlamlaştırması, etkin görevi başlangıçtaki Gateway ayarına sabitler; bayat 
+- Son regresyon sağlamlaştırması, etkin görevi başlangıçtaki Gateway ayarına sabitler; bayat veya
+  başka göreve ait callback/SSE olaylarını reddeder, kabul edilen Gateway adreslerini `/v1` altında
+  standartlaştırır ve bozuk kayıtlı adresleri çökmeden reddeder. Maskeli token alanının TalkBack
+  düzenleme semantiği, alt sistem inset'i, meşgul Ses kontrolleri ve yükleme sırasındaki görev
+  istemleri de test kapsamındadır.
+- Ayarlardaki bağlantı testi, geçerli emülatör Gateway adresi ve yerel QA kimliğiyle `PC hazır`
+  durumuna ulaştı. Sabit doğrulama istemi PC'deki yerel modele aktı; UI-tree örneklemesine göre
+  TTFT 48.337 sn, toplam 48.341 sn ve sanitize rota `ollama/gemma4:latest` idi.
+- Worker preflight'ları 7 Node + 39 Python testiyle geçti. Güvenli canlı görev girişimi Gateway
+  allowlist'i tarafından `Bu gorev emulator worker'inda desteklenmiyor` mesajıyla reddedildi; bu
+  nedenle terminal worker sonucu doğrulanmadı.
+- Regresyon turunda Ayarlar başlığı/kapatma kontrolü sistem durum çubuğunun altına alındı ve 1.0
+  ile 1.3 sistem yazı ölçeklerinde doğrulandı. Görevler composer ve birincil eylem de 1.3 ölçekte
+  gerçek IME'nin tamamen üstünde kaldı. En iyi sıcak, UI-dump'sız debug-emülatör örneğinde 69
+  frame'in 37'si janky idi (%53,62), p50 34 ms ve p90 44 ms. Perfetto kanıtı emülatör
+  grafik/buffer baskısı ile Compose işinin birlikte etkisini gösterdi; kanıtlanmış tek bir uygulama
+  hotspot'u bulunmadı. Fiziksel donanımda release-build performans kontrolü takip maddesidir.
+- Doğrulanan debug APK SHA-256:
+  `4D65812810CBC0C6D80081CC40A5FF716A3A52829A68EB049C6D7681A104E689`.
+
+---
+
+## İzinler
+
+- `INTERNET` — gateway'e bağlanmak için.
+- `RECORD_AUDIO` — sesli mod; ilk kullanımda çalışma anında istenir.
+
+---
+
+## Yapılanlar (Faz 1 — 16 Temmuz 2026)
+
+- Kontrol / İşler / Sohbet / Modeller sekmeleri; Ses, Sohbet üst çubuğundan.
+- `ExecutionPolicy` + `EngineRouter`: `GATEWAY_ONLY` varsayılan, `LOCAL_FIRST` seçilebilir; sessiz devir yok, izin kartı var.
+- `OnDeviceEngine` (LiteRT-LM 0.13.1) ile telefonda akışlı üretim; taze-konuşma iptal modeli.
+- Sabit sürümlü, SHA-256 doğrulamalı, sürdürülebilir model indirme merkezi (Qwen3-0.6B ×2, Apache-2.0).
+- Sohbette kod blokları ayrı kartta, blok başına **Kopyala**; Qwen3 `<think>` ayrımı.
+- Üç vurgu teması (Turkuaz / Aurora / Amber), Ayarlar > Görünüm.
+- JVM testleri: yönlendirici, katalog bütünlüğü, SHA-256, Range, `<think>`, kod bloğu ayrıştırma.
+
+> Not: Bu Faz 1 değişiklikleri henüz **fiziksel ARM64 cihazda doğrulanmadı** — kabul kapısı için
+> aşağıdaki koşu gereklidir: `./gradlew testDebugUnitTest lintDebug assembleDebug` + cihazda model
+> indirme + uçak modunda akışlı yerel yanıt + Gateway regresyon turu.
+
+## Yapılacaklar (sonraki adımlar)
+
+- Faz 1 kabul: fiziksel ARM64 cihazda model indirme, uçak modunda yerel sohbet, iptal ve Gateway regresyonu.
+- Faz 2 — Tam çevrimdışı: ~~`LOCAL_ONLY` politikası~~ (eklendi: Kontrol'den "Çevrimdışı"; bu modda
+  PC devri tamamen kapalıdır ve LiteRT-LM iptali gerçek `cancelProcess()` ile yapılır), lisans onaylı
+  modeller (Gemma), depolama yönetimi, yerel araç kullanımı (agentic çekirdek), çevrimdışı STT/TTS davranışı.
+- Faz 3 — Hibrit: izin temelli otomatik telefon↔PC devri, görev devri, pil/ısı farkındalığı.
+- Gateway `/stt` + `/tts` ile gerçek ses.
+- Çoklu sohbet + kalıcı geçmiş (Room/DataStore).
+- Görsel (çoklu-medya) gönderme; yerel tarafta Gemma3n benzeri çok-modlu model.

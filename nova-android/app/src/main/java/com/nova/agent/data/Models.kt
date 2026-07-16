@@ -1,10 +1,11 @@
 package com.nova.agent.data
 
 /**
- * Yerel model yanıt veremediğinde gösterilen izinli devir isteği.
- * Kullanıcı onaylamadan istem cihaz dışına ÇIKMAZ.
+ * Yerel model yanıt veremediğinde gösterilen bildirim.
+ * [allowGateway] true ise kullanıcı onayıyla PC'ye devir önerilir;
+ * Çevrimdışı (LOCAL_ONLY) modda false'tur ve istem cihaz dışına ASLA çıkmaz.
  */
-data class PendingFallback(val reason: String)
+data class PendingFallback(val reason: String, val allowGateway: Boolean = true)
 
 /** Tek bir sohbet mesajı. */
 data class ChatMessage(

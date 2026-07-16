@@ -43,4 +43,7 @@ class MainActivity : ComponentActivity() {
                         micLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     }
                 }
- 
+            }
+        }
+    }
+}
