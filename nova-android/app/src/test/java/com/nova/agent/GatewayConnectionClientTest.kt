@@ -14,6 +14,20 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GatewayConnectionClientTest {
+    @Test fun canonicalizesSupportedGatewayBaseUrlsToV1() {
+        assertEquals(
+            "https://pc.example/v1",
+            GatewayConnectionClient.canonicalBaseUrl("  https://pc.example  ")?.toString(),
+        )
+        assertEquals(
+            "https://pc.example/v1",
+            GatewayConnectionClient.canonicalBaseUrl("https://pc.example/v1/")?.toString(),
+        )
+        assertNull(GatewayConnectionClient.canonicalBaseUrl("https://pc.example/private"))
+        assertNull(GatewayConnectionClient.canonicalBaseUrl("https://user:pass@pc.example/v1"))
+        assertNull(GatewayConnectionClient.canonicalBaseUrl("https://pc.example/v1?token=secret"))
+    }
+
     @Test fun buildsAuthenticatedModelsUrl() {
         assertEquals(
             "http://127.0.0.1:8088/v1/models",

@@ -1,13 +1,10 @@
 package com.nova.agent
 
-import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextReplacement
 import com.nova.agent.data.AppSettings
 import com.nova.agent.net.GatewayConnectionUiState
@@ -23,7 +20,7 @@ class NovaAppSettingsSyncTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun saveForwardsSameTrimmedConnectionToTaskOwnerBeforeAssistantOwner() {
+    fun saveForwardsSameCanonicalConnectionToTaskOwnerBeforeAssistantOwner() {
         val callbackOrder = mutableListOf<String>()
         var taskConnection: Pair<String, String>? = null
         var assistantConnection: Pair<String, String>? = null
@@ -51,11 +48,9 @@ class NovaAppSettingsSyncTest {
         }
 
         composeRule.onNodeWithTag("gateway_url")
-            .performTextReplacement("  https://pc.example/v1  ")
-        composeRule.onNodeWithContentDescription("Gateway erişim belirteci")
-            .performSemanticsAction(SemanticsActions.SetText) {
-                it(AnnotatedString("  new-token  "))
-            }
+            .performTextReplacement("  https://pc.example  ")
+        composeRule.onNodeWithTag("gateway_token")
+            .performTextReplacement("  new-token  ")
         composeRule.onNodeWithText("Kaydet").performClick()
 
         composeRule.runOnIdle {
@@ -63,6 +58,92 @@ class NovaAppSettingsSyncTest {
             assertTrue(taskConnection == assistantConnection)
             assertEquals("https://pc.example/v1", taskConnection?.first)
             assertTrue(taskConnection?.second == "new-token")
+        }
+    }
+
+    @Test
+    fun closingAfterTestingUnsavedDraftRestoresAppliedConnectionWithoutSaving() {
+        val testedConnections = mutableListOf<Pair<String, String>>()
+        var taskSaves = 0
+        var assistantSaves = 0
+
+        composeRule.setContent {
+            NovaTheme {
+                NovaSettingsPanel(
+                    settings = AppSettings(
+                        baseUrl = "https://applied.example/v1",
+                        token = "applied-token",
+                    ),
+                    connection = GatewayConnectionUiState(),
+                    onTestConnection = { baseUrl, token ->
+                        testedConnections += baseUrl to token
+                    },
+                    onUpdateTaskConnection = { _, _ -> taskSaves++ },
+                    onSaveAssistantConnection = { _, _ -> assistantSaves++ },
+                    onModelChange = {},
+                    onEffortChange = {},
+                    onReasoningChange = {},
+                    onClose = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("gateway_url")
+            .performTextReplacement("https://draft.example/v1")
+        composeRule.onNodeWithTag("gateway_token")
+            .performTextReplacement("draft-token")
+        composeRule.onNodeWithText("Bağlantıyı test et").performClick()
+        composeRule.onNodeWithContentDescription("Ayarları kapat").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(
+                listOf(
+                    "https://draft.example/v1" to "draft-token",
+                    "https://applied.example/v1" to "applied-token",
+                ),
+                testedConnections,
+            )
+            assertEquals(0, taskSaves)
+            assertEquals(0, assistantSaves)
+        }
+    }
+
+    @Test
+    fun invalidGatewayUrlIsNotForwardedForPersistenceOrTasks() {
+        val testedConnections = mutableListOf<Pair<String, String>>()
+        var taskConnection: Pair<String, String>? = null
+        var assistantConnection: Pair<String, String>? = null
+
+        composeRule.setContent {
+            NovaTheme {
+                NovaSettingsPanel(
+                    settings = AppSettings(),
+                    connection = GatewayConnectionUiState(),
+                    onTestConnection = { baseUrl, token ->
+                        testedConnections += baseUrl to token
+                    },
+                    onUpdateTaskConnection = { baseUrl, token ->
+                        taskConnection = baseUrl to token
+                    },
+                    onSaveAssistantConnection = { baseUrl, token ->
+                        assistantConnection = baseUrl to token
+                    },
+                    onModelChange = {},
+                    onEffortChange = {},
+                    onReasoningChange = {},
+                    onClose = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("gateway_url").performTextReplacement("not a url")
+        composeRule.onNodeWithTag("gateway_token").performTextReplacement("private-token")
+        composeRule.onNodeWithText("Kaydet").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(listOf("not a url" to "private-token"), testedConnections)
+            assertEquals(null, taskConnection)
+            assertEquals(null, assistantConnection)
         }
     }
 }

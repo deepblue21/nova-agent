@@ -54,17 +54,18 @@ class GatewayConnectionClient(
     }
 
     companion object {
-        fun modelsUrl(baseUrl: String): HttpUrl? {
-            val parsed = baseUrl.trim().trimEnd('/').toHttpUrlOrNull() ?: return null
+        fun canonicalBaseUrl(baseUrl: String): HttpUrl? {
+            val parsed = baseUrl.trim().toHttpUrlOrNull() ?: return null
             if (parsed.scheme !in setOf("http", "https")) return null
             if (parsed.username.isNotEmpty() || parsed.password.isNotEmpty()) return null
             if (parsed.query != null || parsed.fragment != null) return null
             val segments = parsed.pathSegments.filter { it.isNotBlank() }
-            return when (segments) {
-                emptyList<String>() -> parsed.newBuilder().addPathSegments("v1/models").build()
-                listOf("v1") -> parsed.newBuilder().addPathSegment("models").build()
-                else -> null
-            }
+            if (segments.isNotEmpty() && segments != listOf("v1")) return null
+            return parsed.newBuilder().encodedPath("/v1").build()
+        }
+
+        fun modelsUrl(baseUrl: String): HttpUrl? {
+            return canonicalBaseUrl(baseUrl)?.newBuilder()?.addPathSegment("models")?.build()
         }
     }
 }

@@ -154,9 +154,9 @@ private fun TaskEmptyState(
             )
             Text(connection.message, color = if (connected) Cyan else Muted, fontSize = 13.sp)
 
-            QuickPrompt("Android sürümünü bul", actionsEnabled, onQuickPrompt)
-            QuickPrompt("Ayarlar'ı aç", actionsEnabled, onQuickPrompt)
-            QuickPrompt("Bir uygulamayı aç", actionsEnabled, onQuickPrompt)
+            QuickPrompt("Android sürümünü bul", actionsEnabled && !loading, onQuickPrompt)
+            QuickPrompt("Ayarlar'ı aç", actionsEnabled && !loading, onQuickPrompt)
+            QuickPrompt("Bir uygulamayı aç", actionsEnabled && !loading, onQuickPrompt)
         }
 
         Column(

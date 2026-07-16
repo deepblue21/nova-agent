@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -52,6 +53,46 @@ class AssistantScreensTest {
         }
 
         composeRule.onNodeWithContentDescription("Dinlemeyi başlat").assertIsDisplayed()
+    }
+
+    @Test
+    fun thinkingVoiceControlIsDisabledAndAccuratelyDescribed() {
+        composeRule.setContent {
+            NovaTheme {
+                VoiceScreen(
+                    VoiceState.THINKING,
+                    "Düşünüyor…",
+                    0.28f,
+                    busy = true,
+                    onStart = {},
+                    onStop = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Yanıt hazırlanırken sesli komut kullanılamaz")
+            .assertIsDisplayed()
+            .assertIsNotEnabled()
+    }
+
+    @Test
+    fun busyChatDisablesIdleVoiceControlAndAccuratelyDescribesIt() {
+        composeRule.setContent {
+            NovaTheme {
+                VoiceScreen(
+                    VoiceState.IDLE,
+                    "Konuşmak için mikrofona dokun",
+                    0.08f,
+                    busy = true,
+                    onStart = {},
+                    onStop = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Yanıt sürerken sesli komut kullanılamaz")
+            .assertIsDisplayed()
+            .assertIsNotEnabled()
     }
 
     @Test

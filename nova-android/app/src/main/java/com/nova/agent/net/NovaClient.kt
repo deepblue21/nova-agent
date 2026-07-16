@@ -42,7 +42,7 @@ class NovaClient {
         reasoning: Boolean,
         history: List<ChatMessage>,
         cb: Callbacks,
-    ): EventSource {
+    ): EventSource? {
         val messages = JSONArray()
         for (m in history) {
             messages.put(JSONObject().put("role", m.role).put("content", m.content))
@@ -54,7 +54,15 @@ class NovaClient {
             .put("think", reasoning)
             .put("messages", messages)
 
-        val url = baseUrl.trimEnd('/') + "/chat/completions"
+        val gatewayBaseUrl = GatewayConnectionClient.canonicalBaseUrl(baseUrl)
+        if (gatewayBaseUrl == null) {
+            cb.onError("Gateway adresi geçersiz")
+            return null
+        }
+        val url = gatewayBaseUrl.newBuilder()
+            .addPathSegment("chat")
+            .addPathSegment("completions")
+            .build()
         val reqBuilder = Request.Builder()
             .url(url)
             .post(payload.toString().toRequestBody(JSON))

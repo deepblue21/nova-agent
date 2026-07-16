@@ -240,6 +240,31 @@ class MobileTaskScreenTest {
     }
 
     @Test
+    fun disablesQuickPromptsWhileTaskCreationIsLoading() {
+        var prompt = "unchanged"
+        composeRule.setContent {
+            NovaTheme {
+                MobileTaskScreen(
+                    state = MobileTaskUiState(loading = true),
+                    connection = GatewayConnectionUiState(GatewayConnectionStatus.READY, "PC hazır"),
+                    onPromptChange = { prompt = it },
+                    onCreateTask = {},
+                    onCommand = {},
+                    onDecision = {},
+                    onNewTask = {},
+                    onOpenSettings = {},
+                    onRetryConnection = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Android sürümünü bul")
+            .assertIsNotEnabled()
+            .performClick()
+        assertEquals("unchanged", prompt)
+    }
+
+    @Test
     fun blocksSubmissionAndOffersSettingsWhenGatewayIsUnavailable() {
         var opened = false
         composeRule.setContent {

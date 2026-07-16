@@ -47,6 +47,7 @@ fun VoiceScreen(
     state: VoiceState,
     subtitle: String,
     level: Float,
+    busy: Boolean = false,
     onStart: () -> Unit,
     onStop: () -> Unit,
 ) {
@@ -57,14 +58,15 @@ fun VoiceScreen(
         VoiceState.THINKING -> "Düşünüyorum"
         VoiceState.SPEAKING -> "Konuşuyorum"
     }
-    val actionDescription = when (state) {
-        VoiceState.LISTENING -> "Dinlemeyi durdur"
-        VoiceState.SPEAKING -> "Konuşmayı durdur"
-        VoiceState.IDLE,
-        VoiceState.THINKING,
-        -> "Dinlemeyi başlat"
-    }
     val stopsCurrentAction = state == VoiceState.LISTENING || state == VoiceState.SPEAKING
+    val controlEnabled = stopsCurrentAction || (!busy && state == VoiceState.IDLE)
+    val actionDescription = when {
+        state == VoiceState.LISTENING -> "Dinlemeyi durdur"
+        state == VoiceState.SPEAKING -> "Konuşmayı durdur"
+        state == VoiceState.THINKING -> "Yanıt hazırlanırken sesli komut kullanılamaz"
+        busy -> "Yanıt sürerken sesli komut kullanılamaz"
+        else -> "Dinlemeyi başlat"
+    }
 
     Column(
         Modifier.fillMaxSize().padding(20.dp),
@@ -98,7 +100,7 @@ fun VoiceScreen(
                     if (state == VoiceState.LISTENING) Modifier
                     else Modifier.border(1.dp, LineBright, CircleShape),
                 )
-                .clickable {
+                .clickable(enabled = controlEnabled) {
                     if (stopsCurrentAction) onStop() else onStart()
                 }
                 .semantics {

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -41,10 +42,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.password
-import androidx.compose.ui.semantics.setText
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -75,6 +75,7 @@ fun SettingsPanel(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
+                .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -98,26 +99,21 @@ fun SettingsPanel(
                 label = { Text("Gateway adresi") },
                 singleLine = true,
             )
-            Box(modifier = Modifier.fillMaxWidth().testTag("gateway_token")) {
-                OutlinedTextField(
-                    value = token,
-                    onValueChange = { token = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clearAndSetSemantics {
-                            contentDescription = "Gateway erişim belirteci"
-                            password()
-                            setText {
-                                token = it.text
-                                true
-                            }
-                        },
-                    label = { Text("Erişim belirteci") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                )
-            }
+            OutlinedTextField(
+                value = token,
+                onValueChange = { token = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("gateway_token")
+                    .semantics {
+                        contentDescription = "Gateway erişim belirteci"
+                        password()
+                    },
+                label = { Text("Erişim belirteci") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            )
             ConnectionStatus(connection)
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -155,6 +151,9 @@ fun SettingsPanel(
                 Switch(
                     checked = settings.reasoning,
                     onCheckedChange = onReasoningChange,
+                    modifier = Modifier.semantics {
+                        contentDescription = "Akıl yürütme"
+                    },
                 )
             }
 

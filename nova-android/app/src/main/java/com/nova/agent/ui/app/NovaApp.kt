@@ -13,6 +13,7 @@ import com.nova.agent.feature.settings.SettingsPanel
 import com.nova.agent.feature.tasks.MobileTaskScreen
 import com.nova.agent.feature.tasks.MobileTaskViewModel
 import com.nova.agent.feature.voice.VoiceScreen
+import com.nova.agent.net.GatewayConnectionClient
 import com.nova.agent.net.GatewayConnectionUiState
 
 @Composable
@@ -61,6 +62,7 @@ fun NovaApp(
                 state = vm.voiceState,
                 subtitle = vm.voiceSub,
                 level = vm.level,
+                busy = vm.busy,
                 onStart = onRequestMic,
                 onStop = vm::stopListeningOrSpeaking,
             )
@@ -77,6 +79,7 @@ fun NovaApp(
             onModelChange = vm::setModel,
             onEffortChange = vm::setEffort,
             onReasoningChange = vm::setReasoning,
+            onRestoreAppliedConnection = { vm.testConnection() },
             onClose = { showSettings = false },
         )
     }
@@ -92,6 +95,9 @@ internal fun NovaSettingsPanel(
     onModelChange: (String) -> Unit,
     onEffortChange: (String) -> Unit,
     onReasoningChange: (Boolean) -> Unit,
+    onRestoreAppliedConnection: () -> Unit = {
+        onTestConnection(settings.baseUrl, settings.token)
+    },
     onClose: () -> Unit,
 ) {
     SettingsPanel(
@@ -101,12 +107,22 @@ internal fun NovaSettingsPanel(
         onSaveConnection = { baseUrl, token ->
             val trimmedBaseUrl = baseUrl.trim()
             val trimmedToken = token.trim()
-            onUpdateTaskConnection(trimmedBaseUrl, trimmedToken)
-            onSaveAssistantConnection(trimmedBaseUrl, trimmedToken)
+            val canonicalBaseUrl = GatewayConnectionClient
+                .canonicalBaseUrl(trimmedBaseUrl)
+                ?.toString()
+            if (canonicalBaseUrl == null) {
+                onTestConnection(trimmedBaseUrl, trimmedToken)
+            } else {
+                onUpdateTaskConnection(canonicalBaseUrl, trimmedToken)
+                onSaveAssistantConnection(canonicalBaseUrl, trimmedToken)
+            }
         },
         onModelChange = onModelChange,
         onEffortChange = onEffortChange,
         onReasoningChange = onReasoningChange,
-        onClose = onClose,
+        onClose = {
+            onRestoreAppliedConnection()
+            onClose()
+        },
     )
 }

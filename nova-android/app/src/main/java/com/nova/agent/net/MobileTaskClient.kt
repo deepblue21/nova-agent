@@ -37,9 +37,9 @@ class MobileTaskClient(
         token: String,
         prompt: String,
         callback: (Result<MobileTask>) -> Unit,
-    ) {
+    ): Call {
         val body = JSONObject().put("prompt", prompt).toString().toRequestBody(JSON_MEDIA_TYPE)
-        executeTask(request(baseUrl, token, "/mobile/tasks").post(body).build(), callback, taskCreation = true)
+        return executeTask(request(baseUrl, token, "/mobile/tasks").post(body).build(), callback, taskCreation = true)
     }
 
     fun getTask(
@@ -47,8 +47,8 @@ class MobileTaskClient(
         token: String,
         taskId: String,
         callback: (Result<MobileTask>) -> Unit,
-    ) {
-        executeTask(request(baseUrl, token, "/mobile/tasks/$taskId").get().build(), callback)
+    ): Call {
+        return executeTask(request(baseUrl, token, "/mobile/tasks/$taskId").get().build(), callback)
     }
 
     fun command(
@@ -58,9 +58,9 @@ class MobileTaskClient(
         command: String,
         note: String = "",
         callback: (Result<MobileTask>) -> Unit,
-    ) {
+    ): Call {
         val body = JSONObject().put("command", command).put("note", note).toString().toRequestBody(JSON_MEDIA_TYPE)
-        executeTask(request(baseUrl, token, "/mobile/tasks/$taskId/commands").post(body).build(), callback)
+        return executeTask(request(baseUrl, token, "/mobile/tasks/$taskId/commands").post(body).build(), callback)
     }
 
     fun resolveConfirmation(
@@ -70,10 +70,10 @@ class MobileTaskClient(
         confirmationId: String,
         decision: String,
         callback: (Result<MobileTask>) -> Unit,
-    ) {
+    ): Call {
         val body = JSONObject().put("decision", decision).toString().toRequestBody(JSON_MEDIA_TYPE)
         val path = "/mobile/tasks/$taskId/confirmations/$confirmationId"
-        executeTask(request(baseUrl, token, path).post(body).build(), callback)
+        return executeTask(request(baseUrl, token, path).post(body).build(), callback)
     }
 
     fun streamEvents(
@@ -109,7 +109,12 @@ class MobileTaskClient(
     }
 
     private fun request(baseUrl: String, token: String, path: String): Request.Builder {
-        val builder = Request.Builder().url(baseUrl.trimEnd('/') + path)
+        val url = GatewayConnectionClient.canonicalBaseUrl(baseUrl)
+            ?.newBuilder()
+            ?.addPathSegments(path.trimStart('/'))
+            ?.build()
+            ?: throw IllegalArgumentException("Gateway adresi geçersiz")
+        val builder = Request.Builder().url(url)
         if (token.isNotBlank()) builder.header("Authorization", "Bearer $token")
         return builder
     }
@@ -118,8 +123,9 @@ class MobileTaskClient(
         request: Request,
         callback: (Result<MobileTask>) -> Unit,
         taskCreation: Boolean = false,
-    ) {
-        client.newCall(request).enqueue(object : Callback {
+    ): Call {
+        val call = client.newCall(request)
+        call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 callback(Result.failure(IOException("Bağlantı hatası", e)))
             }
@@ -145,6 +151,7 @@ class MobileTaskClient(
                 }
             }
         })
+        return call
     }
 
     companion object {

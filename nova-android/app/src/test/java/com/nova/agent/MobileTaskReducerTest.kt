@@ -8,6 +8,7 @@ import com.nova.agent.feature.tasks.MobileTaskStatus
 import com.nova.agent.feature.tasks.MobileTaskUiState
 import com.nova.agent.feature.tasks.canResolveConfirmation
 import com.nova.agent.feature.tasks.reduceMobileTask
+import com.nova.agent.feature.tasks.reduceMobileTaskResponse
 import com.nova.agent.feature.tasks.userLabel
 import com.nova.agent.feature.tasks.userSummary
 import com.nova.agent.net.MobileTaskClient
@@ -47,7 +48,12 @@ class MobileTaskReducerTest {
         val earlier = event("2", "task.state", "queued")
         val state = reduceMobileTask(
             reduceMobileTask(
-                reduceMobileTask(MobileTaskUiState(), MobileTaskMutation.EventReceived(later)),
+                reduceMobileTask(
+                    MobileTaskUiState(
+                        task = MobileTask("task-1", "Open Settings", MobileTaskStatus.QUEUED),
+                    ),
+                    MobileTaskMutation.EventReceived(later),
+                ),
                 MobileTaskMutation.EventReceived(earlier),
             ),
             MobileTaskMutation.EventReceived(event("2", "task.state", "paused")),
@@ -79,6 +85,34 @@ class MobileTaskReducerTest {
         assertEquals("Android 17", matchingState.events.single().summary)
         assertEquals(false, matchingState.loading)
         assertEquals(MobileTaskStatus.EXECUTING, otherTaskState.task?.status)
+    }
+
+    @Test
+    fun rejectsForeignTaskEventWithoutMutatingAnyActiveTaskState() {
+        val activeConfirmation = MobileConfirmation("confirmation-a", "R2", "Current action")
+        val state = MobileTaskUiState(
+            task = MobileTask("task-1", "Open Settings", MobileTaskStatus.WAITING_FOR_CONFIRMATION),
+            pendingConfirmation = activeConfirmation,
+            loading = true,
+            error = "current error",
+        )
+        val foreignEvent = MobileTaskEvent(
+            id = "99",
+            taskId = "task-2",
+            type = "confirmation.requested",
+            summary = "Foreign action",
+            status = MobileTaskStatus.COMPLETED,
+            confirmation = MobileConfirmation("confirmation-b", "R3", "Foreign action"),
+        )
+
+        val reduced = reduceMobileTask(state, MobileTaskMutation.EventReceived(foreignEvent))
+
+        assertTrue(state === reduced)
+        assertEquals(emptyList<MobileTaskEvent>(), reduced.events)
+        assertEquals(activeConfirmation, reduced.pendingConfirmation)
+        assertEquals(MobileTaskStatus.WAITING_FOR_CONFIRMATION, reduced.task?.status)
+        assertTrue(reduced.loading)
+        assertEquals("current error", reduced.error)
     }
 
     @Test
@@ -130,7 +164,12 @@ class MobileTaskReducerTest {
         val requested = event("2", "confirmation.requested", "Turn Wi-Fi off", confirmation)
         val approved = event("3", "confirmation.approved", "executing")
 
-        val waiting = reduceMobileTask(MobileTaskUiState(), MobileTaskMutation.EventReceived(requested))
+        val waiting = reduceMobileTask(
+            MobileTaskUiState(
+                task = MobileTask("task-1", "Open Settings", MobileTaskStatus.WAITING_FOR_CONFIRMATION),
+            ),
+            MobileTaskMutation.EventReceived(requested),
+        )
         val approvedState = reduceMobileTask(waiting, MobileTaskMutation.EventReceived(approved))
 
         assertEquals(confirmation, waiting.pendingConfirmation)
@@ -140,7 +179,10 @@ class MobileTaskReducerTest {
     @Test
     fun keepsCancelledTaskAndRetainsConnectionErrorUntilCleared() {
         val cancelled = MobileTask("task-1", "Open Settings", MobileTaskStatus.CANCELLED)
-        val failed = reduceMobileTask(MobileTaskUiState(), MobileTaskMutation.Failed("Bağlantı hatası"))
+        val failed = reduceMobileTask(
+            MobileTaskUiState(task = MobileTask("task-1", "Open Settings", MobileTaskStatus.CANCELLED)),
+            MobileTaskMutation.Failed("Bağlantı hatası"),
+        )
         val withEvent = reduceMobileTask(failed, MobileTaskMutation.EventReceived(event("1", "task.cancel", "cancelled")))
         val complete = reduceMobileTask(withEvent, MobileTaskMutation.TaskLoaded(cancelled))
 
@@ -214,7 +256,10 @@ class MobileTaskReducerTest {
         )
         val loading = reduceMobileTask(waiting, MobileTaskMutation.Loading)
         val response = MobileTask("task-1", "Ayarlar'ı aç", MobileTaskStatus.EXECUTING)
-        val resolved = reduceMobileTask(loading, MobileTaskMutation.ConfirmationResolved(response))
+        val resolved = reduceMobileTask(
+            loading,
+            MobileTaskMutation.ConfirmationResolved(response, confirmation.id),
+        )
 
         assertEquals(response, resolved.task)
         assertFalse(resolved.loading)
@@ -227,6 +272,122 @@ class MobileTaskReducerTest {
         )
         assertNull(delayedSse.pendingConfirmation)
         assertFalse(delayedSse.canResolveConfirmation)
+    }
+
+    @Test
+    fun olderConfirmationResponseDoesNotClearOrOverwriteNewerConfirmationEvent() {
+        val confirmationA = MobileConfirmation("confirmation-a", "R2", "First action")
+        val confirmationB = MobileConfirmation("confirmation-b", "R2", "Second action")
+        val waitingForA = MobileTaskUiState(
+            task = MobileTask("task-1", "Ayarlar'ı aç", MobileTaskStatus.WAITING_FOR_CONFIRMATION),
+            pendingConfirmation = confirmationA,
+        )
+        val resolvingA = reduceMobileTask(waitingForA, MobileTaskMutation.Loading)
+        val waitingForB = reduceMobileTask(
+            resolvingA,
+            MobileTaskMutation.EventReceived(
+                MobileTaskEvent(
+                    id = "51",
+                    taskId = "task-1",
+                    type = "confirmation.requested",
+                    summary = "Second action",
+                    status = MobileTaskStatus.WAITING_FOR_CONFIRMATION,
+                    confirmation = confirmationB,
+                ),
+            ),
+        )
+        val responseForA = MobileTask("task-1", "Ayarlar'ı aç", MobileTaskStatus.EXECUTING)
+
+        val afterDelayedResponse = reduceMobileTask(
+            waitingForB,
+            MobileTaskMutation.ConfirmationResolved(responseForA, confirmationA.id),
+        )
+
+        assertEquals(confirmationB, afterDelayedResponse.pendingConfirmation)
+        assertEquals(waitingForB.task, afterDelayedResponse.task)
+        assertFalse(afterDelayedResponse.loading)
+        assertNull(reduceMobileTaskResponse(waitingForB, responseForA, confirmationA.id))
+    }
+
+    @Test
+    fun commandResponseIsRejectedAfterANewerSameTaskEventWasAccepted() {
+        val active = MobileTaskUiState(
+            task = MobileTask("task-1", "Open Settings", MobileTaskStatus.EXECUTING),
+        )
+        val eventRevisionAtCommandStart = active.events.count { it.taskId == "task-1" }
+        val loading = reduceMobileTask(active, MobileTaskMutation.Loading)
+        val afterNewerEvent = reduceMobileTask(
+            loading,
+            MobileTaskMutation.EventReceived(
+                MobileTaskEvent(
+                    id = "70",
+                    taskId = "task-1",
+                    type = "worker.completed",
+                    summary = "Android 17",
+                    status = MobileTaskStatus.COMPLETED,
+                ),
+            ),
+        )
+        val olderHttpSnapshot = MobileTask("task-1", "Open Settings", MobileTaskStatus.PAUSED)
+
+        val responseState = responseAtRevision(
+            afterNewerEvent,
+            olderHttpSnapshot,
+            confirmationId = null,
+            expectedEventRevision = eventRevisionAtCommandStart,
+        )
+
+        assertNull(responseState)
+        assertEquals(MobileTaskStatus.COMPLETED, afterNewerEvent.task?.status)
+    }
+
+    @Test
+    fun confirmationResponseIsRejectedAfterANewerSameTaskEventWasAccepted() {
+        val confirmation = MobileConfirmation("confirmation-a", "R2", "Current action")
+        val waiting = MobileTaskUiState(
+            task = MobileTask("task-1", "Open Settings", MobileTaskStatus.WAITING_FOR_CONFIRMATION),
+            pendingConfirmation = confirmation,
+        )
+        val eventRevisionAtDecisionStart = waiting.events.count { it.taskId == "task-1" }
+        val loading = reduceMobileTask(waiting, MobileTaskMutation.Loading)
+        val afterNewerEvent = reduceMobileTask(
+            loading,
+            MobileTaskMutation.EventReceived(
+                MobileTaskEvent(
+                    id = "71",
+                    taskId = "task-1",
+                    type = "worker.progress",
+                    summary = "Still verifying",
+                    status = MobileTaskStatus.VERIFYING,
+                ),
+            ),
+        )
+        val olderHttpSnapshot = MobileTask("task-1", "Open Settings", MobileTaskStatus.EXECUTING)
+
+        val responseState = responseAtRevision(
+            afterNewerEvent,
+            olderHttpSnapshot,
+            confirmationId = confirmation.id,
+            expectedEventRevision = eventRevisionAtDecisionStart,
+        )
+
+        assertNull(responseState)
+        assertEquals(MobileTaskStatus.VERIFYING, afterNewerEvent.task?.status)
+        assertEquals(confirmation, afterNewerEvent.pendingConfirmation)
+    }
+
+    private fun responseAtRevision(
+        state: MobileTaskUiState,
+        task: MobileTask,
+        confirmationId: String?,
+        expectedEventRevision: Int,
+    ): MobileTaskUiState? {
+        return reduceMobileTaskResponse(
+            state,
+            task,
+            confirmationId,
+            expectedEventRevision,
+        )
     }
 
     private fun event(

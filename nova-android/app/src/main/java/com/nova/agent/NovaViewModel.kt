@@ -80,7 +80,14 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleReasoning() = setReasoning(!settings.reasoning)
 
     fun saveConnection(baseUrl: String, token: String) {
-        val updated = settings.copy(baseUrl = baseUrl.trim(), token = token.trim())
+        val trimmedBaseUrl = baseUrl.trim()
+        val trimmedToken = token.trim()
+        val canonicalBaseUrl = GatewayConnectionClient.canonicalBaseUrl(trimmedBaseUrl)?.toString()
+        if (canonicalBaseUrl == null) {
+            testConnection(trimmedBaseUrl, trimmedToken)
+            return
+        }
+        val updated = settings.copy(baseUrl = canonicalBaseUrl, token = trimmedToken)
         persist(updated)
         testConnection(updated.baseUrl, updated.token)
     }

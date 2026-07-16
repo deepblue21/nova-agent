@@ -2,7 +2,12 @@ package com.nova.agent
 
 import android.os.ParcelFileDescriptor
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -10,6 +15,11 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.test.platform.app.InstrumentationRegistry
@@ -19,6 +29,7 @@ import com.nova.agent.net.GatewayConnectionStatus
 import com.nova.agent.net.GatewayConnectionUiState
 import com.nova.agent.ui.theme.NovaTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.After
 import org.junit.Rule
@@ -59,6 +70,68 @@ class SettingsPanelTest {
         composeRule.onNodeWithText("Model ve çalışma biçimi").assertIsDisplayed()
         assertEquals("http://10.0.2.2:8088/v1" to "secret", tested)
     }
+
+    @Test
+    fun gatewayTokenKeepsStandardEditablePasswordSemanticsAndMaskedOutput() {
+        var saved: Pair<String, String>? = null
+        composeRule.setContent {
+            NovaTheme {
+                SettingsPanel(
+                    settings = AppSettings(token = "initial-secret"),
+                    connection = GatewayConnectionUiState(),
+                    onTestConnection = { _, _ -> },
+                    onSaveConnection = { baseUrl, token -> saved = baseUrl to token },
+                    onModelChange = {},
+                    onEffortChange = {},
+                    onReasoningChange = {},
+                    onClose = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("gateway_token")
+            .assertIsEnabled()
+            .assertHasClickAction()
+            .assert(SemanticsMatcher.keyIsDefined(SemanticsActions.SetText))
+            .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Password))
+            .performClick()
+            .assertIsFocused()
+            .performTextReplacement("replacement-secret")
+        composeRule.onAllNodesWithText("replacement-secret", useUnmergedTree = true)
+            .assertCountEquals(0)
+        composeRule.onNodeWithText("Kaydet").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals("replacement-secret", saved?.second)
+        }
+    }
+
+    @Test
+    fun reasoningSwitchHasAccessibleNameAndToggleState() {
+        var reasoning = true
+        composeRule.setContent {
+            NovaTheme {
+                SettingsPanel(
+                    settings = AppSettings(reasoning = true),
+                    connection = GatewayConnectionUiState(),
+                    onTestConnection = { _, _ -> },
+                    onSaveConnection = { _, _ -> },
+                    onModelChange = {},
+                    onEffortChange = {},
+                    onReasoningChange = { reasoning = it },
+                    onClose = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Akıl yürütme")
+            .assertIsOn()
+            .performClick()
+
+        composeRule.runOnIdle {
+            assertFalse(reasoning)
+        }
+    }
 }
 
 class SettingsPanelStatusBarTest {
@@ -74,6 +147,30 @@ class SettingsPanelStatusBarTest {
     fun keepsHeaderAndCloseTargetBelowStatusBarAtLargeFontScale() {
         setFontScale(1.3f)
         assertHeaderClearsStatusBar()
+    }
+
+    @Test
+    fun keepsBottomContentAboveNavigationBar() {
+        setFontScale(1f)
+        composeRule.onNodeWithContentDescription("Ayarlar").performClick()
+        val bottomContent = composeRule.onNodeWithText("Yerel öncelikli Android kontrol merkezi")
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.waitForIdle()
+
+        val rootInsets = requireNotNull(
+            ViewCompat.getRootWindowInsets(composeRule.activity.window.decorView),
+        )
+        val navigationBottomPx = rootInsets
+            .getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+        val navigationTop = composeRule.activity.window.decorView.height - navigationBottomPx
+        val contentBottom = bottomContent.fetchSemanticsNode().boundsInWindow.bottom
+
+        assertTrue("Expected a non-zero navigation-bar inset", navigationBottomPx > 0)
+        assertTrue(
+            "Settings bottom content $contentBottom overlaps navigation top $navigationTop",
+            contentBottom <= navigationTop,
+        )
     }
 
     @After
