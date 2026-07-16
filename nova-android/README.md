@@ -155,13 +155,17 @@ Derleme + statik denetim:
 > aşağıdaki koşu gereklidir: `./gradlew testDebugUnitTest lintDebug assembleDebug` + cihazda model
 > indirme + uçak modunda akışlı yerel yanıt + Gateway regresyon turu.
 
-## Yapılacaklar (sonraki adımlar)
+## Yerel araçlar (Faz 2 — agentic çekirdek)
 
-- Faz 1 kabul: fiziksel ARM64 cihazda model indirme, uçak modunda yerel sohbet, iptal ve Gateway regresyonu.
-- Faz 2 — Tam çevrimdışı: ~~`LOCAL_ONLY` politikası~~ (eklendi: Kontrol'den "Çevrimdışı"; bu modda
-  PC devri tamamen kapalıdır ve LiteRT-LM iptali gerçek `cancelProcess()` ile yapılır), lisans onaylı
-  modeller (Gemma), depolama yönetimi, yerel araç kullanımı (agentic çekirdek), çevrimdışı STT/TTS davranışı.
-- Faz 3 — Hibrit: izin temelli otomatik telefon↔PC devri, görev devri, pil/ısı farkındalığı.
-- Gateway `/stt` + `/tts` ile gerçek ses.
-- Çoklu sohbet + kalıcı geçmiş (Room/DataStore).
-- Görsel (çoklu-medya) gönderme; yerel tarafta Gemma3n benzeri çok-modlu model.
+`HorusToolSet` LiteRT-LM'in `@Tool` mekanizmasıyla konuşmaya bağlanır (otomatik araç çağırma).
+Tüm araçlar çevrimdışıdır, ağa çıkmaz ve ek izin istemez:
+
+| Araç | İşlev |
+|---|---|
+| `simdikiTarihSaat` | Tarih, saat, haftanın günü (tr-TR) |
+| `hesapla` | + - * / % ^ ve parantezli güvenli hesap (kod çalıştırmaz) |
+| `cihazDurumu` | Pil %, şarj, boş/toplam RAM, boş depolama, uçak modu |
+| `notKaydet` / `notlariListele` | Cihaz-içi not defteri (`filesDir/horus_notlar.txt`) |
+
+Dürüst sınır: araç çağrısı model kararına bağlıdır; Qwen3-0.6B gibi küçük modellerde her istemde
+tetiklenmeyebilir. Anahtar: Modeller > "Yerel araçlar (deneysel)". Araç hataları modele metin o

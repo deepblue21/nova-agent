@@ -21,9 +21,10 @@ data class AppSettings(
     val reasoning: Boolean = true,
     // --- Faz 1: yerel öncelikli ---
     // Anahtar diskte yoksa varsayılanlar uygulanır; eski kurulumlar Gateway'de kalır.
-    val executionPolicy: String = "gateway_only", // gateway_only | local_first (local_only=Faz2, hybrid=Faz3)
+    val executionPolicy: String = "gateway_only", // gateway_only | local_first | local_only (hybrid=Faz3)
     val localModelId: String = "qwen3-0.6b-int4",
     val localThinking: Boolean = false,
+    val localTools: Boolean = true, // Faz 2: çevrimdışı araç seti (deneysel)
     val themeId: String = "nova", // nova | aurora | amber
 )
 
@@ -37,6 +38,7 @@ class SettingsStore(private val context: Context) {
         val executionPolicy = stringPreferencesKey("execution_policy")
         val localModelId = stringPreferencesKey("local_model_id")
         val localThinking = booleanPreferencesKey("local_thinking")
+        val localTools = booleanPreferencesKey("local_tools")
         val themeId = stringPreferencesKey("theme_id")
     }
 
@@ -51,6 +53,7 @@ class SettingsStore(private val context: Context) {
             executionPolicy = p[Keys.executionPolicy] ?: def.executionPolicy,
             localModelId = p[Keys.localModelId] ?: def.localModelId,
             localThinking = p[Keys.localThinking] ?: def.localThinking,
+            localTools = p[Keys.localTools] ?: def.localTools,
             themeId = p[Keys.themeId] ?: def.themeId,
         )
     }
@@ -64,10 +67,4 @@ class SettingsStore(private val context: Context) {
             p[Keys.modelId] = s.modelId
             p[Keys.effort] = s.effort
             p[Keys.reasoning] = s.reasoning
-            p[Keys.executionPolicy] = s.executionPolicy
-            p[Keys.localModelId] = s.localModelId
-            p[Keys.localThinking] = s.localThinking
-            p[Keys.themeId] = s.themeId
-        }
-    }
-}
+            

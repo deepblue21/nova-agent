@@ -58,6 +58,10 @@ fun ModelsScreen(
     models: List<LocalModelUi>,
     activeLocalId: String,
     localThinking: Boolean,
+    localTools: Boolean,
+    toolSummary: String,
+    storageUsedBytes: Long,
+    storageFreeBytes: Long,
     deviceRamGb: Double,
     offlineReady: Boolean,
     gatewayModels: List<ModelOption>,
@@ -68,6 +72,7 @@ fun ModelsScreen(
     onVerify: (LocalModelUi) -> Unit,
     onSelectLocal: (String) -> Unit,
     onLocalThinking: (Boolean) -> Unit,
+    onLocalTools: (Boolean) -> Unit,
     onSelectGateway: (String) -> Unit,
     onStartLocalChat: () -> Unit,
 ) {
@@ -81,6 +86,8 @@ fun ModelsScreen(
         OfflineReadinessCard(
             offlineReady = offlineReady,
             deviceRamGb = deviceRamGb,
+            storageUsedBytes = storageUsedBytes,
+            storageFreeBytes = storageFreeBytes,
             onStartLocalChat = onStartLocalChat,
         )
 
@@ -98,6 +105,7 @@ fun ModelsScreen(
         }
 
         ThinkingRow(localThinking, onLocalThinking)
+        ToolsRow(localTools, toolSummary, onLocalTools)
 
         SectionLabel("PC GATEWAY MODELLERİ")
         Column(
@@ -140,6 +148,8 @@ private fun SectionLabel(text: String) {
 private fun OfflineReadinessCard(
     offlineReady: Boolean,
     deviceRamGb: Double,
+    storageUsedBytes: Long,
+    storageFreeBytes: Long,
     onStartLocalChat: () -> Unit,
 ) {
     Column(
@@ -192,6 +202,12 @@ private fun OfflineReadinessCard(
             Spacer(Modifier.width(4.dp))
             Text("Yerel istekler bu cihazdan çıkmaz", color = Muted, fontSize = 12.sp)
         }
+        Text(
+            "Modeller: ${storageUsedBytes / 1_048_576} MB · Boş depolama: " +
+                "${"%.1f".format(storageFreeBytes / 1_073_741_824.0)} GB",
+            color = Muted,
+            fontSize = 12.sp,
+        )
         if (offlineReady) {
             Button(
                 onClick = onStartLocalChat,
@@ -350,26 +366,9 @@ private fun ThinkingRow(enabled: Boolean, onChange: (Boolean) -> Unit) {
 }
 
 @Composable
-private fun GatewayModelRow(model: ModelOption, selected: Boolean, onSelect: () -> Unit) {
+private fun ToolsRow(enabled: Boolean, summary: String, onChange: (Boolean) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 52.dp)
-            .clickable(onClick = onSelect)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(model.name, color = TextMain, fontSize = 14.sp)
-            Text(model.group, color = Muted2, fontSize = 11.sp)
-        }
-        if (selected) {
-            Icon(
-                Icons.Filled.CheckCircle,
-                contentDescription = "${model.name} seçili",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-    }
-}
+            .clip(RoundedCornerShape(16.dp))
+            .background(Surface1)

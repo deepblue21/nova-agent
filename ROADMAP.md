@@ -50,17 +50,16 @@ Telefonda **çevrimdışı çalışan agentic bir yapay zeka** + PC'deki LLM iş
 
 - `LOCAL_ONLY` politikası: **eklendi (2026-07-16)** — Kontrol'den "Çevrimdışı" seçilebilir;
   bu modda yerel hata olsa bile istem cihaz dışına gönderilmez (devir kartında PC seçeneği yoktur).
-- İndirme merkezi: lisans onaylı (Gemma) modeller, depolama yönetimi, model silme/yeniden doğrulama.
-- Yerel araç kullanımı (LiteRT-LM ToolSet): saat, hesaplama, cihaz-içi arama gibi çevrimdışı araçlar → telefonda **agentic** akışın çekirdeği.
-- Çevrimdışı ses: mevcut Android STT/TTS'in çevrimdışı paketlerle davranış testi.
+- Yerel araç kullanımı (LiteRT-LM ToolSet): **eklendi (2026-07-16)** — telefonda tamamen çevrimdışı
+  araç seti: saat/tarih, hesap makinesi (güvenli ayrıştırıcı), cihaz durumu (pil/RAM/depolama/uçak modu),
+  not defteri (cihaz-içi dosya). Modeller > "Yerel araçlar (deneysel)" anahtarıyla açılıp kapanır;
+  araç çağrısının model kararına bağlı olduğu arayüzde dürüstçe belirtilir.
+- Depolama yönetimi: **eklendi** — Modeller ekranında model klasörü boyutu + boş alan.
+- İndirme merkezi: lisans onaylı (Gemma/FunctionGemma) modeller — HF token'lı kapılı indirme (sıradaki).
+- Çevrimdışı ses: mevcut Android STT/TTS'in çevrimdışı paketlerle davranış testi (cihazda).
 
 ## Faz 3 — Hibrit (en son)
 
 - `HYBRID` politikası: istek sınıflandırma (uzunluk/araç ihtiyacı/gizlilik etiketi) → telefon veya PC seçimi, her devir için tek dokunuşla izin veya kalıcı kural.
 - Görev devri: telefonda başlayan işin PC'de sürmesi (Gateway agent runs ile köprü).
-- Maliyet/pil/ısı farkındalığı: düşük pilde yerel küçük model, şarjda büyük bağlam gibi kurallar.
-
-## Depo düzeni notları
-
-- `codex/mobile-task-control-plane` dalındaki commit edilmemiş çalışma `wip:` commit'iyle güvenceye alındı (c4390bd).
-- Bu dal, doğrulanmış son Android uygulamasının (`codex/android-control-center-redesign`, 688fe1b) üzerine kuruludur.
+- Maliyet/pil/ısı

@@ -9,6 +9,7 @@ import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.MessageCallback
+import com.google.ai.edge.litertlm.ToolProvider
 
 /**
  * LiteRT-LM sarmalayıcısı (litertlm-android 0.13.x).
@@ -69,13 +70,15 @@ class OnDeviceEngine(private val appContext: Context) {
 
     /**
      * Akışlı üretim başlatır. [history] = (rol, içerik) çiftleri; son kullanıcı
-     * mesajı [prompt] olarak ayrıca verilir. Callback'ler native thread'den gelir;
-     * çağıran ana thread'e kendisi geçmelidir.
+     * mesajı [prompt] olarak ayrıca verilir. [tools] boş değilse konuşma araç
+     * kullanımıyla kurulur (otomatik araç çağırma; hatalar modele metin döner).
+     * Callback'ler native thread'den gelir; çağıran ana thread'e kendisi geçmelidir.
      */
     fun generate(
         history: List<Pair<String, String>>,
         prompt: String,
         thinking: Boolean,
+        tools: List<ToolProvider> = emptyList(),
         cb: Callbacks,
     ) {
         val current = synchronized(lock) { engine }
@@ -91,7 +94,7 @@ class OnDeviceEngine(private val appContext: Context) {
                     if (role == "user") Message.user(content) else Message.model(content)
                 }
             val conversation = current.createConversation(
-                ConversationConfig(initialMessages = initial),
+                ConversationConfig(initialMessages = initial, tools = tools),
             )
             synchronized(lock) { activeConversation = conversation }
 
@@ -163,10 +166,4 @@ class OnDeviceEngine(private val appContext: Context) {
     companion object {
         fun describeError(t: Throwable): String = when (t) {
             is UnsatisfiedLinkError ->
-                "Bu cihaz mimarisi yerel motoru desteklemiyor (ARM64 telefon gerekir)."
-            is OutOfMemoryError ->
-                "Bellek yetersiz: model bu cihaz için çok büyük."
-            else -> t.message?.takeIf { it.isNotBlank() } ?: "Yerel motor hatası"
-        }
-    }
-}
+                "Bu cihaz mimarisi yerel motoru desteklem

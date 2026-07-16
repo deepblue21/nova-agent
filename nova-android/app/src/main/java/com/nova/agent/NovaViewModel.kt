@@ -108,6 +108,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setLocalThinking(enabled: Boolean) = persist(settings.copy(localThinking = enabled))
+    fun setLocalTools(enabled: Boolean) = persist(settings.copy(localTools = enabled))
     fun setTheme(id: String) = persist(settings.copy(themeId = id))
 
     fun activeLocalSpec(): LocalModelSpec =
@@ -263,6 +264,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
             history = history,
             prompt = prompt,
             thinking = settings.localThinking,
+            toolsEnabled = settings.localTools,
             cb = object : OnDeviceEngine.Callbacks {
                 override fun onToken(text: String) {
                     if (!activeLocal) return
@@ -397,11 +399,4 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         connectionProbes.invalidate()
-        connectionCall?.cancel()
-        es?.cancel()
-        local.shutdown()
-        speech.destroy()
-        super.onCleared()
-    }
-
-}
+    

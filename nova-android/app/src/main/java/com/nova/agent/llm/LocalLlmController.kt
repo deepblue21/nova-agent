@@ -6,12 +6,16 @@ import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.google.ai.edge.litertlm.tool
 import com.nova.agent.llm.local.LocalModelCatalog
 import com.nova.agent.llm.local.LocalModelDiskState
 import com.nova.agent.llm.local.LocalModelSpec
 import com.nova.agent.llm.local.LocalModelStore
 import com.nova.agent.llm.local.ModelDownloader
 import com.nova.agent.llm.local.OnDeviceEngine
+import com.nova.agent.llm.local.tools.HorusToolSet
+import com.nova.agent.llm.local.tools.NoteStore
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -49,9 +53,19 @@ class LocalLlmController(
     private val downloader = ModelDownloader()
     private val downloadHandles = mutableMapOf<String, ModelDownloader.Handle>()
 
+    /** Çevrimdışı araç seti (Faz 2 — agentic çekirdek). Ağa çıkmaz, izin istemez. */
+    private val noteStore = NoteStore(File(app.filesDir, "horus_notlar.txt"))
+    private val toolBelt = HorusToolSet(app, noteStore)
+
     var models by mutableStateOf(snapshot(emptyList()))
         private set
     var engineState by mutableStateOf<LocalEngineUi>(LocalEngineUi.Idle)
+        private set
+
+    /** Model klasörünün kapladığı alan (bayt) ve boş depolama (bayt). */
+    var storageUsedBytes by mutableStateOf(0L)
+        private set
+    var storageFreeBytes by mutableStateOf(0L)
         private set
 
     /** Cihazın toplam RAM'i (GB, bir ondalık). Modeller ekranında gösterilir. */
@@ -61,6 +75,8 @@ class LocalLlmController(
 
     fun refresh() {
         models = snapshot(models)
+        storageUsedBytes = store.modelsDir.listFiles()?.sumOf { it.length() } ?: 0L
+        storageFreeBytes = app.filesDir.usableSpace
     }
 
     fun isInstalled(modelId: String): Boolean {
@@ -163,13 +179,16 @@ class LocalLlmController(
 
     /**
      * Yerel akışlı üretim. [history] son kullanıcı mesajı HARİÇ önceki turlar,
-     * [prompt] son kullanıcı mesajıdır. Callback'ler ana thread'de teslim edilir.
+     * [prompt] son kullanıcı mesajıdır. [toolsEnabled] true ise konuşma
+     * çevrimdışı araç setiyle (saat, hesap, cihaz durumu, notlar) kurulur.
+     * Callback'ler ana thread'de teslim edilir.
      */
     fun generate(
         spec: LocalModelSpec,
         history: List<Pair<String, String>>,
         prompt: String,
         thinking: Boolean,
+        toolsEnabled: Boolean,
         cb: OnDeviceEngine.Callbacks,
     ) {
         scope.launch(Dispatchers.IO) {
@@ -198,32 +217,4 @@ class LocalLlmController(
                 history = history,
                 prompt = prompt,
                 thinking = thinking,
-                cb = object : OnDeviceEngine.Callbacks {
-                    override fun onToken(text: String) = onMain { cb.onToken(text) }
-                    override fun onDone() = onMain { cb.onDone() }
-                    override fun onError(message: String) = onMain { cb.onError(message) }
-                },
-            )
-        }
-    }
-
-    fun cancelGenerate() {
-        engine.cancel()
-    }
-
-    fun shutdown() {
-        downloadHandles.values.forEach { it.cancel() }
-        downloadHandles.clear()
-        scope.launch(Dispatchers.IO) { engine.unload() }
-    }
-
-    companion object {
-        fun readDeviceRamGb(context: Context): Double {
-            val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
-                ?: return 0.0
-            val info = ActivityManager.MemoryInfo()
-            manager.getMemoryInfo(info)
-            return info.totalMem / 1_073_741_824.0
-        }
-    }
-}
+                tools = if (toolsEnabled) listOf(too

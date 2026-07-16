@@ -19,6 +19,7 @@ import com.nova.agent.feature.tasks.MobileTaskViewModel
 import com.nova.agent.feature.voice.VoiceScreen
 import com.nova.agent.llm.ExecutionPolicy
 import com.nova.agent.llm.local.LocalModelDiskState
+import com.nova.agent.llm.local.tools.HorusToolSet
 import com.nova.agent.net.GatewayConnectionClient
 import com.nova.agent.net.GatewayConnectionUiState
 
@@ -111,6 +112,10 @@ fun NovaApp(
                 models = vm.local.models,
                 activeLocalId = vm.settings.localModelId,
                 localThinking = vm.settings.localThinking,
+                localTools = vm.settings.localTools,
+                toolSummary = HorusToolSet.SUMMARY,
+                storageUsedBytes = vm.local.storageUsedBytes,
+                storageFreeBytes = vm.local.storageFreeBytes,
                 deviceRamGb = vm.local.deviceRamGb,
                 offlineReady = activeInstalled && activeVerified,
                 gatewayModels = MODELS,
@@ -121,6 +126,7 @@ fun NovaApp(
                 onVerify = { vm.local.verifyModel(it.spec) },
                 onSelectLocal = vm::setLocalModel,
                 onLocalThinking = vm::setLocalThinking,
+                onLocalTools = vm::setLocalTools,
                 onSelectGateway = vm::setModel,
                 onStartLocalChat = {
                     vm.setExecutionPolicy(ExecutionPolicy.LOCAL_FIRST)
@@ -186,16 +192,4 @@ internal fun NovaSettingsPanel(
                 onTestConnection(trimmedBaseUrl, trimmedToken)
             } else {
                 onUpdateTaskConnection(canonicalBaseUrl, trimmedToken)
-                onSaveAssistantConnection(canonicalBaseUrl, trimmedToken)
-            }
-        },
-        onModelChange = onModelChange,
-        onEffortChange = onEffortChange,
-        onReasoningChange = onReasoningChange,
-        onThemeChange = onThemeChange,
-        onClose = {
-            onRestoreAppliedConnection()
-            onClose()
-        },
-    )
-}
+                onSaveAssistantConnec
