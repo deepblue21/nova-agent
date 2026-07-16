@@ -19,6 +19,12 @@ data class AppSettings(
     val modelId: String = "auto",
     val effort: String = "balanced",
     val reasoning: Boolean = true,
+    // --- Faz 1: yerel öncelikli ---
+    // Anahtar diskte yoksa varsayılanlar uygulanır; eski kurulumlar Gateway'de kalır.
+    val executionPolicy: String = "gateway_only", // gateway_only | local_first (local_only=Faz2, hybrid=Faz3)
+    val localModelId: String = "qwen3-0.6b-int4",
+    val localThinking: Boolean = false,
+    val themeId: String = "nova", // nova | aurora | amber
 )
 
 class SettingsStore(private val context: Context) {
@@ -28,28 +34,13 @@ class SettingsStore(private val context: Context) {
         val modelId = stringPreferencesKey("model_id")
         val effort = stringPreferencesKey("effort")
         val reasoning = booleanPreferencesKey("reasoning")
+        val executionPolicy = stringPreferencesKey("execution_policy")
+        val localModelId = stringPreferencesKey("local_model_id")
+        val localThinking = booleanPreferencesKey("local_thinking")
+        val themeId = stringPreferencesKey("theme_id")
     }
 
     val flow = context.dataStore.data.map { p ->
         val def = AppSettings()
         AppSettings(
-            baseUrl = p[Keys.baseUrl] ?: def.baseUrl,
-            token = p[Keys.token] ?: def.token,
-            modelId = p[Keys.modelId] ?: def.modelId,
-            effort = p[Keys.effort] ?: def.effort,
-            reasoning = p[Keys.reasoning] ?: def.reasoning,
-        )
-    }
-
-    suspend fun load(): AppSettings = flow.first()
-
-    suspend fun save(s: AppSettings) {
-        context.dataStore.edit { p ->
-            p[Keys.baseUrl] = s.baseUrl
-            p[Keys.token] = s.token
-            p[Keys.modelId] = s.modelId
-            p[Keys.effort] = s.effort
-            p[Keys.reasoning] = s.reasoning
-        }
-    }
-}
+            baseUrl = p[Keys.baseUr

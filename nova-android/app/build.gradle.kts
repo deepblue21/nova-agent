@@ -12,8 +12,8 @@ android {
         applicationId = "com.nova.agent"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -56,6 +56,9 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp-sse:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
+    // Faz 1 — cihaz-üstü LLM (LiteRT-LM Kotlin API, Google Maven). Sabit sürüm.
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.13.1")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation("junit:junit:4.13.2")
@@ -63,7 +66,4 @@ dependencies {
 
     androidTestImplementation(composeBom)
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
-}
+    androidTestImplementation("androidx.tes

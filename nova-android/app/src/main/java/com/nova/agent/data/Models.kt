@@ -1,5 +1,11 @@
 package com.nova.agent.data
 
+/**
+ * Yerel model yanıt veremediğinde gösterilen izinli devir isteği.
+ * Kullanıcı onaylamadan istem cihaz dışına ÇIKMAZ.
+ */
+data class PendingFallback(val reason: String)
+
 /** Tek bir sohbet mesajı. */
 data class ChatMessage(
     val role: String,                 // "user" | "assistant"
@@ -33,5 +39,9 @@ val EFFORTS = listOf(
     EffortOption("max", "Maks"),
 )
 
-enum class Mode { VOICE, CHAT, TASKS }
+/**
+ * Birincil gezinme hedefleri. KONTROL/MODELLER Faz 1'de eklendi;
+ * VOICE alt gezinmede görünmez, Sohbet üst çubuğundaki mikrofonla açılır.
+ */
+enum class Mode { KONTROL, TASKS, CHAT, MODELLER, VOICE }
 enum class VoiceState { IDLE, LISTENING, THINKING, SPEAKING }
