@@ -165,6 +165,24 @@ with both verified work and the next concrete work item.
 - Docker mobile-control-plane smoke that creates, reads, pauses, resumes, cancels, and
   replays task events without printing the API key.
 - Debug APK: `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
+- Task 7 control-center verification delivered the fixed task-first **Tasks / Chat / Voice**
+  navigation while retaining the adaptive launcher icon. The full gate passed with 36 unit tests,
+  19 connected Android tests on Android 17 `emulator-5554`, zero lint errors (11 warnings and one
+  informational issue), and a successful debug APK install/launcher resolution. No physical ADB
+  serial was connected, so physical-phone testing was not performed. The verified APK SHA-256 is
+  `E3F1A29FF5C6AF4B5A4CF6494296E0A3700E57B2B3EF2F5D4043466AB6EFF575`.
+- The in-app Gateway probe reached `PC ready` with a local QA identity. The fixed connectivity
+  prompt completed through the PC model with UI-tree-sampled TTFT 48.337 s, total 48.341 s, and
+  sanitized route `ollama/gemma4:latest`; no raw model body or credential is recorded here.
+- Worker preflight passed (7 Node tests and 39 Python tests), but the safe live Android-version
+  attempt was rejected before task creation by the Gateway allowlist with the sanitized message
+  `Bu gorev emulator worker'inda desteklenmiyor`; no terminal worker run is claimed.
+- The Task 7 regression pass resolved the Settings/status-bar overlap at system font scales 1.0
+  and 1.3, and kept the Tasks composer plus primary action fully above a real IME at 1.3. The best
+  warm no-dump debug-emulator sample still recorded 37/69 janky frames (53.62%), p50 34 ms and
+  p90 44 ms. Perfetto evidence points to mixed emulator graphics/buffer pressure and Compose work,
+  without one proven app-owned hotspot; release-build performance on physical hardware remains a
+  follow-up rather than a claimed benchmark.
 - Dedicated worker-goal policy and worker-only authentication are complete.
 - Gateway worker leases are persisted with token hashes only. Focused semantic store tests now
   distinguish an unknown task (`404`) from a valid task with a missing, stale, inactive, or

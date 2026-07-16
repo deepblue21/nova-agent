@@ -83,7 +83,28 @@ Derleme + statik denetim:
 ./gradlew lintDebug assembleDebug
 ```
 
-> Not: Compose UI'nin tamamı yalnızca Android ortamında (Studio/emülatör) derlenir ve çalışır. Bu repodaki kod elle gözden geçirildi; gerçek derleme/çalıştırma senin makinende yapılır.
+### 16 Temmuz 2026 doğrulama özeti
+
+- Görev-öncelikli sabit `Görevler` / `Sohbet` / `Ses` navigasyonu teslim edildi; uyarlanabilir
+  launcher ikonu korundu ve `com.nova.agent/.MainActivity` olarak çözüldü.
+- `:app:testDebugUnitTest`, `:app:lintDebug` ve `:app:assembleDebug` geçti: 36 unit test,
+  0 lint hatası (11 uyarı, 1 bilgi). `:app:connectedDebugAndroidTest` Android 17
+  `emulator-5554` üzerinde 19/19 geçti; APK aynı emülatöre kuruldu. Bu koşuda fiziksel cihaz bağlı
+  değildi ve fiziksel cihaz testi yapılmadı.
+- Ayarlardaki bağlantı testi, geçerli emülatör Gateway adresi ve yerel QA kimliğiyle `PC hazır`
+  durumuna ulaştı. Sabit doğrulama istemi PC'deki yerel modele aktı; UI-tree örneklemesine göre
+  TTFT 48.337 sn, toplam 48.341 sn ve sanitize rota `ollama/gemma4:latest` idi.
+- Worker preflight'ları 7 Node + 39 Python testiyle geçti. Güvenli canlı görev girişimi Gateway
+  allowlist'i tarafından `Bu gorev emulator worker'inda desteklenmiyor` mesajıyla reddedildi; bu
+  nedenle terminal worker sonucu doğrulanmadı.
+- Regresyon turunda Ayarlar başlığı/kapatma kontrolü sistem durum çubuğunun altına alındı ve 1.0
+  ile 1.3 sistem yazı ölçeklerinde doğrulandı. Görevler composer ve birincil eylem de 1.3 ölçekte
+  gerçek IME'nin tamamen üstünde kaldı. En iyi sıcak, UI-dump'sız debug-emülatör örneğinde 69
+  frame'in 37'si janky idi (%53,62), p50 34 ms ve p90 44 ms. Perfetto kanıtı emülatör
+  grafik/buffer baskısı ile Compose işinin birlikte etkisini gösterdi; kanıtlanmış tek bir uygulama
+  hotspot'u bulunmadı. Fiziksel donanımda release-build performans kontrolü takip maddesidir.
+- Doğrulanan debug APK SHA-256:
+  `E3F1A29FF5C6AF4B5A4CF6494296E0A3700E57B2B3EF2F5D4043466AB6EFF575`.
 
 ---
 

@@ -164,6 +164,25 @@ yapilanlar hem de siradaki somut is burada guncellenir.
 - API anahtarini yazdirmadan gorev olusturan, okuyan, duraklatan, devam ettiren, iptal eden
   ve event'leri replay eden Docker mobil kontrol duzlemi smoke testi.
 - Debug APK: `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
+- Gorev 7 kontrol merkezi dogrulamasi, uyarlanabilir launcher ikonunu koruyarak sabit ve
+  gorev-oncelikli **Gorevler / Sohbet / Ses** navigasyonunu teslim etti. Tam gate; 36 unit test,
+  Android 17 `emulator-5554` uzerinde 19 connected test, sifir lint hatasi (11 uyari ve 1 bilgi),
+  debug APK kurulum ve launcher resolution ile gecti. Fiziksel ADB serial bagli olmadigi icin
+  fiziksel telefon testi yapilmadi. Dogrulanan APK SHA-256:
+  `E3F1A29FF5C6AF4B5A4CF6494296E0A3700E57B2B3EF2F5D4043466AB6EFF575`.
+- Uygulama ici Gateway testi yerel QA kimligiyle `PC hazir` durumuna ulasti. Sabit baglanti istemi
+  PC modelinde tamamladi; UI-tree orneklemesine gore TTFT 48,337 sn, toplam 48,341 sn ve sanitize
+  rota `ollama/gemma4:latest` idi. Burada ham model govdesi veya kimlik bilgisi tutulmaz.
+- Worker preflight 7 Node ve 39 Python testiyle gecti. Guvenli canli Android surum girisimi,
+  gorev olusmadan once Gateway allowlist tarafindan sanitize
+  `Bu gorev emulator worker'inda desteklenmiyor` mesaji ile reddedildi; terminal worker kosusu
+  tamamlandi diye iddia edilmez.
+- Gorev 7 regresyon turu, sistem yazi olcegi 1.0 ve 1.3 iken Ayarlar/status bar cakismasini cozdu;
+  1.3 olcekte Gorevler composer ve birincil eylem gercek IME'nin tamamen ustunde kaldi. En iyi
+  sicak, UI-dump'siz debug-emulator orneginde 69 frame'in 37'si janky idi (%53,62), p50 34 ms ve
+  p90 44 ms. Perfetto kaniti emulator grafik/buffer baskisi ile Compose isinin birlikte etkisini
+  gosteriyor; kanitlanmis tek bir uygulama hotspot'u yok. Fiziksel donanimdaki release-build
+  performans kontrolu takip maddesi olarak kalir, benchmark sonucu olarak sunulmaz.
 - Ayrilmis worker-goal politikasi ve yalnizca worker icin kimlik dogrulamasi tamamlandi.
 - Gateway worker lease'leri yalnizca token hash'i ile kalici. Odakli anlamsal store testleri hem
   durum hem de rapor islemlerinde bilinmeyen gorevi (`404`), eksik, bayat, aktif olmayan veya yanlis
