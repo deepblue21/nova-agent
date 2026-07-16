@@ -168,4 +168,30 @@ Tüm araçlar çevrimdışıdır, ağa çıkmaz ve ek izin istemez:
 | `notKaydet` / `notlariListele` | Cihaz-içi not defteri (`filesDir/horus_notlar.txt`) |
 
 Dürüst sınır: araç çağrısı model kararına bağlıdır; Qwen3-0.6B gibi küçük modellerde her istemde
-tetiklenmeyebilir. Anahtar: Modeller > "Yerel araçlar (deneysel)". Araç hataları modele metin o
+tetiklenmeyebilir. Anahtar: Modeller > "Yerel araçlar (deneysel)". Araç hataları modele metin olarak
+döner, uygulamayı düşürmez.
+
+## Kapılı modeller (Faz 2 D3) ve Hibrit (Faz 3 D1)
+
+- **Gemma 3 1B (int4)** katalogda: kapılı model — HF hesabında
+  [litert-community/Gemma3-1B-IT](https://huggingface.co/litert-community/Gemma3-1B-IT) sayfasında
+  lisansı onayla, sonra Ayarlar > Hugging Face bölümüne erişim token'ı gir. Token cihazda kalır ve
+  yalnız huggingface.co'ya gönderilir (yönlendirmede CDN'e sızmaz). Sabit revizyon + SHA-256 doğrulaması
+  aynı şekilde uygulanır.
+- **Hibrit politika** Kontrol'den seçilebilir. Kurallar sabit ve arayüzde yazılıdır: kısa istemler
+  telefonda; 1200+ karakter veya (pil ≤ %20 ve şarjda değil) → PC; telefon modeli yoksa PC. Yerel
+  hata sonrası devir varsayılan "her seferinde sor"dur; Kontrol > Hibrit kuralları'ndan
+  "otomatik devret" açılabilir. Hangi hedefin yanıtladığı mesaj altındaki rota rozetinde görünür.
+
+## Yapılacaklar (sonraki adımlar)
+
+- Toplu cihaz doğrulaması (Faz 1+2+3 D1): `testDebugUnitTest lintDebug assembleDebug` + fiziksel ARM64
+  cihazda model indirme, uçak modunda yerel sohbet + araç turu ("saat kaç?", "23*7?", "pil yüzde kaç?",
+  "not al: …"), Çevrimdışı modda devirsizlik, Hibrit kuralları ve Gateway regresyonu.
+- FunctionGemma-270M (araç çağrısı için eğitilmiş, kapılı) — mevcut mekanizmayla kataloğa eklenecek.
+- Görev devri (telefon→PC, Gateway agent runs köprüsü) ve ısı farkındalığı — Faz 3 kalanları.
+- Çevrimdışı STT/TTS davranış testi.
+- Faz 3 — Hibrit: izin temelli otomatik telefon↔PC devri, görev devri, pil/ısı farkındalığı.
+- Gateway `/stt` + `/tts` ile gerçek ses.
+- Çoklu sohbet + kalıcı geçmiş (Room/DataStore).
+- Görsel (çoklu-medya) gönderme; yerel tarafta Gemma3n benzeri çok-modlu model.

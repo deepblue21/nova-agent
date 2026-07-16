@@ -45,12 +45,16 @@ class ModelDownloader(
 
     /**
      * Bloklayan indirme; Dispatchers.IO üzerinde çağrılmalı.
+     * [hfToken] yalnız kapılı modeller için gerekir; ilk isteğe Bearer olarak
+     * eklenir (OkHttp, host değişen yönlendirmelerde Authorization başlığını
+     * otomatik düşürür — token CDN'e sızmaz).
      * [onProgress] toplam indirilen bayt ve hedef boyutla, en fazla ~200 ms'de bir çağrılır.
      */
     fun download(
         spec: LocalModelSpec,
         store: LocalModelStore,
         handle: Handle,
+        hfToken: String = "",
         onProgress: (Long, Long) -> Unit,
     ): Result {
         if (!spec.downloadUrl.startsWith("https://")) {
@@ -69,6 +73,7 @@ class ModelDownloader(
 
         val requestBuilder = Request.Builder().url(spec.downloadUrl)
         if (resumeFrom > 0) requestBuilder.header("Range", rangeHeader(resumeFrom))
+        if (hfToken.isNotBlank()) requestBuilder.header("Authorization", "Bearer ${hfToken.trim()}")
 
         val call = client.newCall(requestBuilder.build())
         handle.call = call
@@ -83,6 +88,11 @@ class ModelDownloader(
                         part.delete()
                         resumeFrom = 0L
                     }
+                    response.code == 401 || response.code == 403 -> return Result.Failure(
+                        "Bu model kapılı (lisans onayı gerekli). HF hesabınla modelin sayfasında " +
+                            "lisansı onayla ve Ayarlar'daki Hugging Face token'ını kontrol et. " +
+                            "(HTTP ${response.code})",
+                    )
                     else -> return Result.Failure("İndirme hatası (HTTP ${response.code})")
                 }
 
@@ -154,23 +164,4 @@ class ModelDownloader(
         private fun updateDigest(digest: MessageDigest, input: InputStream) {
             val buffer = ByteArray(64 * 1024)
             while (true) {
-                val n = input.read(buffer)
-                if (n < 0) break
-                digest.update(buffer, 0, n)
-            }
-        }
-
-        fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(20, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .callTimeout(0, TimeUnit.SECONDS) // büyük dosya: toplam süre sınırsız
-            .addNetworkInterceptor { chain ->
-                val request = chain.request()
-                if (!request.url.isHttps) {
-                    throw IOException("Güvensiz (HTTP) yönlendirme engellendi: ${request.url.host}")
-                }
-                chain.proceed(request)
-            }
-            .build()
-    }
-}
+      

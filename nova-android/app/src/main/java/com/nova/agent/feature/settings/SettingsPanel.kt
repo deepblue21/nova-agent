@@ -71,10 +71,12 @@ fun SettingsPanel(
     onEffortChange: (String) -> Unit,
     onReasoningChange: (Boolean) -> Unit,
     onThemeChange: (String) -> Unit = {},
+    onHfTokenChange: (String) -> Unit = {},
     onClose: () -> Unit,
 ) {
     var baseUrl by remember(settings.baseUrl) { mutableStateOf(settings.baseUrl) }
     var token by remember(settings.token) { mutableStateOf(settings.token) }
+    var hfToken by remember(settings.hfToken) { mutableStateOf(settings.hfToken) }
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -161,6 +163,34 @@ fun SettingsPanel(
                         contentDescription = "Akıl yürütme"
                     },
                 )
+            }
+
+            SectionHeading("Hugging Face (kapılı modeller)")
+            Text(
+                "Yalnız lisans onaylı model indirmede kullanılır; token cihazda kalır ve " +
+                    "yalnız huggingface.co'ya gönderilir.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            OutlinedTextField(
+                value = hfToken,
+                onValueChange = { hfToken = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("hf_token")
+                    .semantics {
+                        contentDescription = "Hugging Face erişim belirteci"
+                        password()
+                    },
+                label = { Text("HF erişim token'ı (hf_…)") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            )
+            OutlinedButton(
+                onClick = { onHfTokenChange(hfToken) },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            ) {
+                Text("HF token'ı kaydet")
             }
 
             SectionHeading("Görünüm")
@@ -265,43 +295,4 @@ private fun ModelDropdown(selectedId: String, onModelChange: (String) -> Unit) {
                             Text(model.group, style = MaterialTheme.typography.bodySmall)
                         }
                     },
-                    onClick = {
-                        expanded = false
-                        onModelChange(model.id)
-                    },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun EffortControls(selectedId: String, onEffortChange: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        EFFORTS.chunked(2).forEach { rowOptions ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                rowOptions.forEach { effort ->
-                    val selected = effort.id == selectedId
-                    if (selected) {
-                        Button(
-                            onClick = { onEffortChange(effort.id) },
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                        ) {
-                            Text(effort.name)
-                        }
-                    } else {
-                        OutlinedButton(
-                            onClick = { onEffortChange(effort.id) },
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                        ) {
-                            Text(effort.name)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+                    onClick =

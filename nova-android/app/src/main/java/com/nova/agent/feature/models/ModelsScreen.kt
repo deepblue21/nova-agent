@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import com.nova.agent.data.ModelOption
 import com.nova.agent.llm.LocalModelUi
 import com.nova.agent.llm.local.LocalModelDiskState
+import com.nova.agent.ui.theme.Amber
 import com.nova.agent.ui.theme.Coral
 import com.nova.agent.ui.theme.Line
 import com.nova.agent.ui.theme.Muted
@@ -258,6 +259,13 @@ private fun LocalModelRow(
                     color = Muted,
                     fontSize = 11.sp,
                 )
+                if (spec.gated && !installed) {
+                    Text(
+                        "Kapılı model: HF hesabında lisans onayı + Ayarlar'da HF token gerekir.",
+                        color = Amber,
+                        fontSize = 11.sp,
+                    )
+                }
             }
             StatusChip(ui)
         }
@@ -360,15 +368,4 @@ private fun ThinkingRow(enabled: Boolean, onChange: (Boolean) -> Unit) {
         Switch(
             checked = enabled,
             onCheckedChange = onChange,
-            modifier = Modifier.semantics { contentDescription = "Yerel düşünme" },
-        )
-    }
-}
-
-@Composable
-private fun ToolsRow(enabled: Boolean, summary: String, onChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Surface1)
+            mo

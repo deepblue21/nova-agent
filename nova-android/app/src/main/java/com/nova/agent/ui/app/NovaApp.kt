@@ -68,6 +68,8 @@ fun NovaApp(
                 connection = vm.connectionState,
                 activeTask = taskVm.state.task,
                 chatBusy = vm.busy,
+                hybridAutoFallback = vm.settings.hybridAutoFallback,
+                onHybridAutoFallback = vm::setHybridAutoFallback,
                 onPolicyChange = vm::setExecutionPolicy,
                 onNewTask = { vm.mode = Mode.TASKS },
                 onOpenChat = { vm.mode = Mode.CHAT },
@@ -120,7 +122,7 @@ fun NovaApp(
                 offlineReady = activeInstalled && activeVerified,
                 gatewayModels = MODELS,
                 gatewaySelectedId = vm.settings.modelId,
-                onDownload = { vm.local.startDownload(it.spec) },
+                onDownload = { vm.local.startDownload(it.spec, vm.settings.hfToken) },
                 onCancelDownload = { vm.local.cancelDownload(it.spec) },
                 onDelete = { vm.local.deleteModel(it.spec) },
                 onVerify = { vm.local.verifyModel(it.spec) },
@@ -156,6 +158,7 @@ fun NovaApp(
             onEffortChange = vm::setEffort,
             onReasoningChange = vm::setReasoning,
             onThemeChange = vm::setTheme,
+            onHfTokenChange = vm::setHfToken,
             onRestoreAppliedConnection = { vm.testConnection() },
             onClose = { showSettings = false },
         )
@@ -173,6 +176,7 @@ internal fun NovaSettingsPanel(
     onEffortChange: (String) -> Unit,
     onReasoningChange: (Boolean) -> Unit,
     onThemeChange: (String) -> Unit = {},
+    onHfTokenChange: (String) -> Unit = {},
     onRestoreAppliedConnection: () -> Unit = {
         onTestConnection(settings.baseUrl, settings.token)
     },
@@ -187,9 +191,4 @@ internal fun NovaSettingsPanel(
             val trimmedToken = token.trim()
             val canonicalBaseUrl = GatewayConnectionClient
                 .canonicalBaseUrl(trimmedBaseUrl)
-                ?.toString()
-            if (canonicalBaseUrl == null) {
-                onTestConnection(trimmedBaseUrl, trimmedToken)
-            } else {
-                onUpdateTaskConnection(canonicalBaseUrl, trimmedToken)
-                onSaveAssistantConnec
+                ?.t

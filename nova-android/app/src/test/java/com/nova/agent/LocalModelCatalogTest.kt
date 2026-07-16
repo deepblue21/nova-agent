@@ -16,9 +16,10 @@ class LocalModelCatalogTest {
 
     @Test
     fun `tum indirmeler https ve revizyona kilitli`() {
+        val pinned = Regex("/resolve/[0-9a-f]{40}/")
         for (spec in LocalModelCatalog.entries) {
             assertTrue(spec.id, spec.downloadUrl.startsWith("https://"))
-            assertTrue(spec.id, spec.downloadUrl.contains(LocalModelCatalog.REVISION))
+            assertTrue(spec.id, pinned.containsMatchIn(spec.downloadUrl))
             assertTrue(spec.id, spec.downloadUrl.endsWith(spec.fileName))
         }
     }
@@ -41,6 +42,4 @@ class LocalModelCatalogTest {
             "b1baab462f6be49d70eada79d715c2c52cd9ece0cad00bddf6a2c097d23498e9",
             int4.sha256,
         )
-        assertEquals(int4, LocalModelCatalog.default)
-    }
-}
+        assertEquals(i

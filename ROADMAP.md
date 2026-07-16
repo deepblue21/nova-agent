@@ -55,11 +55,12 @@ Telefonda **çevrimdışı çalışan agentic bir yapay zeka** + PC'deki LLM iş
   not defteri (cihaz-içi dosya). Modeller > "Yerel araçlar (deneysel)" anahtarıyla açılıp kapanır;
   araç çağrısının model kararına bağlı olduğu arayüzde dürüstçe belirtilir.
 - Depolama yönetimi: **eklendi** — Modeller ekranında model klasörü boyutu + boş alan.
-- İndirme merkezi: lisans onaylı (Gemma/FunctionGemma) modeller — HF token'lı kapılı indirme (sıradaki).
+- Lisans onaylı modeller: **eklendi (2026-07-16)** — Gemma 3 1B (int4, kapılı) katalogda; HF token
+  Ayarlar'da saklanır, yalnız huggingface.co'ya gönderilir (OkHttp host değişen yönlendirmede
+  Authorization'ı düşürür), 401/403 dürüst mesajla açıklanır. FunctionGemma aynı mekanizmayla
+  tek satırda eklenebilir (sıradaki).
 - Çevrimdışı ses: mevcut Android STT/TTS'in çevrimdışı paketlerle davranış testi (cihazda).
 
-## Faz 3 — Hibrit (en son)
+## Faz 3 — Hibrit (başladı)
 
-- `HYBRID` politikası: istek sınıflandırma (uzunluk/araç ihtiyacı/gizlilik etiketi) → telefon veya PC seçimi, her devir için tek dokunuşla izin veya kalıcı kural.
-- Görev devri: telefonda başlayan işin PC'de sürmesi (Gateway agent runs ile köprü).
-- Maliyet/pil/ısı
+- `HYBRID` politikası D1: **eklendi (2026-07-1

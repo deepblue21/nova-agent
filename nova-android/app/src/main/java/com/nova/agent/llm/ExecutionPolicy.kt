@@ -4,9 +4,9 @@ package com.nova.agent.llm
  * Yürütme politikası. Varsayılan GATEWAY_ONLY'dir: mevcut kurulumlar
  * kendiliğinden telefona geçirilmez, davranış bire bir korunur.
  *
- * LOCAL_ONLY (Çevrimdışı, Faz 2) artık seçilebilir: istekler yalnız
- * telefonda çalışır ve hiçbir koşulda PC/buluta devredilmez.
- * HYBRID (Faz 3) tamamlanana kadar arayüzde pasiftir; taklit edilmez.
+ * LOCAL_ONLY (Çevrimdışı): istekler yalnız telefonda çalışır, devir kapalıdır.
+ * HYBRID (Faz 3): kısa işler telefonda, uzun işler ve düşük pil PC'de;
+ * yerel hata sonrası devir kullanıcı kuralına bağlıdır (sor / otomatik).
  */
 enum class ExecutionPolicy(val id: String, val label: String) {
     GATEWAY_ONLY("gateway_only", "PC / Gateway"),
@@ -14,13 +14,13 @@ enum class ExecutionPolicy(val id: String, val label: String) {
     LOCAL_ONLY("local_only", "Çevrimdışı"),
     HYBRID("hybrid", "Hibrit");
 
-    /** Bu sürümde seçilebilir politikalar; HYBRID Faz 3'te açılacak. */
+    /** Tüm politikalar artık seçilebilir (Faz 3 D1 ile HYBRID de açıldı). */
     val selectableNow: Boolean
-        get() = this != HYBRID
+        get() = true
 
-    /** İstek telefonda mı çalışır. */
+    /** İstek (öncelikle) telefonda mı çalışır. */
     val runsOnDevice: Boolean
-        get() = this == LOCAL_FIRST || this == LOCAL_ONLY
+        get() = this == LOCAL_FIRST || this == LOCAL_ONLY || this == HYBRID
 
     /** Yerel hata sonrası PC'ye izinli devir önerilebilir mi. */
     val allowsGatewayFallback: Boolean
@@ -31,6 +31,15 @@ enum class ExecutionPolicy(val id: String, val label: String) {
             entries.firstOrNull { it.id == id } ?: GATEWAY_ONLY
     }
 }
+
+/** Hibrit karar girdileri; tamamı çağıran tarafça ölçülür, saf kalır. */
+data class HybridInputs(
+    val localModelInstalled: Boolean,
+    val promptChars: Int,
+    val batteryPercent: Int, // bilinmiyorsa -1
+    val charging: Boolean,
+    val gatewayReady: Boolean,
+)
 
 /** Bir sohbet isteminin nereye gideceği kararı. Saf ve test edilebilir. */
 sealed interface RouteDecision {
@@ -63,13 +72,4 @@ object EngineRouter {
                     if (policy == ExecutionPolicy.LOCAL_ONLY) {
                         "Çevrimdışı mod için telefonda kurulu model gerekli. " +
                             "Modeller sekmesinden bir model indirin."
-                    } else {
-                        "Telefonda kurulu model yok. Modeller sekmesinden bir model indirin."
-                    },
-                )
-            }
-
-        // Faz 3'e kadar HYBRID arayüzden seçilemez; yine de görülürse güvenli taraf Gateway'dir.
-        ExecutionPolicy.HYBRID -> RouteDecision.Gateway
-    }
-}
+    

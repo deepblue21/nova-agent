@@ -98,7 +98,6 @@ class LocalToolsTest {
     }
 
     @Test
-    fun `varsayilan ayarlarda yerel araclar acik`() {
-        assertTrue(com.nova.agent.data.AppSettings().localTools)
-    }
-}
+    fun `varsayilan ayarlar guvenli taraftadir`() {
+        val settings = com.nova.agent.data.AppSettings()
+        assertTrue

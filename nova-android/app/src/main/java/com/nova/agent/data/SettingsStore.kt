@@ -26,6 +26,11 @@ data class AppSettings(
     val localThinking: Boolean = false,
     val localTools: Boolean = true, // Faz 2: çevrimdışı araç seti (deneysel)
     val themeId: String = "nova", // nova | aurora | amber
+    // Faz 2 D3: kapılı (Gemma) model indirmeleri için HF erişim token'ı.
+    // Cihazda kalır; yalnız huggingface.co'ya gönderilir.
+    val hfToken: String = "",
+    // Faz 3 D1: hibritte yerel hata sonrası otomatik PC devri (false = her seferinde sor).
+    val hybridAutoFallback: Boolean = false,
 )
 
 class SettingsStore(private val context: Context) {
@@ -40,6 +45,8 @@ class SettingsStore(private val context: Context) {
         val localThinking = booleanPreferencesKey("local_thinking")
         val localTools = booleanPreferencesKey("local_tools")
         val themeId = stringPreferencesKey("theme_id")
+        val hfToken = stringPreferencesKey("hf_token")
+        val hybridAutoFallback = booleanPreferencesKey("hybrid_auto_fallback")
     }
 
     val flow = context.dataStore.data.map { p ->
@@ -53,18 +60,4 @@ class SettingsStore(private val context: Context) {
             executionPolicy = p[Keys.executionPolicy] ?: def.executionPolicy,
             localModelId = p[Keys.localModelId] ?: def.localModelId,
             localThinking = p[Keys.localThinking] ?: def.localThinking,
-            localTools = p[Keys.localTools] ?: def.localTools,
-            themeId = p[Keys.themeId] ?: def.themeId,
-        )
-    }
-
-    suspend fun load(): AppSettings = flow.first()
-
-    suspend fun save(s: AppSettings) {
-        context.dataStore.edit { p ->
-            p[Keys.baseUrl] = s.baseUrl
-            p[Keys.token] = s.token
-            p[Keys.modelId] = s.modelId
-            p[Keys.effort] = s.effort
-            p[Keys.reasoning] = s.reasoning
-            
+            localTools = p[Key

@@ -2,6 +2,7 @@ package com.nova.agent
 
 import com.nova.agent.llm.EngineRouter
 import com.nova.agent.llm.ExecutionPolicy
+import com.nova.agent.llm.HybridInputs
 import com.nova.agent.llm.RouteDecision
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -37,11 +38,11 @@ class EngineRouterTest {
     }
 
     @Test
-    fun `hybrid haric tum politikalar secilebilir`() {
+    fun `faz 3 ile tum politikalar secilebilir`() {
         assertTrue(ExecutionPolicy.GATEWAY_ONLY.selectableNow)
         assertTrue(ExecutionPolicy.LOCAL_FIRST.selectableNow)
         assertTrue(ExecutionPolicy.LOCAL_ONLY.selectableNow)
-        assertFalse(ExecutionPolicy.HYBRID.selectableNow)
+        assertTrue(ExecutionPolicy.HYBRID.selectableNow)
     }
 
     @Test
@@ -61,6 +62,4 @@ class EngineRouterTest {
     @Test
     fun `cevrimdisi kurulu modelle telefonda calisir`() {
         val decision = EngineRouter.decide(ExecutionPolicy.LOCAL_ONLY, "qwen3-0.6b-int4", true)
-        assertTrue(decision is RouteDecision.Local)
-    }
-}
+        assertTrue(decisi

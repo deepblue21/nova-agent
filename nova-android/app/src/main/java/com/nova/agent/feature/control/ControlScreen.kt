@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import com.nova.agent.feature.tasks.MobileTask
 import com.nova.agent.feature.tasks.MobileTaskStatus
 import com.nova.agent.feature.tasks.userLabel
+import com.nova.agent.llm.EngineRouter
 import com.nova.agent.llm.ExecutionPolicy
 import com.nova.agent.llm.LocalEngineUi
 import com.nova.agent.net.GatewayConnectionUiState
@@ -68,6 +70,8 @@ fun ControlScreen(
     connection: GatewayConnectionUiState,
     activeTask: MobileTask?,
     chatBusy: Boolean,
+    hybridAutoFallback: Boolean,
+    onHybridAutoFallback: (Boolean) -> Unit,
     onPolicyChange: (ExecutionPolicy) -> Unit,
     onNewTask: () -> Unit,
     onOpenChat: () -> Unit,
@@ -94,6 +98,10 @@ fun ControlScreen(
             onOpenChat = onOpenChat,
             onOpenModels = onOpenModels,
         )
+
+        if (policy == ExecutionPolicy.HYBRID) {
+            HybridRulesCard(hybridAutoFallback, onHybridAutoFallback)
+        }
 
         SectionLabel("AKTİF İŞ")
         ActiveWorkCard(activeTask, chatBusy, engineState)
@@ -236,6 +244,7 @@ private fun TargetCard(
         }
 
         if (localMode) {
+            val hybridMode = policy == ExecutionPolicy.HYBRID
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     Icons.Filled.Shield,
@@ -246,19 +255,19 @@ private fun TargetCard(
                 Spacer(Modifier.width(8.dp))
                 Column {
                     Text(
-                        if (offlineMode) {
-                            "Yalnız telefonda çalışır · devir kapalı"
-                        } else {
-                            "Önce telefonda çalışır · gerekirse izin ister"
+                        when {
+                            offlineMode -> "Yalnız telefonda çalışır · devir kapalı"
+                            hybridMode -> "Kısa işler telefonda · uzun işler ve düşük pil PC'de"
+                            else -> "Önce telefonda çalışır · gerekirse izin ister"
                         },
                         color = TextMain,
                         fontSize = 13.sp,
                     )
                     Text(
-                        if (offlineMode) {
-                            "İstemler hiçbir koşulda cihaz dışına gönderilmez."
-                        } else {
-                            "Verileriniz cihazınızda kalır. Onaysız hiçbir istem dışarı çıkmaz."
+                        when {
+                            offlineMode -> "İstemler hiçbir koşulda cihaz dışına gönderilmez."
+                            hybridMode -> "Hibrit seçimi PC kullanımına açık rızadır; kural kartından yönetilir."
+                            else -> "Verileriniz cihazınızda kalır. Onaysız hiçbir istem dışarı çıkmaz."
                         },
                         color = Muted,
                         fontSize = 11.sp,
@@ -303,8 +312,9 @@ private fun TargetCard(
     }
 }
 
+/** Hibrit kuralları: sabit, şeffaf kurallar + tek kullanıcı anahtarı. */
 @Composable
-private fun ActiveWorkCard(task: MobileTask?, chatBusy: Boolean, engineState: LocalEngineUi) {
+private fun HybridRulesCard(autoFallback: Boolean, onAutoFallback: (Boolean) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -312,47 +322,23 @@ private fun ActiveWorkCard(task: MobileTask?, chatBusy: Boolean, engineState: Lo
             .background(Surface1)
             .border(1.dp, Line, RoundedCornerShape(16.dp))
             .padding(14.dp)
-            .testTag("active_work_card"),
+            .testTag("hybrid_rules_card"),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        when {
-            task != null -> {
+        Text("Hibrit kuralları", color = TextMain, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(
+            "• ${EngineRouter.LONG_PROMPT_CHARS}+ karakterlik istemler PC'ye gider\n" +
+                "• Pil ≤ %${EngineRouter.LOW_BATTERY_PERCENT} ve şarjda değilken PC tercih edilir\n" +
+                "• Telefon modeli kurulu değilse istekler PC'de çalışır",
+            color = Muted,
+            fontSize = 12.sp,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Yerel hata olursa otomatik PC'ye devret", color = TextMain, fontSize = 13.sp)
                 Text(
-                    task.prompt,
-                    color = TextMain,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(statusTint(task)),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(task.status.userLabel, color = Muted, fontSize = 12.sp)
-                }
-            }
-
-            chatBusy -> {
-                val label = when (engineState) {
-                    is LocalEngineUi.Loading -> "Model yükleniyor: ${engineState.modelName}…"
-                    is LocalEngineUi.Ready -> "Telefonda yanıt üretiliyor (${engineState.modelName})…"
-                    else -> "Sohbet yanıtı üretiliyor…"
-                }
-                Text(label, color = TextMain, fontSize = 13.sp)
-            }
-
-            else -> Text("Aktif iş yok", color = Muted2, fontSize = 13.sp)
-        }
-    }
-}
-
-@Composable
-private fun statusTint(task: MobileTask) = when (task.status) {
-    MobileTaskStatus.COMPLETED -> Success
-    MobileTaskStatus.FAILED, MobileTaskStatus.CANCELLED -> Coral
-    else -> MaterialTheme.colorScheme.primary
-}
+                    if (autoFallback) "Açık: devir bildirimsiz yapılır (rota rozetinde görünür)."
+                    else "Kapal�

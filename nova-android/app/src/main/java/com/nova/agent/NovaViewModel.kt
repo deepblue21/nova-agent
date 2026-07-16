@@ -19,6 +19,7 @@ import com.nova.agent.data.SettingsStore
 import com.nova.agent.data.VoiceState
 import com.nova.agent.llm.EngineRouter
 import com.nova.agent.llm.ExecutionPolicy
+import com.nova.agent.llm.HybridInputs
 import com.nova.agent.llm.LocalLlmController
 import com.nova.agent.llm.RouteDecision
 import com.nova.agent.llm.ThinkingText
@@ -110,6 +111,8 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     fun setLocalThinking(enabled: Boolean) = persist(settings.copy(localThinking = enabled))
     fun setLocalTools(enabled: Boolean) = persist(settings.copy(localTools = enabled))
     fun setTheme(id: String) = persist(settings.copy(themeId = id))
+    fun setHfToken(token: String) = persist(settings.copy(hfToken = token.trim()))
+    fun setHybridAutoFallback(enabled: Boolean) = persist(settings.copy(hybridAutoFallback = enabled))
 
     fun activeLocalSpec(): LocalModelSpec =
         LocalModelCatalog.byId(settings.localModelId) ?: LocalModelCatalog.default
@@ -211,7 +214,12 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     private fun routeAndComplete(speakWhenDone: Boolean) {
         pendingFallback = null
         val spec = activeLocalSpec()
-        when (val decision = EngineRouter.decide(executionPolicy, spec.id, local.isInstalled(spec.id))) {
+        val decision = if (executionPolicy == ExecutionPolicy.HYBRID) {
+            hybridDecision(spec)
+        } else {
+            EngineRouter.decide(executionPolicy, spec.id, local.isInstalled(spec.id))
+        }
+        when (decision) {
             is RouteDecision.Gateway -> complete(messages.toList(), speakWhenDone)
             is RouteDecision.Local -> completeLocal(spec, speakWhenDone)
             is RouteDecision.LocalNeedsSetup -> {
@@ -226,6 +234,40 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
         }
+    }
+
+    /**
+     * Hibrit yönlendirme girdilerini toplar ve saf kurala verir:
+     * kısa işler telefonda; uzun istem veya düşük pil (şarjsız) PC'de.
+     */
+    private fun hybridDecision(spec: LocalModelSpec): RouteDecision {
+        val (batteryPercent, charging) = local.batteryNow()
+        val promptChars = messages.lastOrNull { it.role == "user" }?.content?.length ?: 0
+        return EngineRouter.decideHybrid(
+            HybridInputs(
+                localModelInstalled = local.isInstalled(spec.id),
+                promptChars = promptChars,
+                batteryPercent = batteryPercent,
+                charging = charging,
+                gatewayReady = connectionState.status == GatewayConnectionStatus.READY,
+            ),
+            localModelId = spec.id,
+        )
+    }
+
+    /**
+     * Hibritte yerel hata sonrası kalıcı kurala göre otomatik PC devri.
+     * Kural kapalıysa veya PC hazır değilse devretmez (izin kartı kalır).
+     */
+    private fun autoHandoffAfterLocalError(): Boolean {
+        if (executionPolicy != ExecutionPolicy.HYBRID || !settings.hybridAutoFallback) return false
+        if (connectionState.status != GatewayConnectionStatus.READY) return false
+        while (messages.isNotEmpty() && messages.last().role == "assistant") {
+            messages.removeAt(messages.lastIndex)
+        }
+        if (messages.none { it.role == "user" }) return false
+        complete(messages.toList(), speakWhenDone = false)
+        return true
     }
 
     /** Yerel hata sonrası kullanıcı onayıyla istemi PC Gateway'e gönderir. */
@@ -282,6 +324,9 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
                     if (!activeLocal) return
                     activeLocal = false
                     busy = false
+                    if (speakWhenDone) { voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB; level = 0.08f }
+                    // Hibrit + kalıcı izin: kullanıcı kuralıyla otomatik PC devri.
+                    if (autoHandoffAfterLocalError()) return
                     val partial = sb.toString()
                     updateLast {
                         it.copy(
@@ -294,7 +339,6 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
                         message,
                         allowGateway = executionPolicy.allowsGatewayFallback,
                     )
-                    if (speakWhenDone) { voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB; level = 0.08f }
                 }
             },
         )
@@ -346,57 +390,4 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
-    private fun finish(speak: Boolean) {
-        val text = sb.toString().ifBlank { "(boş yanıt)" }
-        updateLast { it.copy(content = text, streaming = false) }
-        busy = false
-        es = null
-        if (speak) {
-            voiceState = VoiceState.SPEAKING
-            voiceSub = text.take(160)
-            level = 0.5f
-            speech.speak(text, onStart = {}, onDone = { onMain { voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB; level = 0.08f } })
-        }
-    }
-
-    private fun updateLast(f: (ChatMessage) -> ChatMessage) {
-        val i = messages.lastIndex
-        if (i >= 0) messages[i] = f(messages[i])
-    }
-
-    // ---------- ses ----------
-    fun startListening() {
-        if (busy) return
-        if (!speech.isRecognitionAvailable) { voiceSub = "Cihazda konuşma tanıma yok"; return }
-        voiceState = VoiceState.LISTENING
-        voiceSub = "Dinliyorum…"
-        speech.startListening(
-            onRms = { level = it },
-            onPartial = { voiceSub = it },
-            onResult = { text ->
-                if (text.isNotBlank()) {
-                    messages.add(ChatMessage("user", text))
-                    routeAndComplete(speakWhenDone = true)
-                } else { voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB; level = 0.08f }
-            },
-            onEnd = { err ->
-                if (voiceState == VoiceState.LISTENING) {
-                    voiceState = VoiceState.IDLE
-                    voiceSub = err ?: DEFAULT_SUB
-                    level = 0.08f
-                }
-            }
-        )
-    }
-
-    fun stopListeningOrSpeaking() {
-        when (voiceState) {
-            VoiceState.LISTENING -> { speech.stopListening(); voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB; level = 0.08f }
-            VoiceState.SPEAKING -> { speech.stopSpeaking(); voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB; level = 0.08f }
-            else -> {}
-        }
-    }
-
-    override fun onCleared() {
-        connectionProbes.invalidate()
-    
+    private f

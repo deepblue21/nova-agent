@@ -13,6 +13,7 @@ import com.nova.agent.llm.local.LocalModelSpec
 import com.nova.agent.llm.local.LocalModelStore
 import com.nova.agent.llm.local.ModelDownloader
 import com.nova.agent.llm.local.OnDeviceEngine
+import com.nova.agent.llm.local.tools.DeviceStatusReader
 import com.nova.agent.llm.local.tools.HorusToolSet
 import com.nova.agent.llm.local.tools.NoteStore
 import java.io.File
@@ -105,8 +106,18 @@ class LocalLlmController(
 
     // ---------- indirme ----------
 
-    fun startDownload(spec: LocalModelSpec) {
+    fun startDownload(spec: LocalModelSpec, hfToken: String = "") {
         if (downloadHandles.containsKey(spec.id)) return
+        if (spec.gated && hfToken.isBlank()) {
+            // Ağ isteği atmadan dürüst yönlendirme: kapılı model için token şart.
+            update(spec.id) {
+                it.copy(
+                    error = "Kapılı model: önce HF hesabınla lisansı onayla, sonra " +
+                        "Ayarlar > Hugging Face bölümüne erişim token'ı gir.",
+                )
+            }
+            return
+        }
         val handle = downloader.newHandle()
         downloadHandles[spec.id] = handle
         val startBytes = (store.diskState(spec) as? LocalModelDiskState.Partial)?.bytes ?: 0L
@@ -114,7 +125,7 @@ class LocalLlmController(
             it.copy(downloading = true, downloadedBytes = startBytes, error = null)
         }
         scope.launch(Dispatchers.IO) {
-            val result = downloader.download(spec, store, handle) { bytes, _ ->
+            val result = downloader.download(spec, store, handle, hfToken) { bytes, _ ->
                 onMain { update(spec.id) { ui -> ui.copy(downloadedBytes = bytes) } }
             }
             onMain {
@@ -204,17 +215,4 @@ class LocalLlmController(
             val loaded = engine.ensureLoaded(file.absolutePath)
             if (loaded.isFailure) {
                 val message = OnDeviceEngine.describeError(
-                    loaded.exceptionOrNull() ?: RuntimeException("Yerel motor hatası"),
-                )
-                onMain {
-                    engineState = LocalEngineUi.Error(message)
-                    cb.onError(message)
-                }
-                return@launch
-            }
-            onMain { engineState = LocalEngineUi.Ready(spec.displayName) }
-            engine.generate(
-                history = history,
-                prompt = prompt,
-                thinking = thinking,
-                tools = if (toolsEnabled) listOf(too
+                    loaded.exceptionOrN
