@@ -87,10 +87,15 @@ Derleme + statik denetim:
 
 - Görev-öncelikli sabit `Görevler` / `Sohbet` / `Ses` navigasyonu teslim edildi; uyarlanabilir
   launcher ikonu korundu ve `com.nova.agent/.MainActivity` olarak çözüldü.
-- `:app:testDebugUnitTest`, `:app:lintDebug` ve `:app:assembleDebug` geçti: 36 unit test,
+- `:app:testDebugUnitTest`, `:app:lintDebug` ve `:app:assembleDebug` geçti: 50 unit test,
   0 lint hatası (11 uyarı, 1 bilgi). `:app:connectedDebugAndroidTest` Android 17
-  `emulator-5554` üzerinde 19/19 geçti; APK aynı emülatöre kuruldu. Bu koşuda fiziksel cihaz bağlı
+  `emulator-5554` üzerinde 27/27 geçti; APK aynı emülatöre kuruldu. Bu koşuda fiziksel cihaz bağlı
   değildi ve fiziksel cihaz testi yapılmadı.
+- Son regresyon sağlamlaştırması, etkin görevi başlangıçtaki Gateway ayarına sabitler; bayat veya
+  başka göreve ait callback/SSE olaylarını reddeder, kabul edilen Gateway adreslerini `/v1` altında
+  standartlaştırır ve bozuk kayıtlı adresleri çökmeden reddeder. Maskeli token alanının TalkBack
+  düzenleme semantiği, alt sistem inset'i, meşgul Ses kontrolleri ve yükleme sırasındaki görev
+  istemleri de test kapsamındadır.
 - Ayarlardaki bağlantı testi, geçerli emülatör Gateway adresi ve yerel QA kimliğiyle `PC hazır`
   durumuna ulaştı. Sabit doğrulama istemi PC'deki yerel modele aktı; UI-tree örneklemesine göre
   TTFT 48.337 sn, toplam 48.341 sn ve sanitize rota `ollama/gemma4:latest` idi.
@@ -104,7 +109,7 @@ Derleme + statik denetim:
   grafik/buffer baskısı ile Compose işinin birlikte etkisini gösterdi; kanıtlanmış tek bir uygulama
   hotspot'u bulunmadı. Fiziksel donanımda release-build performans kontrolü takip maddesidir.
 - Doğrulanan debug APK SHA-256:
-  `F945C1AC3B9D88561DF361DA902D0BA8A0122A9587CEB668230C9858C318C4EA`.
+  `4D65812810CBC0C6D80081CC40A5FF716A3A52829A68EB049C6D7681A104E689`.
 
 ---
 

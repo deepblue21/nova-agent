@@ -165,11 +165,15 @@ yapilanlar hem de siradaki somut is burada guncellenir.
   ve event'leri replay eden Docker mobil kontrol duzlemi smoke testi.
 - Debug APK: `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
 - Gorev 7 kontrol merkezi dogrulamasi, uyarlanabilir launcher ikonunu koruyarak sabit ve
-  gorev-oncelikli **Gorevler / Sohbet / Ses** navigasyonunu teslim etti. Tam gate; 36 unit test,
-  Android 17 `emulator-5554` uzerinde 19 connected test, sifir lint hatasi (11 uyari ve 1 bilgi),
+  gorev-oncelikli **Gorevler / Sohbet / Ses** navigasyonunu teslim etti. Tam gate; 50 unit test,
+  Android 17 `emulator-5554` uzerinde 27 connected test, sifir lint hatasi (11 uyari ve 1 bilgi),
   debug APK kurulum ve launcher resolution ile gecti. Fiziksel ADB serial bagli olmadigi icin
   fiziksel telefon testi yapilmadi. Dogrulanan APK SHA-256:
-  `F945C1AC3B9D88561DF361DA902D0BA8A0122A9587CEB668230C9858C318C4EA`.
+  `4D65812810CBC0C6D80081CC40A5FF716A3A52829A68EB049C6D7681A104E689`.
+- Son regresyon saglamlastirmasi her calisan gorevi basladigi Gateway'e sabitler; bayat veya baska
+  goreve ait callback/event'leri reddeder, kabul edilen Gateway adreslerini `/v1` bicimine getirir
+  ve bozuk kayitli adreslerde guvenli hata verir. Maskeli token alaninda TalkBack duzenleme
+  semantigi korunur; alt inset, mesgul Ses kontrolleri ve yukleme durumundaki gorev istemleri kapsanir.
 - Uygulama ici Gateway testi yerel QA kimligiyle `PC hazir` durumuna ulasti. Sabit baglanti istemi
   PC modelinde tamamladi; UI-tree orneklemesine gore TTFT 48,337 sn, toplam 48,341 sn ve sanitize
   rota `ollama/gemma4:latest` idi. Burada ham model govdesi veya kimlik bilgisi tutulmaz.

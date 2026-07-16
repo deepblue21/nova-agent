@@ -166,11 +166,15 @@ with both verified work and the next concrete work item.
   replays task events without printing the API key.
 - Debug APK: `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
 - Task 7 control-center verification delivered the fixed task-first **Tasks / Chat / Voice**
-  navigation while retaining the adaptive launcher icon. The full gate passed with 36 unit tests,
-  19 connected Android tests on Android 17 `emulator-5554`, zero lint errors (11 warnings and one
+  navigation while retaining the adaptive launcher icon. The full gate passed with 50 unit tests,
+  27 connected Android tests on Android 17 `emulator-5554`, zero lint errors (11 warnings and one
   informational issue), and a successful debug APK install/launcher resolution. No physical ADB
   serial was connected, so physical-phone testing was not performed. The verified APK SHA-256 is
-  `F945C1AC3B9D88561DF361DA902D0BA8A0122A9587CEB668230C9858C318C4EA`.
+  `4D65812810CBC0C6D80081CC40A5FF716A3A52829A68EB049C6D7681A104E689`.
+- Final regression hardening pins each running task to its original Gateway, rejects stale or
+  foreign-task callbacks/events, canonicalizes accepted Gateway addresses to `/v1`, and fails
+  malformed saved addresses safely. TalkBack editing semantics remain available for the masked
+  token field; bottom insets, busy voice controls, and loading-state task prompts are also covered.
 - The in-app Gateway probe reached `PC ready` with a local QA identity. The fixed connectivity
   prompt completed through the PC model with UI-tree-sampled TTFT 48.337 s, total 48.341 s, and
   sanitized route `ollama/gemma4:latest`; no raw model body or credential is recorded here.
