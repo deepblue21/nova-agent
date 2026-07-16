@@ -1,10 +1,12 @@
 package com.nova.agent.feature.settings
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -41,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.password
@@ -55,6 +58,8 @@ import com.nova.agent.data.EFFORTS
 import com.nova.agent.data.MODELS
 import com.nova.agent.net.GatewayConnectionStatus
 import com.nova.agent.net.GatewayConnectionUiState
+import com.nova.agent.ui.theme.NOVA_ACCENTS
+import com.nova.agent.ui.theme.NovaAccent
 
 @Composable
 fun SettingsPanel(
@@ -65,6 +70,7 @@ fun SettingsPanel(
     onModelChange: (String) -> Unit,
     onEffortChange: (String) -> Unit,
     onReasoningChange: (Boolean) -> Unit,
+    onThemeChange: (String) -> Unit = {},
     onClose: () -> Unit,
 ) {
     var baseUrl by remember(settings.baseUrl) { mutableStateOf(settings.baseUrl) }
@@ -157,6 +163,9 @@ fun SettingsPanel(
                 )
             }
 
+            SectionHeading("Görünüm")
+            ThemePicker(settings.themeId, onThemeChange)
+
             SectionHeading("Uygulama bilgisi")
             Text("NOVA ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
             Text("Yerel öncelikli Android kontrol merkezi")
@@ -167,6 +176,48 @@ fun SettingsPanel(
 @Composable
 private fun SectionHeading(text: String) {
     Text(text, style = MaterialTheme.typography.titleMedium)
+}
+
+@Composable
+private fun ThemePicker(selectedId: String, onThemeChange: (String) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        NOVA_ACCENTS.forEach { accent ->
+            val selected = accent.id == selectedId
+            if (selected) {
+                Button(
+                    onClick = { onThemeChange(accent.id) },
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                ) {
+                    ThemeSwatch(accent)
+                    Spacer(Modifier.width(6.dp))
+                    Text(accent.name)
+                }
+            } else {
+                OutlinedButton(
+                    onClick = { onThemeChange(accent.id) },
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                ) {
+                    ThemeSwatch(accent)
+                    Spacer(Modifier.width(6.dp))
+                    Text(accent.name)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemeSwatch(accent: NovaAccent) {
+    Box(
+        Modifier
+            .width(12.dp)
+            .heightIn(min = 12.dp)
+            .clip(CircleShape)
+            .background(accent.primary),
+    )
 }
 
 @Composable
@@ -207,50 +258,4 @@ private fun ModelDropdown(selectedId: String, onModelChange: (String) -> Unit) {
             onDismissRequest = { expanded = false },
         ) {
             MODELS.forEach { model ->
-                DropdownMenuItem(
-                    text = {
-                        Column {
-                            Text(model.name)
-                            Text(model.group, style = MaterialTheme.typography.bodySmall)
-                        }
-                    },
-                    onClick = {
-                        expanded = false
-                        onModelChange(model.id)
-                    },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun EffortControls(selectedId: String, onEffortChange: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        EFFORTS.chunked(2).forEach { rowOptions ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                rowOptions.forEach { effort ->
-                    val selected = effort.id == selectedId
-                    if (selected) {
-                        Button(
-                            onClick = { onEffortChange(effort.id) },
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                        ) {
-                            Text(effort.name)
-                        }
-                    } else {
-                        OutlinedButton(
-                            onClick = { onEffortChange(effort.id) },
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                        ) {
-                            Text(effort.name)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+                DropdownM

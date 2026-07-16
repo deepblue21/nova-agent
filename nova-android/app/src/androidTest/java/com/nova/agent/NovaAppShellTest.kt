@@ -30,24 +30,22 @@ class NovaAppShellTest {
         composeRule.setContent {
             NovaTheme {
                 NovaAppShell(
-                    mode = Mode.TASKS,
+                    mode = Mode.KONTROL,
                     connection = GatewayConnectionUiState(GatewayConnectionStatus.READY, "PC hazır"),
                     onModeChange = selected::add,
                     onSettings = {},
                     onNewChat = {},
-                ) { Box { Text("Görev alanı") } }
+                ) { Box { Text("Kontrol alanı") } }
             }
         }
 
         composeRule.onNodeWithTag("primary_navigation")
             .assertIsDisplayed()
             .assert(SemanticsMatcher.keyNotDefined(SemanticsActions.ScrollBy))
-        composeRule.onNodeWithText("Görev alanı").assertIsDisplayed()
+        composeRule.onNodeWithText("Kontrol alanı").assertIsDisplayed()
+        composeRule.onNodeWithText("İşler").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("Sohbet").assertIsDisplayed().performClick()
-        composeRule.onNodeWithText("Ses").assertIsDisplayed().performClick()
-        composeRule.onNodeWithText("Görevler").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("Modeller").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("PC hazır").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Ayarlar").assertIsDisplayed()
-        assertEquals(listOf(Mode.CHAT, Mode.VOICE, Mode.TASKS), selected)
-    }
-}
+        assertEquals(listOf(Mode.TASKS, Mode.CHAT, Mode.MODELLER), selected

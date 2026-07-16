@@ -16,11 +16,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ViewInAr
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -42,11 +45,9 @@ import com.nova.agent.data.Mode
 import com.nova.agent.net.GatewayConnectionStatus
 import com.nova.agent.net.GatewayConnectionUiState
 import com.nova.agent.ui.theme.Amber
-import com.nova.agent.ui.theme.Azure
 import com.nova.agent.ui.theme.Bg
 import com.nova.agent.ui.theme.Bg2
 import com.nova.agent.ui.theme.Coral
-import com.nova.agent.ui.theme.Cyan
 import com.nova.agent.ui.theme.Muted
 import com.nova.agent.ui.theme.Success
 import com.nova.agent.ui.theme.TextMain
@@ -57,10 +58,12 @@ private data class Destination(
     val icon: ImageVector,
 )
 
+/** Ses sekmesi kaldırılmadı: Sohbet üst çubuğundaki mikrofonla açılır. */
 private val destinations = listOf(
-    Destination(Mode.TASKS, "Görevler", Icons.Filled.PlayArrow),
+    Destination(Mode.KONTROL, "Kontrol", Icons.Filled.Dashboard),
+    Destination(Mode.TASKS, "İşler", Icons.Filled.Checklist),
     Destination(Mode.CHAT, "Sohbet", Icons.Filled.ChatBubbleOutline),
-    Destination(Mode.VOICE, "Ses", Icons.Filled.Mic),
+    Destination(Mode.MODELLER, "Modeller", Icons.Filled.ViewInAr),
 )
 
 @Composable
@@ -70,26 +73,31 @@ fun NovaAppShell(
     onModeChange: (Mode) -> Unit,
     onSettings: () -> Unit,
     onNewChat: () -> Unit,
+    localSubtitle: String? = null,
+    onToggleVoice: () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     Scaffold(
         containerColor = Bg,
-        topBar = { NovaTopBar(mode, connection, onSettings, onNewChat) },
+        topBar = {
+            NovaTopBar(mode, connection, localSubtitle, onSettings, onNewChat, onToggleVoice)
+        },
         bottomBar = {
             NavigationBar(
                 modifier = Modifier.testTag("primary_navigation"),
                 containerColor = Bg2,
             ) {
+                val selectedMode = if (mode == Mode.VOICE) Mode.CHAT else mode
                 destinations.forEach { destination ->
                     NavigationBarItem(
-                        selected = mode == destination.mode,
+                        selected = selectedMode == destination.mode,
                         onClick = { onModeChange(destination.mode) },
                         icon = { Icon(destination.icon, contentDescription = destination.label) },
                         label = { Text(destination.label) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Color(0xFF04121A),
                             selectedTextColor = TextMain,
-                            indicatorColor = Cyan,
+                            indicatorColor = MaterialTheme.colorScheme.primary,
                             unselectedIconColor = Muted,
                             unselectedTextColor = Muted,
                         ),
@@ -106,8 +114,10 @@ fun NovaAppShell(
 private fun NovaTopBar(
     mode: Mode,
     connection: GatewayConnectionUiState,
+    localSubtitle: String?,
     onSettings: () -> Unit,
     onNewChat: () -> Unit,
+    onToggleVoice: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -121,7 +131,14 @@ private fun NovaTopBar(
             modifier = Modifier
                 .size(36.dp)
                 .clip(RoundedCornerShape(11.dp))
-                .background(Brush.linearGradient(listOf(Cyan, Azure))),
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.secondary,
+                        ),
+                    ),
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -145,43 +162,15 @@ private fun NovaTopBar(
                     Modifier
                         .size(7.dp)
                         .clip(CircleShape)
-                        .background(connection.status.tint()),
+                        .background(
+                            if (localSubtitle != null) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                connection.status.tint()
+                            },
+                        ),
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = connection.message,
-                    color = Muted,
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        if (mode == Mode.CHAT) {
-            IconButton(onClick = onNewChat) {
-                Icon(
-                    imageVector = Icons.Filled.ChatBubbleOutline,
-                    contentDescription = "Yeni sohbet",
-                    tint = Muted,
-                )
-            }
-        }
-        IconButton(onClick = onSettings) {
-            Icon(
-                imageVector = Icons.Filled.Settings,
-                contentDescription = "Ayarlar",
-                tint = Muted,
-            )
-        }
-    }
-}
-
-private fun GatewayConnectionStatus.tint(): Color = when (this) {
-    GatewayConnectionStatus.READY -> Success
-    GatewayConnectionStatus.CHECKING -> Amber
-    GatewayConnectionStatus.AUTH_REQUIRED,
-    GatewayConnectionStatus.UNREACHABLE,
-    GatewayConnectionStatus.INVALID_URL,
-    -> Coral
-    GatewayConnectionStatus.UNKNOWN -> Muted
-}
+                    text = localSubtitle ?: connection.message,
+                    color = Mute

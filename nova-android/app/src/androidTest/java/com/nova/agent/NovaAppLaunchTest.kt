@@ -15,13 +15,12 @@ class NovaAppLaunchTest {
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun coldLaunchUsesTaskFirstNonScrollingShell() {
+    fun coldLaunchOpensControlCenterWithFixedShell() {
         composeRule.onNodeWithTag("primary_navigation")
             .assertIsDisplayed()
             .assert(SemanticsMatcher.keyNotDefined(SemanticsActions.ScrollBy))
-        composeRule.onNodeWithText("Telefonunda ne yapmamı istersin?").assertIsDisplayed()
-        composeRule.onNodeWithText("Görevler").assertIsDisplayed()
+        composeRule.onNodeWithText("YÜRÜTME POLİTİKASI").assertIsDisplayed()
+        composeRule.onNodeWithText("Kontrol").assertIsDisplayed()
+        composeRule.onNodeWithText("İşler").assertIsDisplayed()
         composeRule.onNodeWithText("Sohbet").assertIsDisplayed()
-        composeRule.onNodeWithText("Ses").assertIsDisplayed()
-    }
-}
+        compose

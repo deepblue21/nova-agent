@@ -21,17 +21,15 @@ val Coral = Color(0xFFFF8A5B)
 val Amber = Color(0xFFFFC857)
 val Success = Color(0xFF53D6A6)
 
-private val NovaColors = darkColorScheme(
-    primary = Cyan,
-    secondary = Azure,
-    background = Bg,
-    surface = Bg2,
-    onPrimary = Color(0xFF04121A),
-    onBackground = TextMain,
-    onSurface = TextMain,
+/** Seçilebilir vurgu temaları (Faz 1). Ayarlar > Görünüm'den değiştirilir. */
+data class NovaAccent(
+    val id: String,
+    val name: String,
+    val primary: Color,
+    val secondary: Color,
 )
 
-@Composable
-fun NovaTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = NovaColors, content = content)
-}
+val NOVA_ACCENTS = listOf(
+    NovaAccent("nova", "Turkuaz", Cyan, Azure),
+    NovaAccent("aurora", "Aurora", Violet, Color(0xFFB388FF)),
+  

@@ -23,7 +23,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            NovaTheme {
+            NovaTheme(themeId = vm.settings.themeId) {
                 var micGranted by remember {
                     mutableStateOf(
                         checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
@@ -43,7 +43,4 @@ class MainActivity : ComponentActivity() {
                         micLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     }
                 }
-            }
-        }
-    }
-}
+ 
