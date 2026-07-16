@@ -295,4 +295,43 @@ private fun ModelDropdown(selectedId: String, onModelChange: (String) -> Unit) {
                             Text(model.group, style = MaterialTheme.typography.bodySmall)
                         }
                     },
-                    onClick =
+                    onClick = {
+                        expanded = false
+                        onModelChange(model.id)
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EffortControls(selectedId: String, onEffortChange: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        EFFORTS.chunked(2).forEach { rowOptions ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                rowOptions.forEach { effort ->
+                    val selected = effort.id == selectedId
+                    if (selected) {
+                        Button(
+                            onClick = { onEffortChange(effort.id) },
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                        ) {
+                            Text(effort.name)
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = { onEffortChange(effort.id) },
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                        ) {
+                            Text(effort.name)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

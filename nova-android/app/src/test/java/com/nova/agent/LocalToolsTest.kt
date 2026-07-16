@@ -100,4 +100,9 @@ class LocalToolsTest {
     @Test
     fun `varsayilan ayarlar guvenli taraftadir`() {
         val settings = com.nova.agent.data.AppSettings()
-        assertTrue
+        assertTrue(settings.localTools)
+        assertEquals("", settings.hfToken)
+        // Hibrit oto-devir varsayılan KAPALI: izin sorulmadan devir yok.
+        assertEquals(false, settings.hybridAutoFallback)
+    }
+}

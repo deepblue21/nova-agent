@@ -166,4 +166,10 @@ class OnDeviceEngine(private val appContext: Context) {
     companion object {
         fun describeError(t: Throwable): String = when (t) {
             is UnsatisfiedLinkError ->
-                "Bu cihaz mimarisi yerel motoru desteklem
+                "Bu cihaz mimarisi yerel motoru desteklemiyor (ARM64 telefon gerekir)."
+            is OutOfMemoryError ->
+                "Bellek yetersiz: model bu cihaz için çok büyük."
+            else -> t.message?.takeIf { it.isNotBlank() } ?: "Yerel motor hatası"
+        }
+    }
+}

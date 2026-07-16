@@ -42,4 +42,21 @@ class LocalModelCatalogTest {
             "b1baab462f6be49d70eada79d715c2c52cd9ece0cad00bddf6a2c097d23498e9",
             int4.sha256,
         )
-        assertEquals(i
+        assertEquals(int4, LocalModelCatalog.default)
+        assertTrue(!int4.gated)
+    }
+
+    @Test
+    fun `gemma kapili ve dogrulanmis degerlerle kayitli`() {
+        val gemma = LocalModelCatalog.byId("gemma3-1b-int4")!!
+        assertTrue(gemma.gated)
+        assertEquals(584_417_280L, gemma.sizeBytes)
+        assertEquals(
+            "1325ae366d31950f137c9c357b9fa89448b176d76998180c08ceaca78bba98be",
+            gemma.sha256,
+        )
+        assertTrue(gemma.downloadUrl.contains(LocalModelCatalog.GEMMA_REVISION))
+        // Varsayılan model kapısız kalmalı: ilk kurulum deneyimi token istemez.
+        assertTrue(!LocalModelCatalog.default.gated)
+    }
+}

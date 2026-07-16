@@ -368,4 +368,60 @@ private fun ThinkingRow(enabled: Boolean, onChange: (Boolean) -> Unit) {
         Switch(
             checked = enabled,
             onCheckedChange = onChange,
-            mo
+            modifier = Modifier.semantics { contentDescription = "Yerel düşünme" },
+        )
+    }
+}
+
+@Composable
+private fun ToolsRow(enabled: Boolean, summary: String, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Surface1)
+            .border(1.dp, Line, RoundedCornerShape(16.dp))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Yerel araçlar (deneysel)", color = TextMain, fontSize = 14.sp)
+            Text(
+                "Tamamı çevrimdışı: $summary. Araç çağrısı model kararına bağlıdır; " +
+                    "küçük modellerde her istemde tetiklenmeyebilir.",
+                color = Muted,
+                fontSize = 11.sp,
+            )
+        }
+        Switch(
+            checked = enabled,
+            onCheckedChange = onChange,
+            modifier = Modifier.semantics { contentDescription = "Yerel araçlar" },
+        )
+    }
+}
+
+@Composable
+private fun GatewayModelRow(model: ModelOption, selected: Boolean, onSelect: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp)
+            .clickable(onClick = onSelect)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(model.name, color = TextMain, fontSize = 14.sp)
+            Text(model.group, color = Muted2, fontSize = 11.sp)
+        }
+        if (selected) {
+            Icon(
+                Icons.Filled.CheckCircle,
+                contentDescription = "${model.name} seçili",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}

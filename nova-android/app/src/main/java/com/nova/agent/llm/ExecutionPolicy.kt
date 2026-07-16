@@ -72,4 +72,44 @@ object EngineRouter {
                     if (policy == ExecutionPolicy.LOCAL_ONLY) {
                         "Çevrimdışı mod için telefonda kurulu model gerekli. " +
                             "Modeller sekmesinden bir model indirin."
-    
+                    } else {
+                        "Telefonda kurulu model yok. Modeller sekmesinden bir model indirin."
+                    },
+                )
+            }
+
+        // HYBRID için asıl karar decideHybrid'dedir; bu basit yol güvenli tarafta kalır.
+        ExecutionPolicy.HYBRID -> RouteDecision.Gateway
+    }
+
+    /** Uzun istemler telefonun küçük modeli yerine PC'ye gider. */
+    const val LONG_PROMPT_CHARS = 1200
+
+    /** Bu düzeyin altında ve şarjda değilken PC tercih edilir. */
+    const val LOW_BATTERY_PERCENT = 20
+
+    /**
+     * Hibrit yönlendirme (Faz 3 D1). Kurallar şeffaf ve sabittir:
+     * 1) Ne yerel model ne PC hazırsa → kurulum gerekçesi (istek hiçbir yere gitmez).
+     * 2) Yerel model yoksa → PC (hibrit seçimi PC kullanımına verilmiş açık rızadır).
+     * 3) İstem uzunsa ve PC hazırsa → PC.
+     * 4) Pil düşük + şarjda değil + PC hazırsa → PC.
+     * 5) Aksi halde → telefon.
+     */
+    fun decideHybrid(inputs: HybridInputs, localModelId: String): RouteDecision = when {
+        !inputs.localModelInstalled && !inputs.gatewayReady ->
+            RouteDecision.LocalNeedsSetup(
+                "Hibrit: ne telefonda kurulu model var ne PC erişilebilir. " +
+                    "Modeller'den model indirin veya Gateway bağlantısını kurun.",
+            )
+
+        !inputs.localModelInstalled -> RouteDecision.Gateway
+
+        inputs.promptChars >= LONG_PROMPT_CHARS && inputs.gatewayReady -> RouteDecision.Gateway
+
+        inputs.batteryPercent in 0..LOW_BATTERY_PERCENT && !inputs.charging && inputs.gatewayReady ->
+            RouteDecision.Gateway
+
+        else -> RouteDecision.Local(localModelId)
+    }
+}

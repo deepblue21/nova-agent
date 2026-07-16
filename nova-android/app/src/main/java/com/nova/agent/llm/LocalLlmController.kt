@@ -215,4 +215,49 @@ class LocalLlmController(
             val loaded = engine.ensureLoaded(file.absolutePath)
             if (loaded.isFailure) {
                 val message = OnDeviceEngine.describeError(
-                    loaded.exceptionOrN
+                    loaded.exceptionOrNull() ?: RuntimeException("Yerel motor hatası"),
+                )
+                onMain {
+                    engineState = LocalEngineUi.Error(message)
+                    cb.onError(message)
+                }
+                return@launch
+            }
+            onMain { engineState = LocalEngineUi.Ready(spec.displayName) }
+            engine.generate(
+                history = history,
+                prompt = prompt,
+                thinking = thinking,
+                tools = if (toolsEnabled) listOf(tool(toolBelt)) else emptyList(),
+                cb = object : OnDeviceEngine.Callbacks {
+                    override fun onToken(text: String) = onMain { cb.onToken(text) }
+                    override fun onDone() = onMain { cb.onDone() }
+                    override fun onError(message: String) = onMain { cb.onError(message) }
+                },
+            )
+        }
+    }
+
+    fun cancelGenerate() {
+        engine.cancel()
+    }
+
+    /** Hibrit yönlendirici için pil anlık görüntüsü: (yüzde | -1, şarj oluyor mu). */
+    fun batteryNow(): Pair<Int, Boolean> = DeviceStatusReader.battery(app)
+
+    fun shutdown() {
+        downloadHandles.values.forEach { it.cancel() }
+        downloadHandles.clear()
+        scope.launch(Dispatchers.IO) { engine.unload() }
+    }
+
+    companion object {
+        fun readDeviceRamGb(context: Context): Double {
+            val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+                ?: return 0.0
+            val info = ActivityManager.MemoryInfo()
+            manager.getMemoryInfo(info)
+            return info.totalMem / 1_073_741_824.0
+        }
+    }
+}

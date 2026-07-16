@@ -164,4 +164,23 @@ class ModelDownloader(
         private fun updateDigest(digest: MessageDigest, input: InputStream) {
             val buffer = ByteArray(64 * 1024)
             while (true) {
-      
+                val n = input.read(buffer)
+                if (n < 0) break
+                digest.update(buffer, 0, n)
+            }
+        }
+
+        fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .callTimeout(0, TimeUnit.SECONDS) // büyük dosya: toplam süre sınırsız
+            .addNetworkInterceptor { chain ->
+                val request = chain.request()
+                if (!request.url.isHttps) {
+                    throw IOException("Güvensiz (HTTP) yönlendirme engellendi: ${request.url.host}")
+                }
+                chain.proceed(request)
+            }
+            .build()
+    }
+}

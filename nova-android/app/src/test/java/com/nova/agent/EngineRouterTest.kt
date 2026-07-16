@@ -62,4 +62,47 @@ class EngineRouterTest {
     @Test
     fun `cevrimdisi kurulu modelle telefonda calisir`() {
         val decision = EngineRouter.decide(ExecutionPolicy.LOCAL_ONLY, "qwen3-0.6b-int4", true)
-        assertTrue(decisi
+        assertTrue(decision is RouteDecision.Local)
+    }
+
+    // ---------- hibrit kurallar (Faz 3 D1) ----------
+
+    private fun hybrid(
+        installed: Boolean = true,
+        promptChars: Int = 100,
+        battery: Int = 80,
+        charging: Boolean = false,
+        gatewayReady: Boolean = true,
+    ) = EngineRouter.decideHybrid(
+        HybridInputs(installed, promptChars, battery, charging, gatewayReady),
+        localModelId = "qwen3-0.6b-int4",
+    )
+
+    @Test
+    fun `hibrit kisa istem telefonda calisir`() {
+        assertTrue(hybrid() is RouteDecision.Local)
+    }
+
+    @Test
+    fun `hibrit uzun istem PC'ye gider`() {
+        assertEquals(RouteDecision.Gateway, hybrid(promptChars = EngineRouter.LONG_PROMPT_CHARS))
+        // PC hazır değilse uzun istem bile telefonda kalır (hiç yoktan iyidir).
+        assertTrue(hybrid(promptChars = 5000, gatewayReady = false) is RouteDecision.Local)
+    }
+
+    @Test
+    fun `hibrit dusuk pilde sarj yoksa PC tercih edilir`() {
+        assertEquals(RouteDecision.Gateway, hybrid(battery = 15))
+        assertTrue(hybrid(battery = 15, charging = true) is RouteDecision.Local)
+        assertTrue(hybrid(battery = 15, gatewayReady = false) is RouteDecision.Local)
+        // Pil bilinmiyorsa (-1) PC'ye kaçılmaz.
+        assertTrue(hybrid(battery = -1) is RouteDecision.Local)
+    }
+
+    @Test
+    fun `hibrit model yoksa PC, ikisi de yoksa kurulum ister`() {
+        assertEquals(RouteDecision.Gateway, hybrid(installed = false))
+        val decision = hybrid(installed = false, gatewayReady = false)
+        assertTrue(decision is RouteDecision.LocalNeedsSetup)
+    }
+}

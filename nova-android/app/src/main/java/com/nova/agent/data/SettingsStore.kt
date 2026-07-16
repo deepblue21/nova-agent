@@ -60,4 +60,29 @@ class SettingsStore(private val context: Context) {
             executionPolicy = p[Keys.executionPolicy] ?: def.executionPolicy,
             localModelId = p[Keys.localModelId] ?: def.localModelId,
             localThinking = p[Keys.localThinking] ?: def.localThinking,
-            localTools = p[Key
+            localTools = p[Keys.localTools] ?: def.localTools,
+            themeId = p[Keys.themeId] ?: def.themeId,
+            hfToken = p[Keys.hfToken] ?: def.hfToken,
+            hybridAutoFallback = p[Keys.hybridAutoFallback] ?: def.hybridAutoFallback,
+        )
+    }
+
+    suspend fun load(): AppSettings = flow.first()
+
+    suspend fun save(s: AppSettings) {
+        context.dataStore.edit { p ->
+            p[Keys.baseUrl] = s.baseUrl
+            p[Keys.token] = s.token
+            p[Keys.modelId] = s.modelId
+            p[Keys.effort] = s.effort
+            p[Keys.reasoning] = s.reasoning
+            p[Keys.executionPolicy] = s.executionPolicy
+            p[Keys.localModelId] = s.localModelId
+            p[Keys.localThinking] = s.localThinking
+            p[Keys.localTools] = s.localTools
+            p[Keys.themeId] = s.themeId
+            p[Keys.hfToken] = s.hfToken
+            p[Keys.hybridAutoFallback] = s.hybridAutoFallback
+        }
+    }
+}

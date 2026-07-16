@@ -390,4 +390,64 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
-    private f
+    private fun finish(speak: Boolean) {
+        val text = sb.toString().ifBlank { "(boş yanıt)" }
+        updateLast { it.copy(content = text, streaming = false) }
+        busy = false
+        es = null
+        if (speak) {
+            voiceState = VoiceState.SPEAKING
+            voiceSub = text.take(160)
+            level = 0.5f
+            speech.speak(text, onStart = {}, onDone = { onMain { voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB; level = 0.08f } })
+        }
+    }
+
+    private fun updateLast(f: (ChatMessage) -> ChatMessage) {
+        val i = messages.lastIndex
+        if (i >= 0) messages[i] = f(messages[i])
+    }
+
+    // ---------- ses ----------
+    fun startListening() {
+        if (busy) return
+        if (!speech.isRecognitionAvailable) { voiceSub = "Cihazda konuşma tanıma yok"; return }
+        voiceState = VoiceState.LISTENING
+        voiceSub = "Dinliyorum…"
+        speech.startListening(
+            onRms = { level = it },
+            onPartial = { voiceSub = it },
+            onResult = { text ->
+                if (text.isNotBlank()) {
+                    messages.add(ChatMessage("user", text))
+                    routeAndComplete(speakWhenDone = true)
+                } else { voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB; level = 0.08f }
+            },
+            onEnd = { err ->
+                if (voiceState == VoiceState.LISTENING) {
+                    voiceState = VoiceState.IDLE
+                    voiceSub = err ?: DEFAULT_SUB
+                    level = 0.08f
+                }
+            }
+        )
+    }
+
+    fun stopListeningOrSpeaking() {
+        when (voiceState) {
+            VoiceState.LISTENING -> { speech.stopListening(); voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB; level = 0.08f }
+            VoiceState.SPEAKING -> { speech.stopSpeaking(); voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB; level = 0.08f }
+            else -> {}
+        }
+    }
+
+    override fun onCleared() {
+        connectionProbes.invalidate()
+        connectionCall?.cancel()
+        es?.cancel()
+        local.shutdown()
+        speech.destroy()
+        super.onCleared()
+    }
+
+}

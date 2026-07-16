@@ -68,4 +68,32 @@ object LocalModelCatalog {
             family = "Qwen3",
             quantization = "standart",
             fileName = "Qwen3-0.6B.litertlm",
-            download
+            downloadUrl = QWEN_BASE + "Qwen3-0.6B.litertlm",
+            sizeBytes = 614_236_160L,
+            sha256 = "555579ff2f4fd13379abe69c1c3ab5200f7338bc92471557f1d6614a6e5ab0b4",
+            licenseName = "Apache-2.0",
+            licenseUrl = "https://huggingface.co/Qwen/Qwen3-0.6B/blob/main/LICENSE",
+            recommendedRamGb = 4,
+            supportsThinkingToggle = true,
+        ),
+        LocalModelSpec(
+            id = "gemma3-1b-int4",
+            displayName = "Gemma 3 1B (int4)",
+            family = "Gemma 3",
+            quantization = "int4",
+            fileName = "gemma3-1b-it-int4.litertlm",
+            downloadUrl = GEMMA_BASE + "gemma3-1b-it-int4.litertlm",
+            sizeBytes = 584_417_280L,
+            sha256 = "1325ae366d31950f137c9c357b9fa89448b176d76998180c08ceaca78bba98be",
+            licenseName = "Gemma Şartları",
+            licenseUrl = "https://ai.google.dev/gemma/terms",
+            recommendedRamGb = 4,
+            supportsThinkingToggle = false,
+            gated = true,
+        ),
+    )
+
+    val default: LocalModelSpec = entries.first()
+
+    fun byId(id: String?): LocalModelSpec? = entries.firstOrNull { it.id == id }
+}

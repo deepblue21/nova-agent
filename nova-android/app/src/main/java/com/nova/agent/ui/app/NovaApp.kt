@@ -191,4 +191,22 @@ internal fun NovaSettingsPanel(
             val trimmedToken = token.trim()
             val canonicalBaseUrl = GatewayConnectionClient
                 .canonicalBaseUrl(trimmedBaseUrl)
-                ?.t
+                ?.toString()
+            if (canonicalBaseUrl == null) {
+                onTestConnection(trimmedBaseUrl, trimmedToken)
+            } else {
+                onUpdateTaskConnection(canonicalBaseUrl, trimmedToken)
+                onSaveAssistantConnection(canonicalBaseUrl, trimmedToken)
+            }
+        },
+        onModelChange = onModelChange,
+        onEffortChange = onEffortChange,
+        onReasoningChange = onReasoningChange,
+        onThemeChange = onThemeChange,
+        onHfTokenChange = onHfTokenChange,
+        onClose = {
+            onRestoreAppliedConnection()
+            onClose()
+        },
+    )
+}

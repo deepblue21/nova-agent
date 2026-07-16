@@ -127,10 +127,7 @@ private fun PolicyPicker(policy: ExecutionPolicy, onPolicyChange: (ExecutionPoli
                 row.forEach { option ->
                     val selected = option == policy
                     val enabled = option.selectableNow
-                    val phaseNote = when (option) {
-                        ExecutionPolicy.HYBRID -> "Faz 3"
-                        else -> null
-                    }
+                    val phaseNote: String? = null // Faz 3 D1 ile tüm politikalar açık.
                     Column(
                         modifier = Modifier
                             .weight(1f)
@@ -341,4 +338,70 @@ private fun HybridRulesCard(autoFallback: Boolean, onAutoFallback: (Boolean) -> 
                 Text("Yerel hata olursa otomatik PC'ye devret", color = TextMain, fontSize = 13.sp)
                 Text(
                     if (autoFallback) "Açık: devir bildirimsiz yapılır (rota rozetinde görünür)."
-                    else "Kapal�
+                    else "Kapalı: her seferinde izin kartı sorulur.",
+                    color = Muted,
+                    fontSize = 11.sp,
+                )
+            }
+            Switch(
+                checked = autoFallback,
+                onCheckedChange = onAutoFallback,
+                modifier = Modifier.semantics { contentDescription = "Otomatik PC devri" },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActiveWorkCard(task: MobileTask?, chatBusy: Boolean, engineState: LocalEngineUi) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Surface1)
+            .border(1.dp, Line, RoundedCornerShape(16.dp))
+            .padding(14.dp)
+            .testTag("active_work_card"),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        when {
+            task != null -> {
+                Text(
+                    task.prompt,
+                    color = TextMain,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(statusTint(task)),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(task.status.userLabel, color = Muted, fontSize = 12.sp)
+                }
+            }
+
+            chatBusy -> {
+                val label = when (engineState) {
+                    is LocalEngineUi.Loading -> "Model yükleniyor: ${engineState.modelName}…"
+                    is LocalEngineUi.Ready -> "Telefonda yanıt üretiliyor (${engineState.modelName})…"
+                    else -> "Sohbet yanıtı üretiliyor…"
+                }
+                Text(label, color = TextMain, fontSize = 13.sp)
+            }
+
+            else -> Text("Aktif iş yok", color = Muted2, fontSize = 13.sp)
+        }
+    }
+}
+
+@Composable
+private fun statusTint(task: MobileTask) = when (task.status) {
+    MobileTaskStatus.COMPLETED -> Success
+    MobileTaskStatus.FAILED, MobileTaskStatus.CANCELLED -> Coral
+    else -> MaterialTheme.colorScheme.primary
+}
