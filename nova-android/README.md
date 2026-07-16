@@ -1,9 +1,11 @@
 # NOVA — Android İstemci
 
-Gateway'e (OpenAI-uyumlu, SSE) bağlanan native Android uygulaması. Kotlin + Jetpack Compose.
-Animasyonlu orb, sesli + sohbet modu, model/efor/düşünme seçimi, streaming yanıt.
+Hem **telefonun kendi işlemcisinde** (LiteRT-LM) hem de PC'deki Gateway'de (OpenAI-uyumlu, SSE)
+çalışan native Android uygulaması. Kotlin + Jetpack Compose. Kontrol merkezi, model indirme
+merkezi, sohbet + ses, telefon otomasyon görevleri, streaming yanıt.
 
 > API anahtarları **gateway'de** durur. Bu istemci yalnızca gateway adresini ve `GATEWAY_TOKEN`'ı bilir.
+> Yerel modda ise istem ve yanıt cihazdan hiç çıkmaz; PC'ye devir yalnız kullanıcı onayıyla olur.
 
 ---
 
@@ -55,16 +57,35 @@ Manifest'te `usesCleartextTraffic=true` — yerel/Tailscale http için. İnterne
 ## Mimari
 
 ```
-MainActivity (Compose UI)
+MainActivity (Compose UI: Kontrol / İşler / Sohbet / Modeller + Ses)
   └── NovaViewModel
-        ├── SettingsStore   (DataStore: baseUrl, token, model, effort, reasoning)
-        ├── NovaClient      (OkHttp + SSE → gateway /v1/chat/completions)
-        └── SpeechManager   (Android STT + TTS, tr-TR)
+        ├── SettingsStore        (DataStore: baseUrl, token, model, effort, reasoning,
+        │                         executionPolicy, localModelId, localThinking, themeId)
+        ├── ExecutionPolicy      (GATEWAY_ONLY varsayılan | LOCAL_FIRST) + EngineRouter
+        ├── LocalLlmController
+        │     ├── LocalModelCatalog  (sabit sürüm + SHA-256 + lisans)
+        │     ├── ModelDownloader    (HTTPS, Range sürdürme, atomik kurulum)
+        │     └── OnDeviceEngine     (LiteRT-LM: Engine/Conversation, akışlı üretim)
+        ├── NovaClient           (OkHttp + SSE → gateway /v1/chat/completions)
+        └── SpeechManager        (Android STT + TTS, tr-TR)
 ```
 
 - **Streaming:** OkHttp `EventSource` ile token token; `x-nova-route` başlığı yanıt altında rozet olarak gösterilir.
-- **Ses:** şu an cihazın yerleşik motorları (SpeechRecognizer + TextToSpeech). İleride gateway `/stt` (Whisper) + `/tts`'e geçirilebilir.
-- **Model:** istemci hep gateway'e konuşur; seçili model `auto` ya da `ollama/qwen3:14b`, `gemini/...`, `anthropic/...`, `openclaw/default` olarak gider.
+- **Ses:** şu an cihazın yerleşik motorları (SpeechRecognizer + TextToSpeech). Ses ekranı, Sohbet üst çubuğundaki mikrofonla açılır.
+- **Model:** Gateway modunda seçili model `auto` ya da `ollama/...`, `gemini/...`, `anthropic/...` olarak gateway'e gider. Yerel modda LiteRT-LM `.litertlm` dosyası cihazda çalışır.
+
+---
+
+## Yerel öncelikli mod (Faz 1)
+
+- Motor: `com.google.ai.edge.litertlm:litertlm-android:0.13.1` (CPU backend). İlk yükleme saniyeler sürebilir; arka planda yapılır.
+- Referans model: `litert-community/Qwen3-0.6B` — revizyon `3adacb36…` kilitli. Katalogdaki iki artifact:
+  `qwen3_0_6b_mixed_int4.litertlm` (497.664.000 B) ve `Qwen3-0.6B.litertlm` (614.236.160 B); ikisi de Apache-2.0.
+- İndirme: yalnız HTTPS, `Range` ile sürdürme, indirme sırasında akan SHA-256; özet eşleşmezse dosya **kurulmaz**. Dosyalar `filesDir/models/` altındadır.
+- Yönlendirme: varsayılan politika `GATEWAY_ONLY` (mevcut davranış bire bir). `LOCAL_FIRST` seçilirse istek önce telefonda çalışır; model yoksa veya hata olursa istem **sessizce dışarı gönderilmez** — sohbette gerekçeli izin kartı çıkar.
+- Düşünme: Qwen3'ün gerçek `enable_thinking` anahtarı Açık/Kapalı olarak sunulur; var olmayan kademeli "düşünme bütçesi" taklit edilmez. `<think>…</think>` blokları yanıttan ayrıştırılıp ayrı gösterilir.
+- İptal: aktif konuşma kapatılır; her istek taze `Conversation` kurduğu için yarım yanıt sonraki bağlama sızamaz.
+- Dürüst sınırlar: x86 emülatörde yerel motor `ARM64 gerekir` hatası verir (Gateway yolu etkilenmez). `LOCAL_ONLY` (Faz 2) ve `HYBRID` (Faz 3) arayüzde pasiftir.
 
 ---
 
@@ -91,39 +112,4 @@ Derleme + statik denetim:
   0 lint hatası (11 uyarı, 1 bilgi). `:app:connectedDebugAndroidTest` Android 17
   `emulator-5554` üzerinde 27/27 geçti; APK aynı emülatöre kuruldu. Bu koşuda fiziksel cihaz bağlı
   değildi ve fiziksel cihaz testi yapılmadı.
-- Son regresyon sağlamlaştırması, etkin görevi başlangıçtaki Gateway ayarına sabitler; bayat veya
-  başka göreve ait callback/SSE olaylarını reddeder, kabul edilen Gateway adreslerini `/v1` altında
-  standartlaştırır ve bozuk kayıtlı adresleri çökmeden reddeder. Maskeli token alanının TalkBack
-  düzenleme semantiği, alt sistem inset'i, meşgul Ses kontrolleri ve yükleme sırasındaki görev
-  istemleri de test kapsamındadır.
-- Ayarlardaki bağlantı testi, geçerli emülatör Gateway adresi ve yerel QA kimliğiyle `PC hazır`
-  durumuna ulaştı. Sabit doğrulama istemi PC'deki yerel modele aktı; UI-tree örneklemesine göre
-  TTFT 48.337 sn, toplam 48.341 sn ve sanitize rota `ollama/gemma4:latest` idi.
-- Worker preflight'ları 7 Node + 39 Python testiyle geçti. Güvenli canlı görev girişimi Gateway
-  allowlist'i tarafından `Bu gorev emulator worker'inda desteklenmiyor` mesajıyla reddedildi; bu
-  nedenle terminal worker sonucu doğrulanmadı.
-- Regresyon turunda Ayarlar başlığı/kapatma kontrolü sistem durum çubuğunun altına alındı ve 1.0
-  ile 1.3 sistem yazı ölçeklerinde doğrulandı. Görevler composer ve birincil eylem de 1.3 ölçekte
-  gerçek IME'nin tamamen üstünde kaldı. En iyi sıcak, UI-dump'sız debug-emülatör örneğinde 69
-  frame'in 37'si janky idi (%53,62), p50 34 ms ve p90 44 ms. Perfetto kanıtı emülatör
-  grafik/buffer baskısı ile Compose işinin birlikte etkisini gösterdi; kanıtlanmış tek bir uygulama
-  hotspot'u bulunmadı. Fiziksel donanımda release-build performans kontrolü takip maddesidir.
-- Doğrulanan debug APK SHA-256:
-  `4D65812810CBC0C6D80081CC40A5FF716A3A52829A68EB049C6D7681A104E689`.
-
----
-
-## İzinler
-
-- `INTERNET` — gateway'e bağlanmak için.
-- `RECORD_AUDIO` — sesli mod; ilk kullanımda çalışma anında istenir.
-
----
-
-## Yapılacaklar (sonraki adımlar)
-
-- Gateway `/stt` + `/tts` ile gerçek ses (orb'u TTS genliğine bağlamak için Web Audio benzeri AudioRecord/Visualizer).
-- Çoklu sohbet + kalıcı geçmiş (Room/DataStore).
-- Markdown + kod bloğu render (kopyala) — şu an düz metin.
-- Görsel (çoklu-medya) gönderme.
-- Compose UI testleri (androidx.compose.ui.test).
+- Son regresyon sağlamlaştırması, etkin görevi başlangıçtaki Gateway ayarına sabitler; bayat 

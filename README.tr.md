@@ -287,6 +287,18 @@ Ayrintili uygulama sirasi:
 
 Özet changelog; oturum-bazlı tam detay git history ve `PROGRESS.md`'de.
 
+- **Faz 1 — Yerel öncelikli cihaz-üstü LLM (2026-07-16, `codex/phase1-local-first`):**
+  Android uygulamasına LiteRT-LM (0.13.1) tabanlı `OnDeviceEngine`, sabit sürüm +
+  SHA-256 doğrulamalı model indirme merkezi (Qwen3-0.6B, Apache-2.0) ve
+  `ExecutionPolicy` yönlendiricisi eklendi. Varsayılan politika `GATEWAY_ONLY` —
+  mevcut kurulumların davranışı değişmez; `LOCAL_FIRST` seçilirse istek önce
+  telefonda çalışır ve yerel hata durumunda istem sessizce dışarı gönderilmez,
+  izin kartı çıkar. Yeni bilgi mimarisi: Kontrol / İşler / Sohbet / Modeller
+  (+ Ses, Sohbet üst çubuğundan). Sohbette kod blokları blok başına Kopyala ile
+  ayrı kartta; üç vurgu teması. Sıralama: yerel öncelikli → tam çevrimdışı →
+  hibrit (bkz. `ROADMAP.md`). Fiziksel ARM64 cihaz doğrulaması kabul kapısıdır ve
+  henüz yapılmadı.
+
 - **Faz 8 (sertleştirme + ajan):** güçlendirilmiş `npm run prod-check` (token gücü,
   varsayılan/zayıf altyapı secret'ları, multi-user DB/admin, cleartext MCP); gateway prod'da
   çok kısa `GATEWAY_TOKEN` ile başlamayı reddeder; iç paneller yalnız `127.0.0.1`'e bağlanır;
@@ -519,20 +531,4 @@ Tüm gateway ayarları ortam değişkenidir (tam liste için `gateway/.env.examp
 ## Ses modu
 
 Arayüz, tarayıcı konuşma tanımayı kutudan çıkar çıkmaz destekler. Daha kaliteli gerçek
-STT/TTS için OpenAI-uyumlu sunucular çalıştır ve `WHISPER_URL` / `TTS_URL`'i onlara yönlendir
-(UI gateway'deki `/stt` ve `/tts`'i çağırır, gateway de o sunuculara proxy'ler). Uzun yerel ses
-işleri için Redis varken `VOICE_QUEUE_ENABLED=1` yap; gateway o zaman `POST /v1/voice/jobs`,
-`GET /v1/voice/jobs/:id` ve `GET /v1/voice/jobs/:id/audio` sunar.
-
-## Sorun giderme
-
-- **`401 unauthorized`** — `GATEWAY_TOKEN` set ama UI yollamıyor. Token'ı Ayarlar'da Gateway
-  sağlayıcısının key alanına yapıştır.
-- **CORS hatası** — UI origin'i `ALLOW_ORIGINS`'te değil. Ekle ve gateway'i yeniden başlat.
-- **Ollama "connection refused"** — `OLLAMA_ORIGINS=* ollama serve` ile başlat.
-- **`429 rate limit exceeded`** — `RATE_MAX`'a takıldın; yükselt veya pencerenin sıfırlanmasını bekle.
-- **Boş/bozuk akış** — provider key'inin set olduğunu ve model id'sinin var olduğunu doğrula.
-
-## Lisans
-
-MIT. Bkz. [`LICENSE`](./LICENSE).
+STT/TTS için OpenAI-uyumlu sunucular çalıştır ve `WHISPER_URL` / `TTS_URL`'i onlar

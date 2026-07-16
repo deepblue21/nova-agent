@@ -284,6 +284,17 @@ The detailed implementation sequence is in
 
 A condensed changelog; full per-session detail lives in git history and `PROGRESS.md`.
 
+- **Phase 1 — Local-first on-device LLM (2026-07-16, `codex/phase1-local-first`):**
+  Added a LiteRT-LM (0.13.1) based `OnDeviceEngine` to the Android app, a pinned-revision +
+  SHA-256-verified model download center (Qwen3-0.6B, Apache-2.0), and an `ExecutionPolicy`
+  router. Default policy stays `GATEWAY_ONLY` — existing installs behave exactly as before;
+  with `LOCAL_FIRST` requests run on the phone first and on local failure the prompt is never
+  silently sent off-device — a consent card is shown instead. New IA: Kontrol / İşler /
+  Sohbet / Modeller (+ Voice from the chat top bar). Chat renders fenced code blocks in
+  separate cards with per-block copy; three accent themes. Order of delivery: local-first →
+  fully offline → hybrid (see `ROADMAP.md`). Physical ARM64 device verification is the
+  acceptance gate and has not been run yet.
+
 - **Phase 8 (hardening + agent):** strengthened `npm run prod-check` (token strength,
   default/weak infra secrets, multi-user DB/admins, cleartext MCP); gateway refuses to
   start in production with a too-short `GATEWAY_TOKEN`; internal panels bind `127.0.0.1`
@@ -515,20 +526,4 @@ All gateway settings are environment variables (see `gateway/.env.example` for t
 ## Voice mode
 
 The UI supports browser speech recognition out of the box. For higher-quality real STT/TTS,
-run OpenAI-compatible servers and point `WHISPER_URL` / `TTS_URL` at them (the UI calls
-`/stt` and `/tts` on the gateway, which proxies to those servers). For longer local voice
-jobs, set `VOICE_QUEUE_ENABLED=1` with Redis available; the gateway then exposes
-`POST /v1/voice/jobs`, `GET /v1/voice/jobs/:id`, and `GET /v1/voice/jobs/:id/audio`.
-
-## Troubleshooting
-
-- **`401 unauthorized`** — `GATEWAY_TOKEN` is set but the UI isn't sending it. Paste the token
-  into the Gateway provider's key field in Settings.
-- **CORS error** — the UI origin isn't in `ALLOW_ORIGINS`. Add it and restart the gateway.
-- **Ollama "connection refused"** — start it with `OLLAMA_ORIGINS=* ollama serve`.
-- **`429 rate limit exceeded`** — you hit `RATE_MAX`; raise it or wait for the window.
-- **Empty/garbled stream** — confirm the provider key is set and the model id exists.
-
-## License
-
-MIT. See [`LICENSE`](./LICENSE).
+run OpenAI-compatible servers and point `WHISPER_U
