@@ -1,5 +1,11 @@
 package com.nova.agent
 
+import android.view.WindowManager
+import android.os.SystemClock
+import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -8,22 +14,29 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.Density
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.nova.agent.feature.tasks.MobileTask
 import com.nova.agent.feature.tasks.MobileTaskEvent
 import com.nova.agent.feature.tasks.MobileTaskScreen
 import com.nova.agent.feature.tasks.MobileTaskStatus
 import com.nova.agent.feature.tasks.MobileTaskUiState
+import com.nova.agent.data.Mode
 import com.nova.agent.net.GatewayConnectionStatus
 import com.nova.agent.net.GatewayConnectionUiState
 import com.nova.agent.net.MobileTaskClient
 import com.nova.agent.ui.theme.NovaTheme
+import com.nova.agent.ui.app.NovaAppShell
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -302,5 +315,84 @@ class MobileTaskScreenTest {
             pendingConfirmation = requireNotNull(event.confirmation),
             loading = loading,
         )
+    }
+}
+
+class MobileTaskScreenImeTest {
+    @get:Rule
+    val composeRule = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    @Suppress("DEPRECATION")
+    fun keepsComposerAndSubmitAboveImeAtLargeFontScale() {
+        composeRule.activityRule.scenario.onActivity { activity ->
+            activity.enableEdgeToEdge()
+            activity.window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        }
+        composeRule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(
+                LocalDensity provides Density(density.density, fontScale = 1.3f),
+            ) {
+                NovaTheme {
+                    val connection = GatewayConnectionUiState(
+                        GatewayConnectionStatus.READY,
+                        "PC hazır",
+                    )
+                    NovaAppShell(
+                        mode = Mode.TASKS,
+                        connection = connection,
+                        onModeChange = {},
+                        onSettings = {},
+                        onNewChat = {},
+                    ) {
+                        MobileTaskScreen(
+                            state = MobileTaskUiState(prompt = "Ayarlar'ı aç"),
+                            connection = connection,
+                            onPromptChange = {},
+                            onCreateTask = {},
+                            onCommand = {},
+                            onDecision = {},
+                        )
+                    }
+                }
+            }
+        }
+
+        composeRule.onNodeWithTag("task_prompt").performClick()
+        var lastImeBottomPx = -1
+        var stableSinceMs = 0L
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            val rootInsets = ViewCompat.getRootWindowInsets(composeRule.activity.window.decorView)
+            val imeBottomPx = rootInsets?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: 0
+            val now = SystemClock.uptimeMillis()
+            if (imeBottomPx != lastImeBottomPx) {
+                lastImeBottomPx = imeBottomPx
+                stableSinceMs = now
+            }
+            rootInsets?.isVisible(WindowInsetsCompat.Type.ime()) == true &&
+                imeBottomPx > 0 && now - stableSinceMs >= 200L
+        }
+        composeRule.waitForIdle()
+
+        val rootInsets = requireNotNull(
+            ViewCompat.getRootWindowInsets(composeRule.activity.window.decorView),
+        )
+        val imeBottomPx = rootInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+        val windowHeight = composeRule.activity.window.decorView.height.toFloat()
+        val windowWidth = composeRule.activity.window.decorView.width.toFloat()
+        val imeTop = windowHeight - imeBottomPx
+        val prompt = composeRule.onNodeWithTag("task_prompt").assertIsDisplayed()
+            .fetchSemanticsNode().boundsInWindow
+        val submit = composeRule.onNodeWithTag("task_submit").assertIsDisplayed()
+            .fetchSemanticsNode().boundsInWindow
+
+        assertTrue("Expected a visible IME inset", imeBottomPx > 0)
+        assertTrue("Task composer is clipped above the window: $prompt", prompt.top >= 0f)
+        assertTrue("Task composer exceeds the window width: $prompt", prompt.left >= 0f && prompt.right <= windowWidth)
+        assertTrue("Task composer bottom ${prompt.bottom} is below IME top $imeTop", prompt.bottom <= imeTop)
+        assertTrue("Task submit is clipped above the window: $submit", submit.top >= 0f)
+        assertTrue("Task submit exceeds the window width: $submit", submit.left >= 0f && submit.right <= windowWidth)
+        assertTrue("Task submit bottom ${submit.bottom} is below IME top $imeTop", submit.bottom <= imeTop)
     }
 }

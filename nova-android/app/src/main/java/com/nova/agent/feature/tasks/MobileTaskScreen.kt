@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -136,92 +137,102 @@ private fun TaskEmptyState(
     onOpenSettings: () -> Unit,
     onRetryConnection: () -> Unit,
 ) {
-    Column(
-        Modifier.fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(
-            "Telefonunda ne yapmamı istersin?",
-            color = TextMain,
-            fontSize = 24.sp,
-            lineHeight = 30.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(connection.message, color = if (connected) Cyan else Muted, fontSize = 13.sp)
-
-        QuickPrompt("Android sürümünü bul", actionsEnabled, onQuickPrompt)
-        QuickPrompt("Ayarlar'ı aç", actionsEnabled, onQuickPrompt)
-        QuickPrompt("Bir uygulamayı aç", actionsEnabled, onQuickPrompt)
-
-        Box(
-            Modifier.fillMaxWidth()
-                .defaultMinSize(minHeight = 120.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Surface1)
-                .border(1.dp, Line, RoundedCornerShape(12.dp))
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+    Column(Modifier.fillMaxSize()) {
+        Column(
+            Modifier.weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (prompt.isEmpty()) {
-                Text("Görevi ayrıntılarıyla yaz", color = Muted2, fontSize = 15.sp)
-            }
-            BasicTextField(
-                value = prompt,
-                onValueChange = onPromptChange,
-                enabled = actionsEnabled && !loading,
-                minLines = 3,
-                maxLines = 5,
-                textStyle = TextStyle(color = TextMain, fontSize = 15.sp, lineHeight = 21.sp),
-                cursorBrush = SolidColor(Cyan),
-                modifier = Modifier.fillMaxWidth().testTag("task_prompt"),
+            Text(
+                "Telefonunda ne yapmamı istersin?",
+                color = TextMain,
+                fontSize = 24.sp,
+                lineHeight = 30.sp,
+                fontWeight = FontWeight.Bold,
             )
+            Text(connection.message, color = if (connected) Cyan else Muted, fontSize = 13.sp)
+
+            QuickPrompt("Android sürümünü bul", actionsEnabled, onQuickPrompt)
+            QuickPrompt("Ayarlar'ı aç", actionsEnabled, onQuickPrompt)
+            QuickPrompt("Bir uygulamayı aç", actionsEnabled, onQuickPrompt)
         }
 
-        error?.let { ErrorText(it) }
-
-        when {
-            connected -> Button(
-                onClick = onCreateTask,
-                enabled = actionsEnabled && prompt.isNotBlank() && !loading,
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Cyan,
-                    contentColor = Color(0xFF04121A),
-                ),
-                modifier = Modifier.fillMaxWidth().height(52.dp).testTag("task_submit"),
+        Column(
+            Modifier.fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .imePadding(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                Modifier.fillMaxWidth()
+                    .defaultMinSize(minHeight = 120.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Surface1)
+                    .border(1.dp, Line, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
             ) {
-                Text("Görevi başlat", fontWeight = FontWeight.Bold)
+                if (prompt.isEmpty()) {
+                    Text("Görevi ayrıntılarıyla yaz", color = Muted2, fontSize = 15.sp)
+                }
+                BasicTextField(
+                    value = prompt,
+                    onValueChange = onPromptChange,
+                    enabled = actionsEnabled && !loading,
+                    minLines = 3,
+                    maxLines = 5,
+                    textStyle = TextStyle(color = TextMain, fontSize = 15.sp, lineHeight = 21.sp),
+                    cursorBrush = SolidColor(Cyan),
+                    modifier = Modifier.fillMaxWidth().testTag("task_prompt"),
+                )
             }
 
-            connection.status in SETTINGS_CONNECTION_STATUSES -> {
-                Button(
-                    onClick = onOpenSettings,
-                    enabled = actionsEnabled,
+            error?.let { ErrorText(it) }
+
+            when {
+                connected -> Button(
+                    onClick = onCreateTask,
+                    enabled = actionsEnabled && prompt.isNotBlank() && !loading,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Cyan,
+                        contentColor = Color(0xFF04121A),
+                    ),
+                    modifier = Modifier.fillMaxWidth().height(52.dp).testTag("task_submit"),
+                ) {
+                    Text("Görevi başlat", fontWeight = FontWeight.Bold)
+                }
+
+                connection.status in SETTINGS_CONNECTION_STATUSES -> {
+                    Button(
+                        onClick = onOpenSettings,
+                        enabled = actionsEnabled,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                    ) {
+                        Text("Bağlantıyı ayarla")
+                    }
+                    if (connection.status == GatewayConnectionStatus.UNREACHABLE) {
+                        OutlinedButton(
+                            onClick = onRetryConnection,
+                            enabled = actionsEnabled,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                        ) {
+                            Text("Tekrar dene")
+                        }
+                    }
+                }
+
+                else -> Button(
+                    onClick = {},
+                    enabled = false,
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                 ) {
-                    Text("Bağlantıyı ayarla")
+                    Text("Bağlantı kontrol ediliyor")
                 }
-                if (connection.status == GatewayConnectionStatus.UNREACHABLE) {
-                    OutlinedButton(
-                        onClick = onRetryConnection,
-                        enabled = actionsEnabled,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                    ) {
-                        Text("Tekrar dene")
-                    }
-                }
-            }
-
-            else -> Button(
-                onClick = {},
-                enabled = false,
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-            ) {
-                Text("Bağlantı kontrol ediliyor")
             }
         }
     }
