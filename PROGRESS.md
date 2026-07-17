@@ -8,6 +8,30 @@
 Bu dosya yeni oturuma başlarken ilk okunacak hafıza dosyasıdır. Her çalışma sonunda
 bu bölüm veya "SIRADAKİ ADIM" bölümü güncel bırakılmalı.
 
+### Oturum — 17 Temmuz 2026 (Cihaz-üstü LLM: Faz 1-2-3 tamamlandı)
+
+Hedef: telefonda çevrimdışı agentic yapay zeka + PC LLM'in telefondan kullanımı + hibrit.
+Kullanıcının verdiği sırayla üç faz kod olarak bitirildi ve derleme yeşil
+(`testDebugUnitTest` + `lintDebug` + `assembleDebug` = BUILD SUCCESSFUL). Dal
+`codex/phase1-local-first`; bu oturumda `master`'a fast-forward ile birleştirildi.
+
+- **Faz 1 — Yerel öncelikli:** `OnDeviceEngine` (LiteRT-LM 0.13.1, CPU, taze-konuşma iptali
+  + gerçek `cancelProcess()`), sabit sürüm + SHA-256 doğrulamalı/sürdürülebilir indirme merkezi,
+  `ExecutionPolicy`/`EngineRouter` (varsayılan GATEWAY_ONLY), Kontrol/İşler/Sohbet/Modeller
+  bilgi mimarisi (+ Ses üst çubuktan), kod bloğu kopyalama, 3 tema, Qwen3 `<think>` ayrımı.
+- **Faz 2 — Çevrimdışı + agentic çekirdek:** LOCAL_ONLY (devir tamamen kapalı), çevrimdışı
+  `HorusToolSet` (saat, güvenli hesap makinesi, cihaz durumu, not defteri), kapılı Gemma 3 1B
+  ve FunctionGemma 270M (HF token'ı Ayarlar'da, yalnız huggingface.co'ya gider), depolama bilgisi.
+- **Faz 3 — Hibrit:** uzunluk + pil + ısı (THERMAL_STATUS_SEVERE+) + gizlilik (`PrivacyClassifier`:
+  şifre/TCKN/IBAN/kart → telefonda kalır) kurallı yönlendirme; "PC ajanına devret" çipi
+  (`openclaw/default`, Gateway ajan geçmişine kaydolur); sor/otomatik devir anahtarı.
+- Güvence: mevcut Gateway sohbeti/görevleri/SSE regresyona uğramadı; onaysız istem cihaz dışına çıkmıyor.
+- Teknik not: kütüphane Kotlin 2.3 metadata'sıyla derlendiği için proje Kotlin **2.2.21**'e yükseltildi.
+
+**SIRADAKİ ADIM:** Fiziksel ARM64 cihazda uçtan uca doğrulama (kullanıcı tarafında): model indir →
+uçak modunda yerel sohbet + araç turu → Çevrimdışı devirsizlik → Hibrit rota rozetleri → Gateway
+regresyonu. Gelecek: istek sınıflandırmanın incelmesi, çevrimdışı STT/TTS davranış testi.
+
 ### Oturum — 16 Haziran 2026 (README/kod inceleme + Faz 8 durum kontrolü)
 - Kullanıcı "Nerede kaldık, README oku, tüm kodu incele ve öneri sun" dedi. README/README.tr/SECURITY/compose/gateway ana akışı/agent-tools/MCP/RBAC/knowledge/memory/scheduled/agent-runs/script yüzeyleri tarandı.
 - **Durum:** README phase board'a göre Faz 8 hâlâ `Production hardening + deploy + agent deepening` aşamasında. Kod tarafında prod-check, loopback paneller, `docker-compose.prod.yml`, MCP introspection, `fetch_url`, agent run history ve workspace-scoped kaynaklar mevcut. Sıradaki ana iş: live-deploy hazırlığı + canlı smoke.
