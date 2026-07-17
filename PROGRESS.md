@@ -28,9 +28,15 @@ Kullanıcının verdiği sırayla üç faz kod olarak bitirildi ve derleme yeşi
 - Güvence: mevcut Gateway sohbeti/görevleri/SSE regresyona uğramadı; onaysız istem cihaz dışına çıkmıyor.
 - Teknik not: kütüphane Kotlin 2.3 metadata'sıyla derlendiği için proje Kotlin **2.2.21**'e yükseltildi.
 
+**Faz 4 — Model otomasyonu (17 Temmuz 2026, aynı oturum):** `ModelRecommender` (RAM'e göre
+uygunluk + kapısız-öncelikli öneri), `ModelMetricsStore` (cihazda yükleme süresi + ~tok/sn),
+Modeller ekranında öneri banner'ı + uygunluk çipi + performans satırı. FunctionGemma 270M ve
+Gemma 3 1B kapılı; kapısız Qwen3 ilk kurulum için varsayılan. Tümü commit'li, master'a taşındı.
+
 **SIRADAKİ ADIM:** Fiziksel ARM64 cihazda uçtan uca doğrulama (kullanıcı tarafında): model indir →
-uçak modunda yerel sohbet + araç turu → Çevrimdışı devirsizlik → Hibrit rota rozetleri → Gateway
-regresyonu. Gelecek: istek sınıflandırmanın incelmesi, çevrimdışı STT/TTS davranış testi.
+uçak modunda yerel sohbet + araç turu → Çevrimdışı devirsizlik → Hibrit rota rozetleri (uzunluk/pil/
+ısı/gizlilik) → "PC ajanına devret" → Gateway regresyonu. Gelecek: düşük RAM'de otomatik quant
+tercihi, çevrimdışı STT/TTS davranış testi.
 
 ### Oturum — 16 Haziran 2026 (README/kod inceleme + Faz 8 durum kontrolü)
 - Kullanıcı "Nerede kaldık, README oku, tüm kodu incele ve öneri sun" dedi. README/README.tr/SECURITY/compose/gateway ana akışı/agent-tools/MCP/RBAC/knowledge/memory/scheduled/agent-runs/script yüzeyleri tarandı.

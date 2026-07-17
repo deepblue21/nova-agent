@@ -193,12 +193,20 @@ döner, uygulamayı düşürmez.
 - Katalogda 4 model: Qwen3 0.6B ×2 (kapısız), Gemma 3 1B ve **FunctionGemma 270M** (araç-çağrısı
   için eğitilmiş; 289 MB, kapılı — çevrimdışı agentic çekirdek için önerilir).
 
+## Model otomasyonu (Faz 4)
+
+- **Öneri:** Modeller ekranı, cihazın RAM'ine göre en uygun kapısız modeli banner'da önerir ve tek
+  dokunuşla indirtir. Her satırda uygunluk çipi (Rahat/Sınırlı/Riskli) ve — çalıştıktan sonra — son
+  performans (~tok/sn · yükleme süresi) görünür. Ölçümler `model_metrics.json` içinde cihazda kalır.
+- Öneri mantığı kapısız modeli önceler; ilk kurulum HF token'ı olmadan tamamlanabilir.
+
 ## Yapılacaklar (sonraki adımlar)
 
 - Toplu cihaz doğrulaması (tüm fazlar): `testDebugUnitTest lintDebug assembleDebug` + fiziksel ARM64
   cihazda model indirme, uçak modunda yerel sohbet + araç turu ("saat kaç?", "23*7?", "pil yüzde kaç?",
-  "not al: …"), Çevrimdışı modda devirsizlik, Hibrit kuralları, "PC ajanına devret" ve Gateway regresyonu.
-- İstek sınıflandırmanın incelmesi (araç ihtiyacı/gizlilik etiketi) ve çevrimdışı STT/TTS davranış testi.
+  "not al: …"), Çevrimdışı modda devirsizlik, Hibrit kuralları (uzunluk/pil/ısı/gizlilik),
+  "PC ajanına devret", model öneri/performans göstergeleri ve Gateway regresyonu.
+- Düşük RAM'de otomatik quantization tercihi, indirme öncesi yer kontrolü, çevrimdışı STT/TTS davranış testi.
 - Faz 3 — Hibrit: izin temelli otomatik telefon↔PC devri, görev devri, pil/ısı farkındalığı.
 - Gateway `/stt` + `/tts` ile gerçek ses.
 - Çoklu sohbet + kalıcı geçmiş (Room/DataStore).

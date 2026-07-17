@@ -80,10 +80,20 @@ Telefonda **çevrimdışı çalışan agentic bir yapay zeka** + PC'deki LLM iş
   kullanıcının kendi tercihi olarak açık kalır.
 - İstek sınıflandırmanın daha da incelmesi (araç ihtiyacı tahmini) — gelecek.
 
+## Faz 4 — Model otomasyonu (başladı, 2026-07-17)
+
+- **Cihaza göre öneri:** `ModelRecommender` (saf) — RAM'e göre uygunluk (Rahat/Sınırlı/Riskli) ve
+  kapısız-öncelikli en iyi model seçimi. RAM ölçülemezse kapısız en küçük (ilk kurulum tokensız).
+- **Performans metrikleri:** `ModelMetricsStore` (cihazda JSON) — model başına yükleme süresi ve
+  yaklaşık tok/sn; her yerel üretimde ölçülüp kaydedilir.
+- **Modeller arayüzü:** önerilen model banner'ı (tek dokunuşla indir / aktif yap), satırlarda
+  uygunluk çipi ve son performans özeti, "önerilen" rozeti.
+- Sıradaki: düşük RAM'de otomatik quantization tercihi, indirme öncesi yer kontrolü uyarısı.
+
 ## Durum özeti (2026-07-17)
 
-Faz 1, Faz 2 ve Faz 3 çekirdek teslimatları **kod olarak tamamlandı ve derleme yeşil**
-(`testDebugUnitTest` + `lintDebug` + `assembleDebug` başarılı). Kalan tek adım fiziksel ARM64
+Faz 1, Faz 2, Faz 3 ve Faz 4 çekirdek teslimatları **kod olarak tamamlandı**; son tam derleme
+yeşildi (`testDebugUnitTest` + `lintDebug` + `assembleDebug`). Kalan tek adım fiziksel ARM64
 cihazda uçtan uca doğrulama (kullanıcı tarafında, tek seferde).
 
 ## Depo düzeni notları
