@@ -41,6 +41,8 @@ data class HybridInputs(
     val gatewayReady: Boolean,
     /** PowerManager THERMAL_STATUS_SEVERE ve üstü (API 29+; bilinmiyorsa false). */
     val thermalSevere: Boolean = false,
+    /** İstem hassas görünüyor mu (PrivacyClassifier). Doğruysa cihazda tutulur. */
+    val privacySensitive: Boolean = false,
 )
 
 /** Bir sohbet isteminin nereye gideceği kararı. Saf ve test edilebilir. */
@@ -94,9 +96,11 @@ object EngineRouter {
      * Hibrit yönlendirme (Faz 3 D1). Kurallar şeffaf ve sabittir:
      * 1) Ne yerel model ne PC hazırsa → kurulum gerekçesi (istek hiçbir yere gitmez).
      * 2) Yerel model yoksa → PC (hibrit seçimi PC kullanımına verilmiş açık rızadır).
-     * 3) İstem uzunsa ve PC hazırsa → PC.
-     * 4) Pil düşük + şarjda değil + PC hazırsa → PC.
-     * 5) Aksi halde → telefon.
+     * 3) Gizli görünen istem + telefonda model varsa → telefon (otomatik devre engel).
+     * 4) İstem uzunsa ve PC hazırsa → PC.
+     * 5) Pil düşük + şarjda değil + PC hazırsa → PC.
+     * 6) Cihaz ciddi ısınmışsa + PC hazırsa → PC.
+     * 7) Aksi halde → telefon.
      */
     fun decideHybrid(inputs: HybridInputs, localModelId: String): RouteDecision = when {
         !inputs.localModelInstalled && !inputs.gatewayReady ->
@@ -106,6 +110,9 @@ object EngineRouter {
             )
 
         !inputs.localModelInstalled -> RouteDecision.Gateway
+
+        // Gizlilik önceliği: hassas istem, telefonda model varken PC'ye kaçmaz.
+        inputs.privacySensitive -> RouteDecision.Local(localModelId)
 
         inputs.promptChars >= LONG_PROMPT_CHARS && inputs.gatewayReady -> RouteDecision.Gateway
 

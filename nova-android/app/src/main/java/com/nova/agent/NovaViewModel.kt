@@ -21,6 +21,7 @@ import com.nova.agent.llm.EngineRouter
 import com.nova.agent.llm.ExecutionPolicy
 import com.nova.agent.llm.HybridInputs
 import com.nova.agent.llm.LocalLlmController
+import com.nova.agent.llm.PrivacyClassifier
 import com.nova.agent.llm.RouteDecision
 import com.nova.agent.llm.ThinkingText
 import com.nova.agent.llm.local.LocalModelCatalog
@@ -246,6 +247,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     private fun hybridDecision(spec: LocalModelSpec): RouteDecision {
         val (batteryPercent, charging) = local.batteryNow()
         val promptChars = messages.lastOrNull { it.role == "user" }?.content?.length ?: 0
+        val lastPrompt = messages.lastOrNull { it.role == "user" }?.content ?: ""
         return EngineRouter.decideHybrid(
             HybridInputs(
                 localModelInstalled = local.isInstalled(spec.id),
@@ -254,6 +256,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
                 charging = charging,
                 gatewayReady = connectionState.status == GatewayConnectionStatus.READY,
                 thermalSevere = local.thermalSevereNow(),
+                privacySensitive = PrivacyClassifier.isSensitive(lastPrompt),
             ),
             localModelId = spec.id,
         )

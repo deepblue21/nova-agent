@@ -74,8 +74,11 @@ class EngineRouterTest {
         charging: Boolean = false,
         gatewayReady: Boolean = true,
         thermalSevere: Boolean = false,
+        privacySensitive: Boolean = false,
     ) = EngineRouter.decideHybrid(
-        HybridInputs(installed, promptChars, battery, charging, gatewayReady, thermalSevere),
+        HybridInputs(
+            installed, promptChars, battery, charging, gatewayReady, thermalSevere, privacySensitive,
+        ),
         localModelId = "qwen3-0.6b-int4",
     )
 
@@ -112,5 +115,23 @@ class EngineRouterTest {
         assertEquals(RouteDecision.Gateway, hybrid(installed = false))
         val decision = hybrid(installed = false, gatewayReady = false)
         assertTrue(decision is RouteDecision.LocalNeedsSetup)
+    }
+
+    @Test
+    fun `hibrit gizli istem uzun ve dusuk pilde bile telefonda kalir`() {
+        // Normalde PC'ye giderdi (uzun + düşük pil), ama gizlilik önceliği kazanır.
+        val decision = hybrid(
+            promptChars = 5000,
+            battery = 5,
+            charging = false,
+            privacySensitive = true,
+        )
+        assertTrue(decision is RouteDecision.Local)
+    }
+
+    @Test
+    fun `hibrit gizli istem ama model yoksa yine de PC`() {
+        // Telefonda model yoksa gizlilik override devreye girmez; kendi PC'sine gider.
+        assertEquals(RouteDecision.Gateway, hybrid(installed = false, privacySensitive = true))
     }
 }

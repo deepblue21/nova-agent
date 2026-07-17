@@ -325,7 +325,8 @@ private fun HybridRulesCard(autoFallback: Boolean, onAutoFallback: (Boolean) -> 
     ) {
         Text("Hibrit kuralları", color = TextMain, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         Text(
-            "• ${EngineRouter.LONG_PROMPT_CHARS}+ karakterlik istemler PC'ye gider\n" +
+            "• Gizli görünen istemler (şifre, TCKN, kart, IBAN…) telefonda tutulur\n" +
+                "• ${EngineRouter.LONG_PROMPT_CHARS}+ karakterlik istemler PC'ye gider\n" +
                 "• Pil ≤ %${EngineRouter.LOW_BATTERY_PERCENT} ve şarjda değilken PC tercih edilir\n" +
                 "• Cihaz ciddi ısınmışsa PC tercih edilir\n" +
                 "• Telefon modeli kurulu değilse istekler PC'de çalışır",

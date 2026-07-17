@@ -74,7 +74,17 @@ Telefonda **çevrimdışı çalışan agentic bir yapay zeka** + PC'deki LLM iş
   yönlendirici PC'yi tercih eder (API 29+; okunamazsa taklit yok, telefonda kalır).
 - FunctionGemma 270M (araç-çağrısı için eğitilmiş, kapılı, 289 MB) kataloğa eklendi — çevrimdışı
   agentic çekirdek için önerilen model.
-- İstek sınıflandırmanın incelmesi (araç ihtiyacı/gizlilik etiketi) — gelecek.
+- Gizlilik-farkındalıklı yönlendirme D4: **eklendi (2026-07-17)** — `PrivacyClassifier` hassas
+  görünen istemleri (şifre, TCKN, IBAN, kart no, anahtar/token) tanır; Hibrit modda bunlar uzun
+  veya düşük pil olsa bile telefonda tutulur, otomatik PC devrine kaçmaz. Elle "PC ajanına devret"
+  kullanıcının kendi tercihi olarak açık kalır.
+- İstek sınıflandırmanın daha da incelmesi (araç ihtiyacı tahmini) — gelecek.
+
+## Durum özeti (2026-07-17)
+
+Faz 1, Faz 2 ve Faz 3 çekirdek teslimatları **kod olarak tamamlandı ve derleme yeşil**
+(`testDebugUnitTest` + `lintDebug` + `assembleDebug` başarılı). Kalan tek adım fiziksel ARM64
+cihazda uçtan uca doğrulama (kullanıcı tarafında, tek seferde).
 
 ## Depo düzeni notları
 
