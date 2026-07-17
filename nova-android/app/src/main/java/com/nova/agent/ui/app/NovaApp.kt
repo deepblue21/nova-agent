@@ -122,6 +122,8 @@ fun NovaApp(
                 storageFreeBytes = vm.local.storageFreeBytes,
                 deviceRamGb = vm.local.deviceRamGb,
                 offlineReady = activeInstalled && activeVerified,
+                recommendedId = vm.local.recommended.id,
+                metrics = vm.local.metrics,
                 gatewayModels = MODELS,
                 gatewaySelectedId = vm.settings.modelId,
                 onDownload = { vm.local.startDownload(it.spec, vm.settings.hfToken) },

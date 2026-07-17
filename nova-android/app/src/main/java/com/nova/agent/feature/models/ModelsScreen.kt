@@ -41,6 +41,8 @@ import androidx.compose.ui.unit.sp
 import com.nova.agent.data.ModelOption
 import com.nova.agent.llm.LocalModelUi
 import com.nova.agent.llm.local.LocalModelDiskState
+import com.nova.agent.llm.local.ModelMetrics
+import com.nova.agent.llm.local.ModelRecommender
 import com.nova.agent.ui.theme.Amber
 import com.nova.agent.ui.theme.Coral
 import com.nova.agent.ui.theme.Line
@@ -65,6 +67,8 @@ fun ModelsScreen(
     storageFreeBytes: Long,
     deviceRamGb: Double,
     offlineReady: Boolean,
+    recommendedId: String,
+    metrics: Map<String, ModelMetrics>,
     gatewayModels: List<ModelOption>,
     gatewaySelectedId: String,
     onDownload: (LocalModelUi) -> Unit,
@@ -92,11 +96,24 @@ fun ModelsScreen(
             onStartLocalChat = onStartLocalChat,
         )
 
+        val recommended = models.firstOrNull { it.spec.id == recommendedId }
+        if (recommended != null) {
+            RecommendationBanner(
+                recommended = recommended,
+                deviceRamGb = deviceRamGb,
+                onDownload = { onDownload(recommended) },
+                onSelect = { onSelectLocal(recommended.spec.id) },
+            )
+        }
+
         SectionLabel("CİHAZDAKİ MODELLER")
         models.forEach { ui ->
             LocalModelRow(
                 ui = ui,
                 active = ui.spec.id == activeLocalId,
+                recommended = ui.spec.id == recommendedId,
+                fit = ModelRecommender.fit(ui.spec, deviceRamGb),
+                metrics = metrics[ui.spec.id],
                 onDownload = { onDownload(ui) },
                 onCancel = { onCancelDownload(ui) },
                 onDelete = { onDelete(ui) },
@@ -221,9 +238,54 @@ private fun OfflineReadinessCard(
 }
 
 @Composable
+private fun RecommendationBanner(
+    recommended: LocalModelUi,
+    deviceRamGb: Double,
+    onDownload: () -> Unit,
+    onSelect: () -> Unit,
+) {
+    val spec = recommended.spec
+    val installed = recommended.disk is LocalModelDiskState.Installed
+    val ramText = if (deviceRamGb > 0) "cihazın %.1f GB RAM'ine".format(deviceRamGb) else "bu cihaza"
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+            .padding(14.dp)
+            .testTag("recommendation_banner"),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text("Önerilen model", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp, letterSpacing = 1.sp)
+        Text(spec.displayName, color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        Text(
+            "$ramText uygun · ${spec.sizeLabel}${if (spec.gated) " · kapılı" else ""}",
+            color = Muted,
+            fontSize = 12.sp,
+        )
+        if (!installed) {
+            Button(
+                onClick = onDownload,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp).testTag("recommend_download"),
+            ) {
+                Text(if (spec.gated) "İndir (HF token gerekli)" else "Önerileni indir (${spec.sizeLabel})")
+            }
+        } else {
+            TextButton(onClick = onSelect, modifier = Modifier.testTag("recommend_select")) {
+                Text("Aktif yerel model yap")
+            }
+        }
+    }
+}
+
+@Composable
 private fun LocalModelRow(
     ui: LocalModelUi,
     active: Boolean,
+    recommended: Boolean,
+    fit: ModelRecommender.Fit,
+    metrics: ModelMetrics?,
     onDownload: () -> Unit,
     onCancel: () -> Unit,
     onDelete: () -> Unit,
@@ -253,12 +315,27 @@ private fun LocalModelRow(
                 )
             }
             Column(Modifier.weight(1f)) {
-                Text(spec.displayName, color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(spec.displayName, color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    if (recommended) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "önerilen",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 10.sp,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                }
                 Text(
                     "${spec.quantization} · ${spec.sizeLabel} · ${spec.licenseName} · önerilen ≥${spec.recommendedRamGb} GB RAM",
                     color = Muted,
                     fontSize = 11.sp,
                 )
+                FitAndPerfLine(fit, metrics)
                 if (spec.gated && !installed) {
                     Text(
                         "Kapılı model: HF hesabında lisans onayı + Ayarlar'da HF token gerekir.",
@@ -317,6 +394,27 @@ private fun LocalModelRow(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun FitAndPerfLine(fit: ModelRecommender.Fit, metrics: ModelMetrics?) {
+    val fitColor = when (fit) {
+        ModelRecommender.Fit.COMFORTABLE -> Success
+        ModelRecommender.Fit.TIGHT -> Amber
+        ModelRecommender.Fit.RISKY -> Coral
+        ModelRecommender.Fit.UNKNOWN -> Muted2
+    }
+    val perf = metrics?.summary()
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (fit != ModelRecommender.Fit.UNKNOWN) {
+            Text("Uygunluk: ", color = Muted2, fontSize = 11.sp)
+            Text(fit.label, color = fitColor, fontSize = 11.sp)
+        }
+        if (perf != null) {
+            if (fit != ModelRecommender.Fit.UNKNOWN) Text("  ·  ", color = Muted2, fontSize = 11.sp)
+            Text(perf, color = Muted, fontSize = 11.sp)
         }
     }
 }

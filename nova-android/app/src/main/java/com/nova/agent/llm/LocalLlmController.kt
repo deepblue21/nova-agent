@@ -58,6 +58,9 @@ class LocalLlmController(
     private val noteStore = NoteStore(File(app.filesDir, "horus_notlar.txt"))
     private val toolBelt = HorusToolSet(app, noteStore)
 
+    /** Model performans metrikleri (Faz 4). Cihazda kalır. */
+    private val metricsStore = ModelMetricsStore(File(app.filesDir, "model_metrics.json"))
+
     var models by mutableStateOf(snapshot(emptyList()))
         private set
     var engineState by mutableStateOf<LocalEngineUi>(LocalEngineUi.Idle)
@@ -69,6 +72,13 @@ class LocalLlmController(
     var storageFreeBytes by mutableStateOf(0L)
         private set
 
+    /** Model başına son performans ölçümleri (Faz 4). */
+    var metrics by mutableStateOf<Map<String, ModelMetrics>>(emptyMap())
+        private set
+
+    /** Cihaza göre önerilen model (Faz 4). */
+    val recommended: LocalModelSpec get() = ModelRecommender.recommend(deviceRamGb = deviceRamGb)
+
     /** Cihazın toplam RAM'i (GB, bir ondalık). Modeller ekranında gösterilir. */
     val deviceRamGb: Double = readDeviceRamGb(app)
 
@@ -78,6 +88,7 @@ class LocalLlmController(
         models = snapshot(models)
         storageUsedBytes = store.modelsDir.listFiles()?.sumOf { it.length() } ?: 0L
         storageFreeBytes = app.filesDir.usableSpace
+        metrics = metricsStore.all()
     }
 
     fun isInstalled(modelId: String): Boolean {
@@ -212,7 +223,9 @@ class LocalLlmController(
             if (!alreadyLoaded) {
                 onMain { engineState = LocalEngineUi.Loading(spec.displayName) }
             }
+            val loadStart = System.currentTimeMillis()
             val loaded = engine.ensureLoaded(file.absolutePath)
+            val loadMs = if (alreadyLoaded) 0L else System.currentTimeMillis() - loadStart
             if (loaded.isFailure) {
                 val message = OnDeviceEngine.describeError(
                     loaded.exceptionOrNull() ?: RuntimeException("Yerel motor hatası"),
@@ -224,18 +237,45 @@ class LocalLlmController(
                 return@launch
             }
             onMain { engineState = LocalEngineUi.Ready(spec.displayName) }
+            // Üretim hızı ölçümü: ilk token'dan onDone'a kadar geçen süre + karakter sayısı.
+            var chars = 0
+            var firstTokenMs = 0L
             engine.generate(
                 history = history,
                 prompt = prompt,
                 thinking = thinking,
                 tools = if (toolsEnabled) listOf(tool(toolBelt)) else emptyList(),
                 cb = object : OnDeviceEngine.Callbacks {
-                    override fun onToken(text: String) = onMain { cb.onToken(text) }
-                    override fun onDone() = onMain { cb.onDone() }
-                    override fun onError(message: String) = onMain { cb.onError(message) }
+                    override fun onToken(text: String) {
+                        if (firstTokenMs == 0L) firstTokenMs = System.currentTimeMillis()
+                        chars += text.length
+                        onMain { cb.onToken(text) }
+                    }
+
+                    override fun onDone() {
+                        val elapsed = if (firstTokenMs > 0) System.currentTimeMillis() - firstTokenMs else 0L
+                        recordMetrics(spec.id, loadMs, chars, elapsed)
+                        onMain { cb.onDone() }
+                    }
+
+                    override fun onError(message: String) {
+                        // Yükleme ölçümü yine de değerli; üretim hızını atla.
+                        if (loadMs > 0) recordMetrics(spec.id, loadMs, 0, 0L)
+                        onMain { cb.onError(message) }
+                    }
                 },
             )
         }
+    }
+
+    private fun recordMetrics(modelId: String, loadMs: Long, chars: Int, elapsedMs: Long) {
+        val tps = ModelMetricsStore.tokensPerSecond(chars, elapsedMs)
+        metricsStore.record(modelId, loadMs, tps, System.currentTimeMillis())
+        onMain { metrics = metricsStore.all() }
+    }
+
+    fun cancelGenerate() {
+        engine.cancel()
     }
 
     fun cancelGenerate() {
