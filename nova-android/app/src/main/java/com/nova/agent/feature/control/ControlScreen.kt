@@ -126,8 +126,6 @@ private fun PolicyPicker(policy: ExecutionPolicy, onPolicyChange: (ExecutionPoli
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { option ->
                     val selected = option == policy
-                    val enabled = option.selectableNow
-                    val phaseNote: String? = null // Faz 3 D1 ile tüm politikalar açık.
                     Column(
                         modifier = Modifier
                             .weight(1f)
@@ -149,11 +147,10 @@ private fun PolicyPicker(policy: ExecutionPolicy, onPolicyChange: (ExecutionPoli
                                 },
                                 RoundedCornerShape(14.dp),
                             )
-                            .clickable(enabled = enabled) { onPolicyChange(option) }
+                            .clickable { onPolicyChange(option) }
                             .semantics {
                                 role = Role.RadioButton
-                                contentDescription = option.label +
-                                    if (phaseNote != null) " ($phaseNote — henüz açık değil)" else ""
+                                contentDescription = option.label
                             }
                             .padding(horizontal = 12.dp, vertical = 10.dp)
                             .testTag("policy_${option.id}"),
@@ -161,13 +158,17 @@ private fun PolicyPicker(policy: ExecutionPolicy, onPolicyChange: (ExecutionPoli
                     ) {
                         Text(
                             option.label,
-                            color = if (enabled) TextMain else Muted2,
+                            color = TextMain,
                             fontSize = 14.sp,
                             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                         )
-                        if (phaseNote != null) {
-                            Text("$phaseNote — henüz açık değil", color = Muted2, fontSize = 11.sp)
+                        val note = when (option) {
+                            ExecutionPolicy.LOCAL_FIRST -> "önce telefon"
+                            ExecutionPolicy.GATEWAY_ONLY -> "her zaman PC"
+                            ExecutionPolicy.LOCAL_ONLY -> "yalnız telefon"
+                            ExecutionPolicy.HYBRID -> "akıllı seçim"
                         }
+                        Text(note, color = Muted2, fontSize = 11.sp)
                     }
                 }
             }
