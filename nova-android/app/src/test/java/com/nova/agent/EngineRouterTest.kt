@@ -73,8 +73,9 @@ class EngineRouterTest {
         battery: Int = 80,
         charging: Boolean = false,
         gatewayReady: Boolean = true,
+        thermalSevere: Boolean = false,
     ) = EngineRouter.decideHybrid(
-        HybridInputs(installed, promptChars, battery, charging, gatewayReady),
+        HybridInputs(installed, promptChars, battery, charging, gatewayReady, thermalSevere),
         localModelId = "qwen3-0.6b-int4",
     )
 
@@ -97,6 +98,13 @@ class EngineRouterTest {
         assertTrue(hybrid(battery = 15, gatewayReady = false) is RouteDecision.Local)
         // Pil bilinmiyorsa (-1) PC'ye kaçılmaz.
         assertTrue(hybrid(battery = -1) is RouteDecision.Local)
+    }
+
+    @Test
+    fun `hibrit asiri isinmada PC tercih edilir`() {
+        assertEquals(RouteDecision.Gateway, hybrid(thermalSevere = true))
+        // PC yoksa ısınsa bile telefonda kalır; taklit devir yok.
+        assertTrue(hybrid(thermalSevere = true, gatewayReady = false) is RouteDecision.Local)
     }
 
     @Test

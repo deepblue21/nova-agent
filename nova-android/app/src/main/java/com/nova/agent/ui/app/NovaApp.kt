@@ -101,6 +101,7 @@ fun NovaApp(
                 modelLabel = vm.currentModelName(),
                 pendingFallback = vm.pendingFallback?.reason,
                 fallbackAllowsGateway = vm.pendingFallback?.allowGateway ?: true,
+                showAgentHandoff = vm.executionPolicy != ExecutionPolicy.LOCAL_ONLY,
                 onSend = vm::send,
                 onStop = vm::stop,
                 onRegenerate = vm::regenerate,
@@ -108,6 +109,7 @@ fun NovaApp(
                 onRejectFallback = vm::rejectFallback,
                 onOpenControl = { vm.mode = Mode.KONTROL },
                 onOpenModels = { vm.mode = Mode.MODELLER },
+                onHandoffToAgent = vm::handoffToPcAgent,
             )
 
             Mode.MODELLER -> ModelsScreen(

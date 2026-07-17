@@ -39,6 +39,8 @@ data class HybridInputs(
     val batteryPercent: Int, // bilinmiyorsa -1
     val charging: Boolean,
     val gatewayReady: Boolean,
+    /** PowerManager THERMAL_STATUS_SEVERE ve üstü (API 29+; bilinmiyorsa false). */
+    val thermalSevere: Boolean = false,
 )
 
 /** Bir sohbet isteminin nereye gideceği kararı. Saf ve test edilebilir. */
@@ -106,6 +108,9 @@ object EngineRouter {
         !inputs.localModelInstalled -> RouteDecision.Gateway
 
         inputs.promptChars >= LONG_PROMPT_CHARS && inputs.gatewayReady -> RouteDecision.Gateway
+
+        // Cihaz ciddi ısınmışsa yükü PC'ye ver (Faz 3 D3).
+        inputs.thermalSevere && inputs.gatewayReady -> RouteDecision.Gateway
 
         inputs.batteryPercent in 0..LOW_BATTERY_PERCENT && !inputs.charging && inputs.gatewayReady ->
             RouteDecision.Gateway

@@ -183,14 +183,22 @@ döner, uygulamayı düşürmez.
   hata sonrası devir varsayılan "her seferinde sor"dur; Kontrol > Hibrit kuralları'ndan
   "otomatik devret" açılabilir. Hangi hedefin yanıtladığı mesaj altındaki rota rozetinde görünür.
 
+## Görev devri ve ısı farkındalığı (Faz 3 D2+D3)
+
+- Sohbet üstündeki **"PC ajanına devret"** çipi: son soruyu tüm bağlamla PC'deki OpenClaw ajanına
+  (`openclaw/default`, mevcut SSE yolu) gönderir; koşu Gateway ajan geçmişine kaydolur. Çevrimdışı
+  modda çip görünmez — istem cihazdan çıkamaz.
+- Hibrit yönlendirici artık ısıyı da tartar: cihaz THERMAL_STATUS_SEVERE+ ise ve PC hazırsa yük
+  PC'ye verilir.
+- Katalogda 4 model: Qwen3 0.6B ×2 (kapısız), Gemma 3 1B ve **FunctionGemma 270M** (araç-çağrısı
+  için eğitilmiş; 289 MB, kapılı — çevrimdışı agentic çekirdek için önerilir).
+
 ## Yapılacaklar (sonraki adımlar)
 
-- Toplu cihaz doğrulaması (Faz 1+2+3 D1): `testDebugUnitTest lintDebug assembleDebug` + fiziksel ARM64
+- Toplu cihaz doğrulaması (tüm fazlar): `testDebugUnitTest lintDebug assembleDebug` + fiziksel ARM64
   cihazda model indirme, uçak modunda yerel sohbet + araç turu ("saat kaç?", "23*7?", "pil yüzde kaç?",
-  "not al: …"), Çevrimdışı modda devirsizlik, Hibrit kuralları ve Gateway regresyonu.
-- FunctionGemma-270M (araç çağrısı için eğitilmiş, kapılı) — mevcut mekanizmayla kataloğa eklenecek.
-- Görev devri (telefon→PC, Gateway agent runs köprüsü) ve ısı farkındalığı — Faz 3 kalanları.
-- Çevrimdışı STT/TTS davranış testi.
+  "not al: …"), Çevrimdışı modda devirsizlik, Hibrit kuralları, "PC ajanına devret" ve Gateway regresyonu.
+- İstek sınıflandırmanın incelmesi (araç ihtiyacı/gizlilik etiketi) ve çevrimdışı STT/TTS davranış testi.
 - Faz 3 — Hibrit: izin temelli otomatik telefon↔PC devri, görev devri, pil/ısı farkındalığı.
 - Gateway `/stt` + `/tts` ile gerçek ses.
 - Çoklu sohbet + kalıcı geçmiş (Room/DataStore).

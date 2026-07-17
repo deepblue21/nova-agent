@@ -41,11 +41,14 @@ object LocalModelCatalog {
 
     const val QWEN_REVISION = "3adacb36657dbe0119addf143782ed973c680716"
     const val GEMMA_REVISION = "6d54daa71cfbffba6b2843c08eeb1a27e7430bf0"
+    const val FUNCTIONGEMMA_REVISION = "f1c7b940a5a2598fb940648fb3cfcc745b18184b"
 
     private const val QWEN_BASE =
         "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/$QWEN_REVISION/"
     private const val GEMMA_BASE =
         "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/$GEMMA_REVISION/"
+    private const val FUNCTIONGEMMA_BASE =
+        "https://huggingface.co/litert-community/functiongemma-270m-ft-mobile-actions/resolve/$FUNCTIONGEMMA_REVISION/"
 
     val entries: List<LocalModelSpec> = listOf(
         LocalModelSpec(
@@ -88,6 +91,21 @@ object LocalModelCatalog {
             licenseName = "Gemma Şartları",
             licenseUrl = "https://ai.google.dev/gemma/terms",
             recommendedRamGb = 4,
+            supportsThinkingToggle = false,
+            gated = true,
+        ),
+        LocalModelSpec(
+            id = "functiongemma-270m",
+            displayName = "FunctionGemma 270M (araç odaklı)",
+            family = "FunctionGemma",
+            quantization = "q8",
+            fileName = "mobile_actions_q8_ekv1024.litertlm",
+            downloadUrl = FUNCTIONGEMMA_BASE + "mobile_actions_q8_ekv1024.litertlm",
+            sizeBytes = 288_964_608L,
+            sha256 = "33e295cbd996b419bb1de8f3f85c5b6b01ee058a2c89bdb2173cf3e6ff4ce9d0",
+            licenseName = "Gemma Şartları",
+            licenseUrl = "https://ai.google.dev/gemma/terms",
+            recommendedRamGb = 2,
             supportsThinkingToggle = false,
             gated = true,
         ),

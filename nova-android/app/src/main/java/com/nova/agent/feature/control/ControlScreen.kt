@@ -326,6 +326,7 @@ private fun HybridRulesCard(autoFallback: Boolean, onAutoFallback: (Boolean) -> 
         Text(
             "• ${EngineRouter.LONG_PROMPT_CHARS}+ karakterlik istemler PC'ye gider\n" +
                 "• Pil ≤ %${EngineRouter.LOW_BATTERY_PERCENT} ve şarjda değilken PC tercih edilir\n" +
+                "• Cihaz ciddi ısınmışsa PC tercih edilir\n" +
                 "• Telefon modeli kurulu değilse istekler PC'de çalışır",
             color = Muted,
             fontSize = 12.sp,

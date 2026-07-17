@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Build
+import android.os.PowerManager
 
 /** İzin gerektirmeyen cihaz durum okumaları; araç seti ve hibrit yönlendirici paylaşır. */
 object DeviceStatusReader {
@@ -29,5 +30,16 @@ object DeviceStatusReader {
         val charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
             status == BatteryManager.BATTERY_STATUS_FULL
         return percent to charging
+    }
+
+    /**
+     * Cihaz ciddi ısınmış mı (THERMAL_STATUS_SEVERE+). API 29 altında veya
+     * okunamazsa false: taklit yok, yalnız bilinen durum raporlanır.
+     */
+    fun thermalSevere(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
+        val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return false
+        return runCatching { pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_SEVERE }
+            .getOrDefault(false)
     }
 }

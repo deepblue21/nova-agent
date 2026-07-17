@@ -245,6 +245,9 @@ class LocalLlmController(
     /** Hibrit yönlendirici için pil anlık görüntüsü: (yüzde | -1, şarj oluyor mu). */
     fun batteryNow(): Pair<Int, Boolean> = DeviceStatusReader.battery(app)
 
+    /** Hibrit yönlendirici için ısı durumu (SEVERE+). */
+    fun thermalSevereNow(): Boolean = DeviceStatusReader.thermalSevere(app)
+
     fun shutdown() {
         downloadHandles.values.forEach { it.cancel() }
         downloadHandles.clear()

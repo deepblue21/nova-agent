@@ -80,6 +80,7 @@ fun ChatScreen(
     modelLabel: String = "auto",
     pendingFallback: String? = null,
     fallbackAllowsGateway: Boolean = true,
+    showAgentHandoff: Boolean = false,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
     onRegenerate: () -> Unit,
@@ -87,13 +88,16 @@ fun ChatScreen(
     onRejectFallback: () -> Unit = {},
     onOpenControl: () -> Unit = {},
     onOpenModels: () -> Unit = {},
+    onHandoffToAgent: () -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize()) {
         TargetChipsRow(
             targetLabel = targetLabel,
             modelLabel = modelLabel,
+            showAgentHandoff = showAgentHandoff && messages.any { it.role == "user" } && !busy,
             onOpenControl = onOpenControl,
             onOpenModels = onOpenModels,
+            onHandoffToAgent = onHandoffToAgent,
         )
         if (messages.isEmpty()) {
             ChatEmptyState(Modifier.weight(1f))
@@ -135,13 +139,19 @@ fun ChatScreen(
     }
 }
 
-/** Hedef/model bilgi çipleri; dokununca ilgili ekrana götürür. */
+/**
+ * Hedef/model bilgi çipleri; dokununca ilgili ekrana götürür.
+ * "PC ajanına devret" yalnız devir mümkünken görünür (Çevrimdışı modda asla);
+ * dokunuş = açık rıza, son soru tüm bağlamla PC ajanında yeniden yanıtlanır.
+ */
 @Composable
 private fun TargetChipsRow(
     targetLabel: String,
     modelLabel: String,
+    showAgentHandoff: Boolean,
     onOpenControl: () -> Unit,
     onOpenModels: () -> Unit,
+    onHandoffToAgent: () -> Unit,
 ) {
     Row(
         Modifier
@@ -151,6 +161,13 @@ private fun TargetChipsRow(
     ) {
         InfoChip(label = targetLabel, description = "Yürütme hedefi: $targetLabel", onClick = onOpenControl)
         InfoChip(label = modelLabel, description = "Model: $modelLabel", onClick = onOpenModels)
+        if (showAgentHandoff) {
+            InfoChip(
+                label = "PC ajanına devret",
+                description = "Son soruyu tüm bağlamla PC'deki ajana gönder",
+                onClick = onHandoffToAgent,
+            )
+        }
     }
 }
 

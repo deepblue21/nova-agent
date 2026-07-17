@@ -63,4 +63,20 @@ Telefonda **çevrimdışı çalışan agentic bir yapay zeka** + PC'deki LLM iş
 
 ## Faz 3 — Hibrit (başladı)
 
-- `HYBRID` politikası D1: **eklendi (2026-07-1
+- `HYBRID` politikası D1: **eklendi (2026-07-16)** — Kontrol'den seçilebilir. Sabit ve şeffaf kurallar:
+  kısa istemler telefonda; ≥1200 karakter veya (pil ≤ %20 ve şarjda değil) → PC; model yoksa PC;
+  ikisi de yoksa dürüst kurulum mesajı. Yerel hata sonrası devir kullanıcı kuralına bağlı:
+  varsayılan "her seferinde sor" (izin kartı), istenirse "otomatik devret" anahtarı (Kontrol > Hibrit kuralları).
+- Görev devri D2: **eklendi (2026-07-17)** — Sohbetteki "PC ajanına devret" çipi, son soruyu tüm
+  bağlamla mevcut Gateway akış yolundan `openclaw/default` ajanına gönderir; koşu Gateway'in ajan
+  geçmişine otomatik kaydolur. Dokunuş = açık rıza; Çevrimdışı modda çip hiç görünmez.
+- Isı farkındalığı D3: **eklendi (2026-07-17)** — PowerManager THERMAL_STATUS_SEVERE+ iken hibrit
+  yönlendirici PC'yi tercih eder (API 29+; okunamazsa taklit yok, telefonda kalır).
+- FunctionGemma 270M (araç-çağrısı için eğitilmiş, kapılı, 289 MB) kataloğa eklendi — çevrimdışı
+  agentic çekirdek için önerilen model.
+- İstek sınıflandırmanın incelmesi (araç ihtiyacı/gizlilik etiketi) — gelecek.
+
+## Depo düzeni notları
+
+- `codex/mobile-task-control-plane` dalındaki commit edilmemiş çalışma `wip:` commit'iyle güvenceye alındı (c4390bd).
+- Bu dal, doğrulanmış son Android uygulamasının (`codex/android-control-center-redesign`, 688fe1b) üzerine kuruludur.

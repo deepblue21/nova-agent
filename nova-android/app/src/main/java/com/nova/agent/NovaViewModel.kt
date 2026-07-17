@@ -38,6 +38,9 @@ import okhttp3.sse.EventSource
 
 private const val DEFAULT_SUB = "Konuşmak için mikrofona dokun"
 
+/** PC'deki ajan koşusu için Gateway model kimliği (görev devri hedefi). */
+private const val PC_AGENT_MODEL = "openclaw/default"
+
 internal class LatestConnectionProbe {
     private var generation = 0L
 
@@ -250,6 +253,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
                 batteryPercent = batteryPercent,
                 charging = charging,
                 gatewayReady = connectionState.status == GatewayConnectionStatus.READY,
+                thermalSevere = local.thermalSevereNow(),
             ),
             localModelId = spec.id,
         )
@@ -285,6 +289,23 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
 
     fun rejectFallback() {
         pendingFallback = null
+    }
+
+    /**
+     * Faz 3 D2 — görev devri: son kullanıcı sorusunu tüm bağlamla birlikte
+     * PC'deki OpenClaw ajanına gönderir (mevcut Gateway akış yolu, model
+     * override). Kullanıcı dokunuşu = açık rıza; Çevrimdışı modda kapalıdır.
+     * Koşu, Gateway'in ajan geçmişine (/v1/agent/runs) otomatik kaydolur.
+     */
+    fun handoffToPcAgent() {
+        if (busy) return
+        if (executionPolicy == ExecutionPolicy.LOCAL_ONLY) return
+        while (messages.isNotEmpty() && messages.last().role == "assistant") {
+            messages.removeAt(messages.lastIndex)
+        }
+        if (messages.none { it.role == "user" }) return
+        pendingFallback = null
+        complete(messages.toList(), speakWhenDone = false, modelOverride = PC_AGENT_MODEL)
     }
 
     private fun resolveModel(): String = MODELS.find { it.id == settings.modelId }?.model ?: "auto"
@@ -363,7 +384,11 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun complete(history: List<ChatMessage>, speakWhenDone: Boolean) {
+    private fun complete(
+        history: List<ChatMessage>,
+        speakWhenDone: Boolean,
+        modelOverride: String? = null,
+    ) {
         sb.clear()
         messages.add(ChatMessage("assistant", "", streaming = true))
         busy = true
@@ -372,7 +397,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         es = client.stream(
             baseUrl = settings.baseUrl,
             token = settings.token,
-            model = resolveModel(),
+            model = modelOverride ?: resolveModel(),
             effort = settings.effort,
             reasoning = settings.reasoning,
             history = history,
