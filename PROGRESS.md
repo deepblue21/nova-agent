@@ -33,10 +33,14 @@ uygunluk + kapısız-öncelikli öneri), `ModelMetricsStore` (cihazda yükleme s
 Modeller ekranında öneri banner'ı + uygunluk çipi + performans satırı. FunctionGemma 270M ve
 Gemma 3 1B kapılı; kapısız Qwen3 ilk kurulum için varsayılan. Tümü commit'li, master'a taşındı.
 
+**Faz 5 — Kalıcı sohbet geçmişi (17 Temmuz 2026, aynı oturum):** `ConversationStore` (cihazda JSON,
+çoklu sohbet), otomatik kayıt + aç/sil/ara, Sohbet'te "Geçmiş" çipi ve `ChatHistoryPanel`. Tümü
+commit'li (`8108069`), master'a taşındı. Push: `git push nova-upstream master:main`.
+
 **SIRADAKİ ADIM:** Fiziksel ARM64 cihazda uçtan uca doğrulama (kullanıcı tarafında): model indir →
 uçak modunda yerel sohbet + araç turu → Çevrimdışı devirsizlik → Hibrit rota rozetleri (uzunluk/pil/
-ısı/gizlilik) → "PC ajanına devret" → Gateway regresyonu. Gelecek: düşük RAM'de otomatik quant
-tercihi, çevrimdışı STT/TTS davranış testi.
+ısı/gizlilik) → "PC ajanına devret" → sohbet geçmişi kaydet/aç/ara → Gateway regresyonu. Gelecek:
+düşük RAM'de otomatik quant tercihi, çevrimdışı ses, görev devri derinleştirme.
 
 ### Oturum — 16 Haziran 2026 (README/kod inceleme + Faz 8 durum kontrolü)
 - Kullanıcı "Nerede kaldık, README oku, tüm kodu incele ve öneri sun" dedi. README/README.tr/SECURITY/compose/gateway ana akışı/agent-tools/MCP/RBAC/knowledge/memory/scheduled/agent-runs/script yüzeyleri tarandı.

@@ -90,11 +90,20 @@ Telefonda **çevrimdışı çalışan agentic bir yapay zeka** + PC'deki LLM iş
   uygunluk çipi ve son performans özeti, "önerilen" rozeti.
 - Sıradaki: düşük RAM'de otomatik quantization tercihi, indirme öncesi yer kontrolü uyarısı.
 
+## Faz 5 — Kalıcı sohbet geçmişi (2026-07-17)
+
+- **Depo:** `ConversationStore` (cihazda JSON) — çoklu sohbeti tüm mesajlarıyla saklar; en yeni
+  başta, üst sınır aşılınca en eskiler düşer. Saf serileştirme + arama (başlık ve içerik).
+- **ViewModel:** her tamamlanan tur otomatik kaydedilir; "yeni sohbet" öncekini kaydeder; sohbet
+  aç/sil/ara. Başlık ilk kullanıcı mesajından üretilir.
+- **Arayüz:** Sohbet'te "Geçmiş" çipi → `ChatHistoryPanel` (ara, aç, sil).
+- Veri yalnız cihazda kalır; hiçbir yere gönderilmez.
+
 ## Durum özeti (2026-07-17)
 
-Faz 1, Faz 2, Faz 3 ve Faz 4 çekirdek teslimatları **kod olarak tamamlandı**; son tam derleme
-yeşildi (`testDebugUnitTest` + `lintDebug` + `assembleDebug`). Kalan tek adım fiziksel ARM64
-cihazda uçtan uca doğrulama (kullanıcı tarafında, tek seferde).
+Faz 1-5 çekirdek teslimatları **kod olarak tamamlandı**; Faz 1-4'ün son tam derlemesi yeşildi
+(`testDebugUnitTest` + `lintDebug` + `assembleDebug`). Faz 5 saf/testli katman + statik doğrulama
+ile eklendi; toplu derleme + fiziksel ARM64 cihaz doğrulaması kullanıcının tek seferlik turunda.
 
 ## Depo düzeni notları
 

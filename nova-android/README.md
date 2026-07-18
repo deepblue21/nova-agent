@@ -200,13 +200,19 @@ döner, uygulamayı düşürmez.
   performans (~tok/sn · yükleme süresi) görünür. Ölçümler `model_metrics.json` içinde cihazda kalır.
 - Öneri mantığı kapısız modeli önceler; ilk kurulum HF token'ı olmadan tamamlanabilir.
 
+## Sohbet geçmişi (Faz 5)
+
+- Sohbet'teki **"Geçmiş"** çipi → geçmiş paneli: kayıtlı sohbetleri ara, aç, sil. Her tamamlanan
+  tur otomatik kaydedilir; "yeni sohbet" öncekini saklar. Başlık ilk mesajdan üretilir. Tüm veri
+  `conversations.json` içinde cihazda kalır.
+
 ## Yapılacaklar (sonraki adımlar)
 
 - Toplu cihaz doğrulaması (tüm fazlar): `testDebugUnitTest lintDebug assembleDebug` + fiziksel ARM64
   cihazda model indirme, uçak modunda yerel sohbet + araç turu ("saat kaç?", "23*7?", "pil yüzde kaç?",
   "not al: …"), Çevrimdışı modda devirsizlik, Hibrit kuralları (uzunluk/pil/ısı/gizlilik),
-  "PC ajanına devret", model öneri/performans göstergeleri ve Gateway regresyonu.
-- Düşük RAM'de otomatik quantization tercihi, indirme öncesi yer kontrolü, çevrimdışı STT/TTS davranış testi.
+  "PC ajanına devret", model öneri/performans göstergeleri, sohbet geçmişi ve Gateway regresyonu.
+- Düşük RAM'de otomatik quantization tercihi, indirme öncesi yer kontrolü, çevrimdışı STT/TTS, görev devri derinleştirme.
 - Faz 3 — Hibrit: izin temelli otomatik telefon↔PC devri, görev devri, pil/ısı farkındalığı.
 - Gateway `/stt` + `/tts` ile gerçek ses.
 - Çoklu sohbet + kalıcı geçmiş (Room/DataStore).
