@@ -26,6 +26,14 @@ enum class ExecutionPolicy(val id: String, val label: String) {
     val allowsGatewayFallback: Boolean
         get() = this != LOCAL_ONLY
 
+    /**
+     * Ses tanımada çevrimdışı paket tercih edilsin mi. Telefonda çalışan
+     * politikalarda gizlilik/çevrimdışı tutarlılığı için açıktır; salt-Gateway'de
+     * en iyi tanıma için serbest bırakılır.
+     */
+    val prefersOfflineVoice: Boolean
+        get() = runsOnDevice
+
     companion object {
         fun fromId(id: String?): ExecutionPolicy =
             entries.firstOrNull { it.id == id } ?: GATEWAY_ONLY

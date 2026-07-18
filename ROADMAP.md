@@ -99,10 +99,17 @@ Telefonda **çevrimdışı çalışan agentic bir yapay zeka** + PC'deki LLM iş
 - **Arayüz:** Sohbet'te "Geçmiş" çipi → `ChatHistoryPanel` (ara, aç, sil).
 - Veri yalnız cihazda kalır; hiçbir yere gönderilmez.
 
+## Faz 6 — Çevrimdışı ses (2026-07-17)
+
+- Yerel/Çevrimdışı/Hibrit politikalarda ses tanıma `EXTRA_PREFER_OFFLINE` ile cihaz-üstü pakete
+  yönlendirilir; salt-Gateway'de en iyi tanıma için serbest bırakılır (`prefersOfflineVoice`, saf/testli).
+- Çevrimdışı paket yoksa ağ hatası dürüst bir mesaja çevrilir (Türkçe çevrimdışı tanıma indirme yönergesi).
+- TTS zaten çevrimdışı çalışır; ek değişiklik gerekmedi.
+
 ## Durum özeti (2026-07-17)
 
-Faz 1-5 çekirdek teslimatları **kod olarak tamamlandı**; Faz 1-4'ün son tam derlemesi yeşildi
-(`testDebugUnitTest` + `lintDebug` + `assembleDebug`). Faz 5 saf/testli katman + statik doğrulama
+Faz 1-6 çekirdek teslimatları **kod olarak tamamlandı**; Faz 1-4'ün son tam derlemesi yeşildi
+(`testDebugUnitTest` + `lintDebug` + `assembleDebug`). Faz 5-6 saf/testli katman + statik doğrulama
 ile eklendi; toplu derleme + fiziksel ARM64 cihaz doğrulaması kullanıcının tek seferlik turunda.
 
 ## Depo düzeni notları

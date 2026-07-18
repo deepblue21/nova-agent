@@ -20,6 +20,7 @@ class SpeechManager(private val context: Context) {
     private var recognizer: SpeechRecognizer? = null
     private var tts: TextToSpeech? = null
     private var ttsReady = false
+    private var preferOfflineActive = false
 
     fun initTts() {
         if (tts != null) return
@@ -34,14 +35,21 @@ class SpeechManager(private val context: Context) {
     val isRecognitionAvailable: Boolean
         get() = SpeechRecognizer.isRecognitionAvailable(context)
 
-    /** Dinlemeyi başlatır. Geri çağrılar ana iş parçacığında gelir. */
+    /**
+     * Dinlemeyi başlatır. Geri çağrılar ana iş parçacığında gelir.
+     * [preferOffline] true ise cihaz-üstü tanıma paketi tercih edilir (yerel/çevrimdışı
+     * politikalarda ses de ağa çıkmasın diye). Offline paket yoksa sistem ağ hatası
+     * verebilir; bu durumda mesaj kullanıcıya dürüstçe açıklanır.
+     */
     fun startListening(
         onRms: (Float) -> Unit,
         onPartial: (String) -> Unit,
         onResult: (String) -> Unit,
         onEnd: (error: String?) -> Unit,
+        preferOffline: Boolean = false,
     ) {
         stopListening()
+        preferOfflineActive = preferOffline
         val rec = SpeechRecognizer.createSpeechRecognizer(context)
         recognizer = rec
         rec.setRecognitionListener(object : RecognitionListener {
@@ -68,6 +76,8 @@ class SpeechManager(private val context: Context) {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "tr-TR")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            // Yerel/çevrimdışı politikalarda cihaz-üstü tanıma paketini tercih et (API 23+).
+            if (preferOffline) putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         }
         rec.startListening(intent)
     }
@@ -105,7 +115,12 @@ class SpeechManager(private val context: Context) {
         SpeechRecognizer.ERROR_NO_MATCH -> "Anlaşılamadı"
         SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Ses algılanmadı"
         SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Mikrofon izni yok"
-        SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Ağ hatası"
+        SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
+            if (preferOfflineActive) {
+                "Çevrimdışı ses paketi yok. Ayarlar > Sistem > Diller/Ses ile Türkçe çevrimdışı tanımayı indir."
+            } else {
+                "Ağ hatası"
+            }
         else -> "Tanıma hatası ($code)"
     }
 }

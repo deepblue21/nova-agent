@@ -542,7 +542,8 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
                     voiceSub = err ?: DEFAULT_SUB
                     level = 0.08f
                 }
-            }
+            },
+            preferOffline = executionPolicy.prefersOfflineVoice,
         )
     }
 
