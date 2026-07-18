@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -72,11 +73,13 @@ fun SettingsPanel(
     onReasoningChange: (Boolean) -> Unit,
     onThemeChange: (String) -> Unit = {},
     onHfTokenChange: (String) -> Unit = {},
+    onWipeData: (Boolean) -> Unit = {},
     onClose: () -> Unit,
 ) {
     var baseUrl by remember(settings.baseUrl) { mutableStateOf(settings.baseUrl) }
     var token by remember(settings.token) { mutableStateOf(settings.token) }
     var hfToken by remember(settings.hfToken) { mutableStateOf(settings.hfToken) }
+    var showWipeDialog by remember { mutableStateOf(false) }
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -196,10 +199,50 @@ fun SettingsPanel(
             SectionHeading("Görünüm")
             ThemePicker(settings.themeId, onThemeChange)
 
+            SectionHeading("Veri yönetimi")
+            Text(
+                "Tüm sohbet geçmişi, notlar ve model performans kayıtları bu cihazda tutulur.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            OutlinedButton(
+                onClick = { showWipeDialog = true },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("wipe_data"),
+            ) {
+                Text("Yerel veriyi temizle")
+            }
+
             SectionHeading("Uygulama bilgisi")
             Text("NOVA ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
             Text("Yerel öncelikli Android kontrol merkezi")
         }
+    }
+
+    if (showWipeDialog) {
+        AlertDialog(
+            onDismissRequest = { showWipeDialog = false },
+            title = { Text("Yerel veriyi temizle") },
+            text = {
+                Text(
+                    "Sohbet geçmişi, notlar ve performans kayıtları silinsin mi? " +
+                        "Ayarların ve Gateway bağlantın korunur.",
+                )
+            },
+            confirmButton = {
+                Column {
+                    TextButton(onClick = {
+                        onWipeData(false)
+                        showWipeDialog = false
+                    }) { Text("Veriyi sil (modeller kalsın)") }
+                    TextButton(onClick = {
+                        onWipeData(true)
+                        showWipeDialog = false
+                    }) { Text("Veriyi + indirilen modelleri sil") }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showWipeDialog = false }) { Text("Vazgeç") }
+            },
+        )
     }
 }
 

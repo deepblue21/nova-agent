@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -54,6 +55,7 @@ fun ChatHistoryPanel(
     query: String,
     onQueryChange: (String) -> Unit,
     onOpen: (String) -> Unit,
+    onShare: (String) -> Unit,
     onDelete: (String) -> Unit,
     onClose: () -> Unit,
 ) {
@@ -101,6 +103,7 @@ fun ChatHistoryPanel(
                         HistoryRow(
                             summary = summary,
                             onOpen = { onOpen(summary.id) },
+                            onShare = { onShare(summary.id) },
                             onDelete = { onDelete(summary.id) },
                         )
                     }
@@ -114,6 +117,7 @@ fun ChatHistoryPanel(
 private fun HistoryRow(
     summary: ConversationSummary,
     onOpen: () -> Unit,
+    onShare: () -> Unit,
     onDelete: () -> Unit,
 ) {
     Row(
@@ -151,7 +155,13 @@ private fun HistoryRow(
                 fontSize = 11.sp,
             )
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(4.dp))
+        IconButton(
+            onClick = onShare,
+            modifier = Modifier.semantics { contentDescription = "Sohbeti paylaş" },
+        ) {
+            Icon(Icons.Default.Share, contentDescription = null, tint = Muted, modifier = Modifier.size(20.dp))
+        }
         IconButton(
             onClick = onDelete,
             modifier = Modifier.semantics { contentDescription = "Sohbeti sil" },

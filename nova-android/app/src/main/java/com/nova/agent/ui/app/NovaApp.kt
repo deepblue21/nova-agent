@@ -163,6 +163,7 @@ fun NovaApp(
                 vm.openConversation(it)
                 showHistory = false
             },
+            onShare = vm::shareConversation,
             onDelete = vm::deleteConversation,
             onClose = { showHistory = false },
         )
@@ -180,6 +181,7 @@ fun NovaApp(
             onReasoningChange = vm::setReasoning,
             onThemeChange = vm::setTheme,
             onHfTokenChange = vm::setHfToken,
+            onWipeData = vm::wipeAllLocalData,
             onRestoreAppliedConnection = { vm.testConnection() },
             onClose = { showSettings = false },
         )
@@ -198,6 +200,7 @@ internal fun NovaSettingsPanel(
     onReasoningChange: (Boolean) -> Unit,
     onThemeChange: (String) -> Unit = {},
     onHfTokenChange: (String) -> Unit = {},
+    onWipeData: (Boolean) -> Unit = {},
     onRestoreAppliedConnection: () -> Unit = {
         onTestConnection(settings.baseUrl, settings.token)
     },
@@ -225,6 +228,7 @@ internal fun NovaSettingsPanel(
         onReasoningChange = onReasoningChange,
         onThemeChange = onThemeChange,
         onHfTokenChange = onHfTokenChange,
+        onWipeData = onWipeData,
         onClose = {
             onRestoreAppliedConnection()
             onClose()

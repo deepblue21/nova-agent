@@ -1,6 +1,7 @@
 package com.nova.agent
 
 import android.app.Application
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import androidx.compose.runtime.getValue
@@ -12,6 +13,7 @@ import androidx.lifecycle.viewModelScope
 import com.nova.agent.data.AppSettings
 import com.nova.agent.data.ChatMessage
 import com.nova.agent.data.Conversation
+import com.nova.agent.data.ConversationExporter
 import com.nova.agent.data.ConversationStore
 import com.nova.agent.data.ConversationSummary
 import com.nova.agent.data.ConversationText
@@ -172,6 +174,42 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
             }
             reloadHistory()
         }
+    }
+
+    /** Sohbeti Markdown olarak sistem paylaşım sayfasına gönderir. */
+    fun shareConversation(id: String) {
+        viewModelScope.launch {
+            val convo = withContext(Dispatchers.IO) { convoStore.load(id) } ?: return@launch
+            val markdown = ConversationExporter.toMarkdown(convo)
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_SUBJECT, convo.title)
+                putExtra(Intent.EXTRA_TEXT, markdown)
+            }
+            val chooser = Intent.createChooser(send, "Sohbeti paylaş")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            runCatching { getApplication<Application>().startActivity(chooser) }
+        }
+    }
+
+    /** Tüm sohbet geçmişini siler (Ayarlar > veri temizleme). */
+    fun clearAllConversations() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { convoStore.clear() }
+            currentConversationId = null
+            currentCreatedAt = 0L
+            messages.clear()
+            reloadHistory()
+        }
+    }
+
+    /**
+     * Tüm yerel veriyi temizler: sohbet geçmişi + notlar + performans metrikleri,
+     * [includeModels] ise indirilen modeller de. Ayarları/bağlantıyı etkilemez.
+     */
+    fun wipeAllLocalData(includeModels: Boolean) {
+        clearAllConversations()
+        local.wipeLocalData(includeModels)
     }
 
     // ---------- ayarlar ----------

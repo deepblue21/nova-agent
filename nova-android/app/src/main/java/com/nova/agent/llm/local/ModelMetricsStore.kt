@@ -40,6 +40,11 @@ class ModelMetricsStore(private val file: File) {
     fun get(modelId: String): ModelMetrics = all()[modelId] ?: ModelMetrics()
 
     @Synchronized
+    fun clear() {
+        if (file.exists()) file.delete()
+    }
+
+    @Synchronized
     fun record(modelId: String, loadMs: Long, tokensPerSec: Double, nowMs: Long) {
         val current = all().toMutableMap()
         val prev = current[modelId] ?: ModelMetrics()

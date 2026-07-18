@@ -58,6 +58,11 @@ class ConversationStore(
         write(remaining)
     }
 
+    @Synchronized
+    fun clear() {
+        if (file.exists()) file.delete()
+    }
+
     private fun write(list: List<Conversation>) {
         runCatching {
             file.parentFile?.mkdirs()

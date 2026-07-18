@@ -294,6 +294,28 @@ class LocalLlmController(
         scope.launch(Dispatchers.IO) { engine.unload() }
     }
 
+    /**
+     * Cihaz-üstü yerel veriyi temizler: notlar + performans metrikleri, isteğe bağlı
+     * indirilen modeller. Modeller silinirse motor da boşaltılır.
+     */
+    fun wipeLocalData(includeModels: Boolean) {
+        downloadHandles.values.forEach { it.cancel() }
+        downloadHandles.clear()
+        scope.launch(Dispatchers.IO) {
+            noteStore.clear()
+            metricsStore.clear()
+            if (includeModels) {
+                engine.unload()
+                LocalModelCatalog.entries.forEach { store.delete(it) }
+            }
+            onMain {
+                metrics = metricsStore.all()
+                refresh()
+                if (includeModels) engineState = LocalEngineUi.Idle
+            }
+        }
+    }
+
     companion object {
         fun readDeviceRamGb(context: Context): Double {
             val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
