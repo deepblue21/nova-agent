@@ -86,16 +86,20 @@ class ConversationStore(
             return arr.toString()
         }
 
-        /** JSON metni -> List. Bozuk girdi boş liste. Saf/testli. */
+        /** JSON metni -> List. Bozuk/geçersiz girdi boş liste döndürür. Saf/testli. */
         fun parseList(text: String): List<Conversation> {
             if (text.isBlank()) return emptyList()
-            val arr = JSONArray(text)
-            val out = mutableListOf<Conversation>()
-            for (i in 0 until arr.length()) {
-                val o = arr.optJSONObject(i) ?: continue
-                out.add(fromJson(o))
+            return try {
+                val arr = JSONArray(text)
+                val out = mutableListOf<Conversation>()
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    out.add(fromJson(o))
+                }
+                out
+            } catch (_: Exception) {
+                emptyList()
             }
-            return out
         }
 
         private fun toJson(c: Conversation): JSONObject {

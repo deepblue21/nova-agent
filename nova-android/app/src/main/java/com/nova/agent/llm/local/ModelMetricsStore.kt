@@ -78,21 +78,25 @@ class ModelMetricsStore(private val file: File) {
             return root.toString()
         }
 
-        /** JSON metni -> Map. Bozuk girdi boş map döndürür. Saf ve testli. */
+        /** JSON metni -> Map. Bozuk/geçersiz girdi boş map döndürür. Saf ve testli. */
         fun parse(text: String): Map<String, ModelMetrics> {
             if (text.isBlank()) return emptyMap()
-            val root = JSONObject(text)
-            val out = mutableMapOf<String, ModelMetrics>()
-            for (id in root.keys()) {
-                val o = root.optJSONObject(id) ?: continue
-                out[id] = ModelMetrics(
-                    loadMs = o.optLong("loadMs", 0L),
-                    tokensPerSec = o.optDouble("tokensPerSec", 0.0),
-                    lastUsedEpochMs = o.optLong("lastUsedEpochMs", 0L),
-                    runs = o.optInt("runs", 0),
-                )
+            return try {
+                val root = JSONObject(text)
+                val out = mutableMapOf<String, ModelMetrics>()
+                for (id in root.keys()) {
+                    val o = root.optJSONObject(id) ?: continue
+                    out[id] = ModelMetrics(
+                        loadMs = o.optLong("loadMs", 0L),
+                        tokensPerSec = o.optDouble("tokensPerSec", 0.0),
+                        lastUsedEpochMs = o.optLong("lastUsedEpochMs", 0L),
+                        runs = o.optInt("runs", 0),
+                    )
+                }
+                out
+            } catch (_: Exception) {
+                emptyMap()
             }
-            return out
         }
 
         /** Yaklaşık token sayımı: LiteRT token sayısını vermeden ~4 karakter/token. Saf/testli. */
