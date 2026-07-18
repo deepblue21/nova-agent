@@ -40,6 +40,19 @@ class NovaClientTest {
     }
 
     @Test
+    fun parsesModelIdListFromModelsEndpoint() {
+        val body = """{"data":[{"id":"ollama/qwen3:14b"},{"id":"gemini/gemini-2.5-pro"}]}"""
+        assertEquals(listOf("ollama/qwen3:14b", "gemini/gemini-2.5-pro"), NovaClient.parseModelIds(body))
+    }
+
+    @Test
+    fun emptyOrBlankModelIdsBecomeNull() {
+        assertNull(NovaClient.parseModelIds("""{"data":[]}"""))
+        assertNull(NovaClient.parseModelIds("""{"data":[{"id":""}]}"""))
+        assertNull(NovaClient.parseModelIds("bozuk"))
+    }
+
+    @Test
     fun malformedPersistedUrlReturnsSanitizedCallbackErrorInsteadOfThrowing() {
         var error: String? = null
         val result = runCatching {

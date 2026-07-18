@@ -95,6 +95,13 @@ class ModelAutomationTest {
     }
 
     @Test
+    fun `metrics ozeti veri yoksa null veri varsa okunur`() {
+        assertEquals(null, com.nova.agent.llm.local.ModelMetrics().summary())
+        val s = com.nova.agent.llm.local.ModelMetrics(loadMs = 3200, tokensPerSec = 12.0, runs = 1).summary()
+        assertTrue(s != null && s.contains("tok/sn"))
+    }
+
+    @Test
     fun `store kaydeder ve yukleme sifirsa onceki degeri korur`() {
         val dir = Files.createTempDirectory("metrics_test").toFile()
         val store = ModelMetricsStore(File(dir, "m.json"))

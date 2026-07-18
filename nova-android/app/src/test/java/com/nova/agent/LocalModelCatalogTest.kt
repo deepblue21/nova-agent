@@ -47,6 +47,14 @@ class LocalModelCatalogTest {
     }
 
     @Test
+    fun `functiongemma araci kapili ve kayitli`() {
+        val fg = LocalModelCatalog.byId("functiongemma-270m")!!
+        assertTrue(fg.gated)
+        assertEquals(288_964_608L, fg.sizeBytes)
+        assertTrue(fg.downloadUrl.contains(LocalModelCatalog.FUNCTIONGEMMA_REVISION))
+    }
+
+    @Test
     fun `gemma kapili ve dogrulanmis degerlerle kayitli`() {
         val gemma = LocalModelCatalog.byId("gemma3-1b-int4")!!
         assertTrue(gemma.gated)
