@@ -120,11 +120,24 @@ ModelRecommender, ModelMetrics, LocalTools (hesap/not), ConversationStore, Conve
 VoicePolicy, katalog bütünlüğü, SSE/parse yardımcıları. Enstrümanlı (Compose): kabuk/navigasyon,
 Kontrol (politika/hibrit kart), Modeller (öneri/liste), Sohbet geçmişi (liste/paylaş/sil), Ayarlar.
 
+## Faz 8 — Kişiselleştirme ve indirme dayanıklılığı (2026-07-17)
+
+- **İndirme öncesi yer kontrolü:** `DownloadPreflight` (saf) — yeterli boş alan yoksa ağa çıkmadan
+  dürüst uyarı; sürdürmede yalnız kalan bayt hesaplanır.
+- **Yerel model kişiliği (persona):** Ayarlar'da isteğe bağlı sistem talimatı; yalnız cihaz-üstü
+  modele `ConversationConfig.systemInstruction` ile uygulanır.
+
+## Not (2026-07-17): derleme düzeltmesi
+
+Faz 5-7 eklemelerinde derleyicisiz kaçan hatalar kullanıcının derlemesinde yakalandı ve düzeltildi
+(SettingsPanel `TextButton` import, LocalLlmController metric import'ları + yinelenen `cancelGenerate`).
+Ardından tüm modülde paket-farkında import ve yinelenen-fonksiyon denetimi çalıştırıldı.
+
 ## Durum özeti (2026-07-17)
 
-Faz 1-7 çekirdek teslimatları **kod olarak tamamlandı**; Faz 1-4'ün son tam derlemesi yeşildi
-(`testDebugUnitTest` + `lintDebug` + `assembleDebug`). Faz 5-7 saf/testli katman + statik doğrulama
-ile eklendi; toplu derleme + fiziksel ARM64 cihaz doğrulaması kullanıcının tek seferlik turunda.
+Faz 1-8 çekirdek teslimatları **kod olarak tamamlandı**. Faz 1-4 derlemesi yeşildi; Faz 5-7 sonrası
+derleme hatası düzeltildi (`75ae946`). Faz 8 saf/testli + statik denetim ile eklendi. Kullanıcının tek
+seferlik turunda `testDebugUnitTest + lintDebug + assembleDebug` doğrulaması + fiziksel cihaz testi kaldı.
 
 ## Depo düzeni notları
 
