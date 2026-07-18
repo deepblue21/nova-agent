@@ -106,10 +106,24 @@ Telefonda **çevrimdışı çalışan agentic bir yapay zeka** + PC'deki LLM iş
 - Çevrimdışı paket yoksa ağ hatası dürüst bir mesaja çevrilir (Türkçe çevrimdışı tanıma indirme yönergesi).
 - TTS zaten çevrimdışı çalışır; ek değişiklik gerekmedi.
 
+## Faz 7 — Veri yönetimi ve dışa aktarma (2026-07-17)
+
+- **Dışa aktar/paylaş:** `ConversationExporter` (saf) sohbeti Markdown'a çevirir (düşünme hariç);
+  Geçmiş panelinde "Paylaş" sistem paylaşım sayfasını açar.
+- **Yerel veriyi temizle:** Ayarlar > Veri yönetimi — onaylı; sohbet geçmişi + notlar + performans
+  kayıtları, isteğe bağlı indirilen modeller. Ayarlar/Gateway bağlantısı korunur.
+
+## Test kapsamı (2026-07-17)
+
+Birim testler (JVM): yönlendirici (gateway/yerel/çevrimdışı/hibrit + gizlilik + ısı), PrivacyClassifier,
+ModelRecommender, ModelMetrics, LocalTools (hesap/not), ConversationStore, ConversationExporter,
+VoicePolicy, katalog bütünlüğü, SSE/parse yardımcıları. Enstrümanlı (Compose): kabuk/navigasyon,
+Kontrol (politika/hibrit kart), Modeller (öneri/liste), Sohbet geçmişi (liste/paylaş/sil), Ayarlar.
+
 ## Durum özeti (2026-07-17)
 
-Faz 1-6 çekirdek teslimatları **kod olarak tamamlandı**; Faz 1-4'ün son tam derlemesi yeşildi
-(`testDebugUnitTest` + `lintDebug` + `assembleDebug`). Faz 5-6 saf/testli katman + statik doğrulama
+Faz 1-7 çekirdek teslimatları **kod olarak tamamlandı**; Faz 1-4'ün son tam derlemesi yeşildi
+(`testDebugUnitTest` + `lintDebug` + `assembleDebug`). Faz 5-7 saf/testli katman + statik doğrulama
 ile eklendi; toplu derleme + fiziksel ARM64 cihaz doğrulaması kullanıcının tek seferlik turunda.
 
 ## Depo düzeni notları
