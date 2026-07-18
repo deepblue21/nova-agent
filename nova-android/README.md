@@ -1,219 +1,181 @@
-# NOVA — Android İstemci
+# NOVA / Horus — Android İstemci
 
-Hem **telefonun kendi işlemcisinde** (LiteRT-LM) hem de PC'deki Gateway'de (OpenAI-uyumlu, SSE)
-çalışan native Android uygulaması. Kotlin + Jetpack Compose. Kontrol merkezi, model indirme
-merkezi, sohbet + ses, telefon otomasyon görevleri, streaming yanıt.
+Telefonun **kendi işlemcisinde çevrimdışı LLM** çalıştıran, aynı zamanda PC'deki **Gateway**
+üzerinden güçlü modelleri kullanabilen ve ikisini **hibrit** birleştiren native Android uygulaması.
+Kotlin + Jetpack Compose.
 
-> API anahtarları **gateway'de** durur. Bu istemci yalnızca gateway adresini ve `GATEWAY_TOKEN`'ı bilir.
-> Yerel modda ise istem ve yanıt cihazdan hiç çıkmaz; PC'ye devir yalnız kullanıcı onayıyla olur.
+**Ana hedef:** telefonda agentic bir yapay zekâyı offline çalıştırmak ve bunu PC ile entegre yapmak.
+
+> **Gizlilik sözü:** Yerel/Çevrimdışı modda istem ve yanıt cihazdan hiç çıkmaz. PC'ye devir yalnız
+> kullanıcı onayıyla (veya hibritte kullanıcının açtığı kuralla) olur. Bulut sağlayıcı anahtarları
+> telefona hiç gelmez; bulut çağrıları yalnız PC'deki Gateway üzerinden yapılır.
 
 ---
 
-## Açma & Derleme
+## Özellik özeti (Faz 1–8)
 
-Gradle wrapper (jar + `gradlew`/`gradlew.bat`, Gradle 8.9) artık repoya dahildir —
-ayrıca `gradle wrapper` çalıştırmana gerek yok. Tek gereksinim **JDK 17** ve Android SDK
-(Android Studio ikisini de sağlar).
+| Faz | Özellik |
+|-----|---------|
+| 1 | **Yerel öncelikli çekirdek** — LiteRT-LM cihaz motoru, SHA-256 doğrulamalı/sürdürülebilir model indirme, Kontrol·İşler·Sohbet·Modeller arayüzü, kod bloğu kopyalama, 3 tema, güvenli iptal |
+| 2 | **Çevrimdışı + agentic araçlar** — `LOCAL_ONLY` politikası (devir kapalı), çevrimdışı araç seti (saat, hesap makinesi, cihaz durumu, not defteri), kapılı Gemma modelleri |
+| 3 | **Hibrit** — uzunluk/pil/ısı/gizlilik kurallı yönlendirme, "PC ajanına devret", sor/otomatik devir anahtarı |
+| 4 | **Model otomasyonu** — cihaza göre model önerisi, uygunluk çipi, performans metrikleri (yükleme/tok-sn) |
+| 5 | **Kalıcı sohbet geçmişi** — çoklu sohbet, otomatik kayıt, ara/aç/sil |
+| 6 | **Çevrimdışı ses** — yerel politikalarda cihaz-üstü STT tercihi (`EXTRA_PREFER_OFFLINE`) |
+| 7 | **Veri yönetimi** — sohbeti Markdown olarak dışa aktar/paylaş, tüm yerel veriyi temizle |
+| 8 | **Kişiselleştirme + dayanıklılık** — yerel model personası (sistem talimatı), indirme öncesi boş alan kontrolü |
 
-**Android Studio ile:**
-1. **Android Studio** (Ladybug / 2024.2+ önerilir) ile bu klasörü aç.
-2. İlk açılışta Gradle senkronu çalışır (wrapper hazır).
-3. Bir cihaz/emülatör seç → **Run**.
+Test kapsamı: **119 birim + 36 enstrümanlı test.** Son durum: `testDebugUnitTest` + `assembleDebug`
+= **BUILD SUCCESSFUL**.
 
-**Terminalden (JDK 17 kurulu):**
+---
 
-`assembleDebug` APK'yi `app/build/outputs/apk/debug/app-debug.apk` konumuna üretir.
-`installDebug` bağlı cihaza veya emülatöre kurar.
+## Derleme, test, kurulum
 
-```bash
+Gereksinim: **JDK 17** + Android SDK (Android Studio ikisini de sağlar). Gradle wrapper repoda dahil.
+
+```powershell
 cd nova-android
-./gradlew assembleDebug
-./gradlew installDebug
+.\gradlew.bat testDebugUnitTest assembleDebug   # test + APK
+.\gradlew.bat installDebug                        # cihaz/emülatör bağlıyken kur
 ```
-Windows'ta `gradlew.bat assembleDebug`.
 
-Sürüm uyumu: AGP 8.5.2 · Kotlin 2.0.21 · Compose BOM 2024.10.01 · compileSdk 35 · minSdk 26 · Gradle 8.9.
-Android Studio daha yeni AGP isterse `build.gradle.kts` içindeki sürümleri kabul ettiği değerlere yükselt.
+(Linux/macOS'ta `./gradlew …`.) Üretilen APK:
+`app/build/outputs/apk/debug/app-debug.apk`.
 
----
+Sürüm uyumu: **AGP 8.5.2 · Kotlin 2.2.21 · Compose BOM 2024.10.01 · compileSdk 35 · minSdk 26 ·
+Gradle 8.9 · LiteRT-LM 0.13.1.** (Kotlin 2.2.21 zorunlu: LiteRT-LM 2.2 metadata'sıyla derlenmiştir.)
 
-## Gateway'e Bağlanma
-
-Uygulamada ⚙️ (sağ üst) → **Gateway Bağlantısı**:
-
-| Alan | Değer |
-|---|---|
-| Base URL | `http://10.0.2.2:8088/v1` (emülatör) |
-| Token | gateway'deki `GATEWAY_TOKEN` |
-
-- **Emülatör:** `10.0.2.2`, makinenin `localhost`'una karşılık gelir.
-- **Gerçek cihaz:** gateway'i internete açma. En temizi **Tailscale/WireGuard** — telefon ve PC aynı private ağda; Base URL'e Tailscale IP'sini yaz: `http://100.x.x.x:8088/v1`.
-- Gateway `127.0.0.1`'e bağlıysa sadece aynı makineden erişilir; Tailscale arayüzünü dinletmek için gateway'i `HOST=100.x.x.x` ile başlat (ya da `0.0.0.0` + güçlü token + güvenlik duvarı).
-
-Manifest'te `usesCleartextTraffic=true` — yerel/Tailscale http için. İnternet üzerinden kullanacaksan gateway'i TLS arkasına al ve `https` kullan.
+Enstrümanlı testler (cihaz/emülatör gerekir): `.\gradlew.bat connectedDebugAndroidTest`.
 
 ---
 
 ## Mimari
 
 ```
-MainActivity (Compose UI: Kontrol / İşler / Sohbet / Modeller + Ses)
+MainActivity (Compose)
   └── NovaViewModel
-        ├── SettingsStore        (DataStore: baseUrl, token, model, effort, reasoning,
-        │                         executionPolicy, localModelId, localThinking, themeId)
-        ├── ExecutionPolicy      (GATEWAY_ONLY varsayılan | LOCAL_FIRST) + EngineRouter
+        ├── SettingsStore       (DataStore: bağlantı, model, executionPolicy, localModelId,
+        │                        localThinking, localTools, themeId, hfToken, hybridAutoFallback, persona)
+        ├── ExecutionPolicy + EngineRouter   (yönlendirme kararları — saf/testli)
+        ├── PrivacyClassifier                (hassas istem sezgisi — saf/testli)
         ├── LocalLlmController
-        │     ├── LocalModelCatalog  (sabit sürüm + SHA-256 + lisans)
-        │     ├── ModelDownloader    (HTTPS, Range sürdürme, atomik kurulum)
-        │     └── OnDeviceEngine     (LiteRT-LM: Engine/Conversation, akışlı üretim)
-        ├── NovaClient           (OkHttp + SSE → gateway /v1/chat/completions)
-        └── SpeechManager        (Android STT + TTS, tr-TR)
+        │     ├── LocalModelCatalog     (sabit sürüm + SHA-256 + lisans)
+        │     ├── ModelDownloader       (HTTPS, Range sürdürme, atomik kurulum)
+        │     ├── DownloadPreflight     (indirme öncesi yer kontrolü)
+        │     ├── ModelRecommender      (cihaza göre öneri)
+        │     ├── ModelMetricsStore     (yükleme/tok-sn kayıtları)
+        │     ├── OnDeviceEngine        (LiteRT-LM: Engine/Conversation, akışlı üretim, araçlar, persona)
+        │     └── HorusToolSet          (çevrimdışı araçlar: saat, hesap, cihaz, notlar)
+        ├── ConversationStore   (kalıcı sohbet geçmişi — cihazda JSON)
+        ├── NovaClient          (OkHttp + SSE → gateway /v1/chat/completions)
+        └── SpeechManager       (Android STT + TTS, tr-TR, çevrimdışı tercihi)
 ```
 
-- **Streaming:** OkHttp `EventSource` ile token token; `x-nova-route` başlığı yanıt altında rozet olarak gösterilir.
-- **Ses:** şu an cihazın yerleşik motorları (SpeechRecognizer + TextToSpeech). Ses ekranı, Sohbet üst çubuğundaki mikrofonla açılır.
-- **Model:** Gateway modunda seçili model `auto` ya da `ollama/...`, `gemini/...`, `anthropic/...` olarak gateway'e gider. Yerel modda LiteRT-LM `.litertlm` dosyası cihazda çalışır.
+- **Akış:** OkHttp `EventSource` ile token token; `x-nova-route` rozeti hangi hedefin yanıtladığını gösterir.
+- **Yerel motor:** `com.google.ai.edge.litertlm:litertlm-android:0.13.1` (CPU). İlk yükleme saniyeler
+  sürebilir, arka planda yapılır. Her istek taze `Conversation` kurar → iptal edilen yarım yanıt
+  sonraki bağlama sızamaz. `<think>…</think>` blokları ayrıştırılıp ayrı gösterilir.
 
 ---
 
-## Yerel öncelikli mod (Faz 1)
+## Yürütme politikaları
 
-- Motor: `com.google.ai.edge.litertlm:litertlm-android:0.13.1` (CPU backend). İlk yükleme saniyeler sürebilir; arka planda yapılır.
-- Referans model: `litert-community/Qwen3-0.6B` — revizyon `3adacb36…` kilitli. Katalogdaki iki artifact:
-  `qwen3_0_6b_mixed_int4.litertlm` (497.664.000 B) ve `Qwen3-0.6B.litertlm` (614.236.160 B); ikisi de Apache-2.0.
-- İndirme: yalnız HTTPS, `Range` ile sürdürme, indirme sırasında akan SHA-256; özet eşleşmezse dosya **kurulmaz**. Dosyalar `filesDir/models/` altındadır.
-- Yönlendirme: varsayılan politika `GATEWAY_ONLY` (mevcut davranış bire bir). `LOCAL_FIRST` seçilirse istek önce telefonda çalışır; model yoksa veya hata olursa istem **sessizce dışarı gönderilmez** — sohbette gerekçeli izin kartı çıkar.
-- Düşünme: Qwen3'ün gerçek `enable_thinking` anahtarı Açık/Kapalı olarak sunulur; var olmayan kademeli "düşünme bütçesi" taklit edilmez. `<think>…</think>` blokları yanıttan ayrıştırılıp ayrı gösterilir.
-- İptal: aktif konuşma kapatılır; her istek taze `Conversation` kurduğu için yarım yanıt sonraki bağlama sızamaz.
-- Dürüst sınırlar: x86 emülatörde yerel motor `ARM64 gerekir` hatası verir (Gateway yolu etkilenmez). `LOCAL_ONLY` (Faz 2) ve `HYBRID` (Faz 3) arayüzde pasiftir.
+Kontrol ekranından seçilir. Varsayılan **GATEWAY_ONLY** — mevcut kurulumlar bire bir korunur.
+
+| Politika | Davranış |
+|----------|----------|
+| **PC / Gateway** (`GATEWAY_ONLY`) | Tüm istekler PC'deki Gateway'e (Ollama/OpenAI/Gemini/Anthropic). Varsayılan. |
+| **Yerel öncelikli** (`LOCAL_FIRST`) | Önce telefon; hata olursa **sessizce** değil, gerekçeli izin kartıyla PC'ye devir sorulur. |
+| **Çevrimdışı** (`LOCAL_ONLY`) | Yalnız telefon; hiçbir koşulda devir yok, istem cihaz dışına çıkmaz. |
+| **Hibrit** (`HYBRID`) | Akıllı seçim: kısa istem telefonda; 1200+ karakter, pil ≤ %20 (şarjsız) veya cihaz aşırı ısınmışsa PC; **gizli görünen istemler (şifre/TCKN/IBAN/kart) telefonda tutulur.** Yerel hata sonrası devir varsayılan "sor", istenirse "otomatik". |
+
+---
+
+## Modeller ve kaynaklar
+
+Tümü **Hugging Face `litert-community`** deposundan, `.litertlm` formatında; her dosya sabit bir
+depo revizyonuna kilitli ve indirildikten sonra SHA-256 ile doğrulanır. İndirme yalnız HTTPS, yarıda
+kalırsa `Range` ile sürer, özet tutmazsa dosya kurulmaz.
+
+| Model | Depo | Lisans | Kapı |
+|-------|------|--------|------|
+| Qwen3 0.6B (int4 + tam) | `litert-community/Qwen3-0.6B` | Apache-2.0 (açık kaynak) | Kapısız |
+| Gemma 3 1B (int4) | `litert-community/Gemma3-1B-IT` | Gemma Şartları (açık ağırlık) | Kapılı |
+| FunctionGemma 270M | `litert-community/functiongemma-270m-ft-mobile-actions` | Gemma Şartları | Kapılı |
+
+**Kapılı modeller** için: HF hesabında modelin sayfasında lisansı onayla → Ayarlar > Hugging Face'e
+erişim token'ı gir. Token cihazda kalır, yalnız huggingface.co'ya gönderilir (yönlendirmede CDN'e
+sızmaz). Modeller ekranı, cihaz RAM'ine göre en uygun **kapısız** modeli önerir (ilk kurulum tokensız).
 
 ---
 
-## Test
+## Çevrimdışı araçlar (agentic çekirdek)
 
-Saf mantık (SSE delta ayrıştırma) için JUnit testi var:
+`HorusToolSet`, LiteRT-LM'in `@Tool` mekanizmasıyla konuşmaya bağlanır (otomatik araç çağırma).
+Tümü çevrimdışıdır, ağa çıkmaz, ek izin istemez:
 
-```bash
-./gradlew test
-```
+| Araç | İşlev |
+|------|-------|
+| `simdikiTarihSaat` | Tarih, saat, gün (tr-TR) |
+| `hesapla` | + − × ÷ % ^ ve parantezli güvenli hesap (kod çalıştırmaz) |
+| `cihazDurumu` | Pil %, şarj, RAM, boş depolama, uçak modu |
+| `notKaydet` / `notlariListele` | Cihaz-içi not defteri |
 
-Test dosyası: `app/src/test` altında `NovaClientTest`.
-
-Derleme + statik denetim:
-```bash
-./gradlew lintDebug assembleDebug
-```
-
-### 16 Temmuz 2026 doğrulama özeti
-
-- Görev-öncelikli sabit `Görevler` / `Sohbet` / `Ses` navigasyonu teslim edildi; uyarlanabilir
-  launcher ikonu korundu ve `com.nova.agent/.MainActivity` olarak çözüldü.
-- `:app:testDebugUnitTest`, `:app:lintDebug` ve `:app:assembleDebug` geçti: 50 unit test,
-  0 lint hatası (11 uyarı, 1 bilgi). `:app:connectedDebugAndroidTest` Android 17
-  `emulator-5554` üzerinde 27/27 geçti; APK aynı emülatöre kuruldu. Bu koşuda fiziksel cihaz bağlı
-  değildi ve fiziksel cihaz testi yapılmadı.
-- Son regresyon sağlamlaştırması, etkin görevi başlangıçtaki Gateway ayarına sabitler; bayat veya
-  başka göreve ait callback/SSE olaylarını reddeder, kabul edilen Gateway adreslerini `/v1` altında
-  standartlaştırır ve bozuk kayıtlı adresleri çökmeden reddeder. Maskeli token alanının TalkBack
-  düzenleme semantiği, alt sistem inset'i, meşgul Ses kontrolleri ve yükleme sırasındaki görev
-  istemleri de test kapsamındadır.
-- Ayarlardaki bağlantı testi, geçerli emülatör Gateway adresi ve yerel QA kimliğiyle `PC hazır`
-  durumuna ulaştı. Sabit doğrulama istemi PC'deki yerel modele aktı; UI-tree örneklemesine göre
-  TTFT 48.337 sn, toplam 48.341 sn ve sanitize rota `ollama/gemma4:latest` idi.
-- Worker preflight'ları 7 Node + 39 Python testiyle geçti. Güvenli canlı görev girişimi Gateway
-  allowlist'i tarafından `Bu gorev emulator worker'inda desteklenmiyor` mesajıyla reddedildi; bu
-  nedenle terminal worker sonucu doğrulanmadı.
-- Regresyon turunda Ayarlar başlığı/kapatma kontrolü sistem durum çubuğunun altına alındı ve 1.0
-  ile 1.3 sistem yazı ölçeklerinde doğrulandı. Görevler composer ve birincil eylem de 1.3 ölçekte
-  gerçek IME'nin tamamen üstünde kaldı. En iyi sıcak, UI-dump'sız debug-emülatör örneğinde 69
-  frame'in 37'si janky idi (%53,62), p50 34 ms ve p90 44 ms. Perfetto kanıtı emülatör
-  grafik/buffer baskısı ile Compose işinin birlikte etkisini gösterdi; kanıtlanmış tek bir uygulama
-  hotspot'u bulunmadı. Fiziksel donanımda release-build performans kontrolü takip maddesidir.
-- Doğrulanan debug APK SHA-256:
-  `4D65812810CBC0C6D80081CC40A5FF716A3A52829A68EB049C6D7681A104E689`.
+Dürüst sınır: araç çağrısı model kararına bağlıdır; Qwen3-0.6B gibi küçük modellerde her istemde
+tetiklenmeyebilir. Araç odaklı iş için **FunctionGemma 270M** önerilir. Anahtar: Modeller > "Yerel araçlar".
 
 ---
+
+## Gateway'e bağlanma
+
+Ayarlar > PC bağlantısı:
+
+| Alan | Değer |
+|------|-------|
+| Base URL | `http://10.0.2.2:8088/v1` (emülatör) · gerçek cihazda Tailscale IP: `http://100.x.x.x:8088/v1` |
+| Token | Gateway'deki `GATEWAY_TOKEN` |
+
+Gerçek cihaz için en temizi **Tailscale/WireGuard** (telefon + PC aynı private ağda). İnternet
+üzerinden kullanılacaksa Gateway'i TLS arkasına alıp `https` kullan.
+
+---
+
+## Gizlilik ve güvenlik
+
+- Yerel/Çevrimdışı modda istem/yanıt cihazdan çıkmaz; sessiz devir yok.
+- İndirmeler sabit revizyon + SHA-256; bozuk dosya kurulmaz, bozuk kayıtlar nazikçe yok sayılır.
+- HF token ve Gateway token maskeli alanlarda; loglara/paylaşıma yazılmaz.
+- "Yerel veriyi temizle" (Ayarlar): sohbet geçmişi + notlar + metrikler, isteğe bağlı indirilen modeller.
 
 ## İzinler
 
-- `INTERNET` — gateway'e bağlanmak için.
-- `RECORD_AUDIO` — sesli mod; ilk kullanımda çalışma anında istenir.
+- `INTERNET` — Gateway/indirmeler için. `RECORD_AUDIO` — sesli mod (çalışma anında istenir).
 
 ---
 
-## Yapılanlar (Faz 1 — 16 Temmuz 2026)
+## Yol haritası (gelecek)
 
-- Kontrol / İşler / Sohbet / Modeller sekmeleri; Ses, Sohbet üst çubuğundan.
-- `ExecutionPolicy` + `EngineRouter`: `GATEWAY_ONLY` varsayılan, `LOCAL_FIRST` seçilebilir; sessiz devir yok, izin kartı var.
-- `OnDeviceEngine` (LiteRT-LM 0.13.1) ile telefonda akışlı üretim; taze-konuşma iptal modeli.
-- Sabit sürümlü, SHA-256 doğrulamalı, sürdürülebilir model indirme merkezi (Qwen3-0.6B ×2, Apache-2.0).
-- Sohbette kod blokları ayrı kartta, blok başına **Kopyala**; Qwen3 `<think>` ayrımı.
-- Üç vurgu teması (Turkuaz / Aurora / Amber), Ayarlar > Görünüm.
-- JVM testleri: yönlendirici, katalog bütünlüğü, SHA-256, Range, `<think>`, kod bloğu ayrıştırma.
+Tamamlanan Faz 1–8 üzerine planlanan sonraki adımlar:
 
-> Not: Bu Faz 1 değişiklikleri henüz **fiziksel ARM64 cihazda doğrulanmadı** — kabul kapısı için
-> aşağıdaki koşu gereklidir: `./gradlew testDebugUnitTest lintDebug assembleDebug` + cihazda model
-> indirme + uçak modunda akışlı yerel yanıt + Gateway regresyon turu.
+**Yakın vade**
+- Fiziksel ARM64 cihazda uçtan uca doğrulama turu (kabul kapısı).
+- Düşük RAM'de otomatik quantization tercihi ve indirme sonrası otomatik "önerileni aktif yap".
+- Çevrimdışı STT/TTS dil paketi rehberi + eksikse uygulama içi yönlendirme.
+- Enstrümanlı test kapsamının CI'da (emülatör) koşulması.
 
-## Yerel araçlar (Faz 2 — agentic çekirdek)
+**Orta vade**
+- **Görev devri derinleştirme:** telefonda başlayan işin PC'de sürmesi; Gateway ajan koşusu köprüsü,
+  canlı ilerleme (SSE) ve İşler ekranında birleşik takip.
+- **Çok-modluluk:** Gemma 3n benzeri modelle cihaz-üstü görsel/ses girişi (LiteRT-LM vision/audio backend).
+- **Model yaşam döngüsü:** güncelleme bildirimi, delta/parça indirme, depolama baskısında otomatik boşaltma.
+- İstek sınıflandırmanın incelmesi (araç ihtiyacı tahmini, gizlilik etiketi seviyeleri).
 
-`HorusToolSet` LiteRT-LM'in `@Tool` mekanizmasıyla konuşmaya bağlanır (otomatik araç çağırma).
-Tüm araçlar çevrimdışıdır, ağa çıkmaz ve ek izin istemez:
+**Uzun vade**
+- NPU/GPU backend seçenekleri ve cihaz profillerine göre otomatik hızlandırma.
+- Çoklu dil (i18n) — arayüzün İngilizce ve diğer diller için kaynaklaştırılması.
+- Yerel RAG: cihazdaki belgeler üzerinde çevrimdışı gömme + arama.
+- Play Store dağıtımı, release imzalama ve sürüm kanalları.
 
-| Araç | İşlev |
-|---|---|
-| `simdikiTarihSaat` | Tarih, saat, haftanın günü (tr-TR) |
-| `hesapla` | + - * / % ^ ve parantezli güvenli hesap (kod çalıştırmaz) |
-| `cihazDurumu` | Pil %, şarj, boş/toplam RAM, boş depolama, uçak modu |
-| `notKaydet` / `notlariListele` | Cihaz-içi not defteri (`filesDir/horus_notlar.txt`) |
-
-Dürüst sınır: araç çağrısı model kararına bağlıdır; Qwen3-0.6B gibi küçük modellerde her istemde
-tetiklenmeyebilir. Anahtar: Modeller > "Yerel araçlar (deneysel)". Araç hataları modele metin olarak
-döner, uygulamayı düşürmez.
-
-## Kapılı modeller (Faz 2 D3) ve Hibrit (Faz 3 D1)
-
-- **Gemma 3 1B (int4)** katalogda: kapılı model — HF hesabında
-  [litert-community/Gemma3-1B-IT](https://huggingface.co/litert-community/Gemma3-1B-IT) sayfasında
-  lisansı onayla, sonra Ayarlar > Hugging Face bölümüne erişim token'ı gir. Token cihazda kalır ve
-  yalnız huggingface.co'ya gönderilir (yönlendirmede CDN'e sızmaz). Sabit revizyon + SHA-256 doğrulaması
-  aynı şekilde uygulanır.
-- **Hibrit politika** Kontrol'den seçilebilir. Kurallar sabit ve arayüzde yazılıdır: kısa istemler
-  telefonda; 1200+ karakter veya (pil ≤ %20 ve şarjda değil) → PC; telefon modeli yoksa PC. Yerel
-  hata sonrası devir varsayılan "her seferinde sor"dur; Kontrol > Hibrit kuralları'ndan
-  "otomatik devret" açılabilir. Hangi hedefin yanıtladığı mesaj altındaki rota rozetinde görünür.
-
-## Görev devri ve ısı farkındalığı (Faz 3 D2+D3)
-
-- Sohbet üstündeki **"PC ajanına devret"** çipi: son soruyu tüm bağlamla PC'deki OpenClaw ajanına
-  (`openclaw/default`, mevcut SSE yolu) gönderir; koşu Gateway ajan geçmişine kaydolur. Çevrimdışı
-  modda çip görünmez — istem cihazdan çıkamaz.
-- Hibrit yönlendirici artık ısıyı da tartar: cihaz THERMAL_STATUS_SEVERE+ ise ve PC hazırsa yük
-  PC'ye verilir.
-- Katalogda 4 model: Qwen3 0.6B ×2 (kapısız), Gemma 3 1B ve **FunctionGemma 270M** (araç-çağrısı
-  için eğitilmiş; 289 MB, kapılı — çevrimdışı agentic çekirdek için önerilir).
-
-## Model otomasyonu (Faz 4)
-
-- **Öneri:** Modeller ekranı, cihazın RAM'ine göre en uygun kapısız modeli banner'da önerir ve tek
-  dokunuşla indirtir. Her satırda uygunluk çipi (Rahat/Sınırlı/Riskli) ve — çalıştıktan sonra — son
-  performans (~tok/sn · yükleme süresi) görünür. Ölçümler `model_metrics.json` içinde cihazda kalır.
-- Öneri mantığı kapısız modeli önceler; ilk kurulum HF token'ı olmadan tamamlanabilir.
-
-## Sohbet geçmişi (Faz 5)
-
-- Sohbet'teki **"Geçmiş"** çipi → geçmiş paneli: kayıtlı sohbetleri ara, aç, sil. Her tamamlanan
-  tur otomatik kaydedilir; "yeni sohbet" öncekini saklar. Başlık ilk mesajdan üretilir. Tüm veri
-  `conversations.json` içinde cihazda kalır.
-
-## Yapılacaklar (sonraki adımlar)
-
-- Toplu cihaz doğrulaması (tüm fazlar): `testDebugUnitTest lintDebug assembleDebug` + fiziksel ARM64
-  cihazda model indirme, uçak modunda yerel sohbet + araç turu ("saat kaç?", "23*7?", "pil yüzde kaç?",
-  "not al: …"), Çevrimdışı modda devirsizlik, Hibrit kuralları (uzunluk/pil/ısı/gizlilik),
-  "PC ajanına devret", model öneri/performans göstergeleri, sohbet geçmişi ve Gateway regresyonu.
-- Düşük RAM'de otomatik quantization tercihi, indirme öncesi yer kontrolü, çevrimdışı STT/TTS, görev devri derinleştirme.
-- Faz 3 — Hibrit: izin temelli otomatik telefon↔PC devri, görev devri, pil/ısı farkındalığı.
-- Gateway `/stt` + `/tts` ile gerçek ses.
-- Çoklu sohbet + kalıcı geçmiş (Room/DataStore).
-- Görsel (çoklu-medya) gönderme; yerel tarafta Gemma3n benzeri çok-modlu model.
+> Not: "açık kaynak" (Apache/MIT, ör. Qwen3) ile "açık ağırlık" (Gemma Şartları) ayrımı katalogda
+> korunur; kapısız modeller ilk kurulum deneyimini token gerektirmeden tamamlar.
