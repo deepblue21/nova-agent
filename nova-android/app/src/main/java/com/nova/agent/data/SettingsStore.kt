@@ -31,6 +31,8 @@ data class AppSettings(
     val hfToken: String = "",
     // Faz 3 D1: hibritte yerel hata sonrası otomatik PC devri (false = her seferinde sor).
     val hybridAutoFallback: Boolean = false,
+    // Faz 8: yerel model için sistem talimatı (persona). Boşsa gönderilmez.
+    val persona: String = "",
 )
 
 class SettingsStore(private val context: Context) {
@@ -47,6 +49,7 @@ class SettingsStore(private val context: Context) {
         val themeId = stringPreferencesKey("theme_id")
         val hfToken = stringPreferencesKey("hf_token")
         val hybridAutoFallback = booleanPreferencesKey("hybrid_auto_fallback")
+        val persona = stringPreferencesKey("persona")
     }
 
     val flow = context.dataStore.data.map { p ->
@@ -64,6 +67,7 @@ class SettingsStore(private val context: Context) {
             themeId = p[Keys.themeId] ?: def.themeId,
             hfToken = p[Keys.hfToken] ?: def.hfToken,
             hybridAutoFallback = p[Keys.hybridAutoFallback] ?: def.hybridAutoFallback,
+            persona = p[Keys.persona] ?: def.persona,
         )
     }
 
@@ -83,6 +87,7 @@ class SettingsStore(private val context: Context) {
             p[Keys.themeId] = s.themeId
             p[Keys.hfToken] = s.hfToken
             p[Keys.hybridAutoFallback] = s.hybridAutoFallback
+            p[Keys.persona] = s.persona
         }
     }
 }

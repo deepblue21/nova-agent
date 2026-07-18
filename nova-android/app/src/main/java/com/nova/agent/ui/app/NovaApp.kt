@@ -181,6 +181,7 @@ fun NovaApp(
             onReasoningChange = vm::setReasoning,
             onThemeChange = vm::setTheme,
             onHfTokenChange = vm::setHfToken,
+            onPersonaChange = vm::setPersona,
             onWipeData = vm::wipeAllLocalData,
             onRestoreAppliedConnection = { vm.testConnection() },
             onClose = { showSettings = false },
@@ -200,6 +201,7 @@ internal fun NovaSettingsPanel(
     onReasoningChange: (Boolean) -> Unit,
     onThemeChange: (String) -> Unit = {},
     onHfTokenChange: (String) -> Unit = {},
+    onPersonaChange: (String) -> Unit = {},
     onWipeData: (Boolean) -> Unit = {},
     onRestoreAppliedConnection: () -> Unit = {
         onTestConnection(settings.baseUrl, settings.token)
@@ -228,6 +230,7 @@ internal fun NovaSettingsPanel(
         onReasoningChange = onReasoningChange,
         onThemeChange = onThemeChange,
         onHfTokenChange = onHfTokenChange,
+        onPersonaChange = onPersonaChange,
         onWipeData = onWipeData,
         onClose = {
             onRestoreAppliedConnection()

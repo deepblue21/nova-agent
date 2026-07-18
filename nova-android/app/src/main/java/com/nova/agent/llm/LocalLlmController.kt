@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.google.ai.edge.litertlm.tool
+import com.nova.agent.llm.local.DownloadPreflight
 import com.nova.agent.llm.local.LocalModelCatalog
 import com.nova.agent.llm.local.LocalModelDiskState
 import com.nova.agent.llm.local.LocalModelSpec
@@ -132,9 +133,17 @@ class LocalLlmController(
             }
             return
         }
+        val startBytes = (store.diskState(spec) as? LocalModelDiskState.Partial)?.bytes ?: 0L
+        // İndirme öncesi yer kontrolü (ağ isteği atmadan).
+        val free = app.filesDir.usableSpace
+        if (!DownloadPreflight.hasRoom(free, spec.sizeBytes, startBytes)) {
+            update(spec.id) {
+                it.copy(error = DownloadPreflight.shortfallMessage(free, spec.sizeBytes, startBytes))
+            }
+            return
+        }
         val handle = downloader.newHandle()
         downloadHandles[spec.id] = handle
-        val startBytes = (store.diskState(spec) as? LocalModelDiskState.Partial)?.bytes ?: 0L
         update(spec.id) {
             it.copy(downloading = true, downloadedBytes = startBytes, error = null)
         }
@@ -214,6 +223,7 @@ class LocalLlmController(
         prompt: String,
         thinking: Boolean,
         toolsEnabled: Boolean,
+        persona: String = "",
         cb: OnDeviceEngine.Callbacks,
     ) {
         scope.launch(Dispatchers.IO) {
@@ -248,6 +258,7 @@ class LocalLlmController(
                 prompt = prompt,
                 thinking = thinking,
                 tools = if (toolsEnabled) listOf(tool(toolBelt)) else emptyList(),
+                systemInstruction = persona,
                 cb = object : OnDeviceEngine.Callbacks {
                     override fun onToken(text: String) {
                         if (firstTokenMs == 0L) firstTokenMs = System.currentTimeMillis()

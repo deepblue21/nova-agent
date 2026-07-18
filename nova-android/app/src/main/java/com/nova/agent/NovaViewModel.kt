@@ -235,6 +235,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     fun setTheme(id: String) = persist(settings.copy(themeId = id))
     fun setHfToken(token: String) = persist(settings.copy(hfToken = token.trim()))
     fun setHybridAutoFallback(enabled: Boolean) = persist(settings.copy(hybridAutoFallback = enabled))
+    fun setPersona(text: String) = persist(settings.copy(persona = text.trim()))
 
     fun activeLocalSpec(): LocalModelSpec =
         LocalModelCatalog.byId(settings.localModelId) ?: LocalModelCatalog.default
@@ -452,6 +453,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
             prompt = prompt,
             thinking = settings.localThinking,
             toolsEnabled = settings.localTools,
+            persona = settings.persona,
             cb = object : OnDeviceEngine.Callbacks {
                 override fun onToken(text: String) {
                     if (!activeLocal) return

@@ -74,12 +74,14 @@ fun SettingsPanel(
     onReasoningChange: (Boolean) -> Unit,
     onThemeChange: (String) -> Unit = {},
     onHfTokenChange: (String) -> Unit = {},
+    onPersonaChange: (String) -> Unit = {},
     onWipeData: (Boolean) -> Unit = {},
     onClose: () -> Unit,
 ) {
     var baseUrl by remember(settings.baseUrl) { mutableStateOf(settings.baseUrl) }
     var token by remember(settings.token) { mutableStateOf(settings.token) }
     var hfToken by remember(settings.hfToken) { mutableStateOf(settings.hfToken) }
+    var persona by remember(settings.persona) { mutableStateOf(settings.persona) }
     var showWipeDialog by remember { mutableStateOf(false) }
 
     Surface(modifier = Modifier.fillMaxSize()) {
@@ -195,6 +197,25 @@ fun SettingsPanel(
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
             ) {
                 Text("HF token'ı kaydet")
+            }
+
+            SectionHeading("Yerel model kişiliği")
+            Text(
+                "İsteğe bağlı sistem talimatı. Yalnız telefonda çalışan modele uygulanır; " +
+                    "boş bırakırsan varsayılan davranış kullanılır.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            OutlinedTextField(
+                value = persona,
+                onValueChange = { persona = it },
+                modifier = Modifier.fillMaxWidth().testTag("persona"),
+                label = { Text("Örn. Kısa ve net yanıt ver, Türkçe konuş") },
+            )
+            OutlinedButton(
+                onClick = { onPersonaChange(persona) },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            ) {
+                Text("Kişiliği kaydet")
             }
 
             SectionHeading("Görünüm")

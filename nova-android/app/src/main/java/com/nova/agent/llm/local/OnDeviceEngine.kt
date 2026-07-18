@@ -3,6 +3,7 @@ package com.nova.agent.llm.local
 import android.content.Context
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Content
+import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
@@ -79,6 +80,7 @@ class OnDeviceEngine(private val appContext: Context) {
         prompt: String,
         thinking: Boolean,
         tools: List<ToolProvider> = emptyList(),
+        systemInstruction: String = "",
         cb: Callbacks,
     ) {
         val current = synchronized(lock) { engine }
@@ -94,7 +96,13 @@ class OnDeviceEngine(private val appContext: Context) {
                     if (role == "user") Message.user(content) else Message.model(content)
                 }
             val conversation = current.createConversation(
-                ConversationConfig(initialMessages = initial, tools = tools),
+                ConversationConfig(
+                    systemInstruction = systemInstruction.trim()
+                        .takeIf { it.isNotEmpty() }
+                        ?.let { Contents.of(it) },
+                    initialMessages = initial,
+                    tools = tools,
+                ),
             )
             synchronized(lock) { activeConversation = conversation }
 
