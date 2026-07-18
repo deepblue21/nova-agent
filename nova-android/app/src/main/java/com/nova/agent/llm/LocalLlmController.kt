@@ -12,6 +12,9 @@ import com.nova.agent.llm.local.LocalModelDiskState
 import com.nova.agent.llm.local.LocalModelSpec
 import com.nova.agent.llm.local.LocalModelStore
 import com.nova.agent.llm.local.ModelDownloader
+import com.nova.agent.llm.local.ModelMetrics
+import com.nova.agent.llm.local.ModelMetricsStore
+import com.nova.agent.llm.local.ModelRecommender
 import com.nova.agent.llm.local.OnDeviceEngine
 import com.nova.agent.llm.local.tools.DeviceStatusReader
 import com.nova.agent.llm.local.tools.HorusToolSet
@@ -272,10 +275,6 @@ class LocalLlmController(
         val tps = ModelMetricsStore.tokensPerSecond(chars, elapsedMs)
         metricsStore.record(modelId, loadMs, tps, System.currentTimeMillis())
         onMain { metrics = metricsStore.all() }
-    }
-
-    fun cancelGenerate() {
-        engine.cancel()
     }
 
     fun cancelGenerate() {

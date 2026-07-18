@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.nova.agent.data.MODELS
+import com.nova.agent.feature.models.ModelsScreen
 import com.nova.agent.llm.LocalModelUi
 import com.nova.agent.llm.local.LocalModelCatalog
 import com.nova.agent.llm.local.LocalModelDiskState
