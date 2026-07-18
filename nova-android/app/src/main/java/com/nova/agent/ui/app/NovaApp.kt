@@ -12,6 +12,7 @@ import com.nova.agent.data.MODELS
 import com.nova.agent.data.Mode
 import com.nova.agent.feature.chat.ChatScreen
 import com.nova.agent.feature.control.ControlScreen
+import com.nova.agent.feature.history.ChatHistoryPanel
 import com.nova.agent.feature.models.ModelsScreen
 import com.nova.agent.feature.settings.SettingsPanel
 import com.nova.agent.feature.tasks.MobileTaskScreen
@@ -30,6 +31,7 @@ fun NovaApp(
     onRequestMic: () -> Unit,
 ) {
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showHistory by rememberSaveable { mutableStateOf(false) }
 
     // Kontrol/Modeller açılınca disk durumunu tazele (indirme dışı değişiklikler için).
     LaunchedEffect(vm.mode) {
@@ -110,6 +112,7 @@ fun NovaApp(
                 onOpenControl = { vm.mode = Mode.KONTROL },
                 onOpenModels = { vm.mode = Mode.MODELLER },
                 onHandoffToAgent = vm::handoffToPcAgent,
+                onOpenHistory = { showHistory = true },
             )
 
             Mode.MODELLER -> ModelsScreen(
@@ -149,6 +152,20 @@ fun NovaApp(
                 onStop = vm::stopListeningOrSpeaking,
             )
         }
+    }
+
+    if (showHistory) {
+        ChatHistoryPanel(
+            summaries = vm.history,
+            query = vm.historyQuery,
+            onQueryChange = vm::setHistoryQuery,
+            onOpen = {
+                vm.openConversation(it)
+                showHistory = false
+            },
+            onDelete = vm::deleteConversation,
+            onClose = { showHistory = false },
+        )
     }
 
     if (showSettings) {

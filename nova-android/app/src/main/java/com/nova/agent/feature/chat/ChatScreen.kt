@@ -89,6 +89,7 @@ fun ChatScreen(
     onOpenControl: () -> Unit = {},
     onOpenModels: () -> Unit = {},
     onHandoffToAgent: () -> Unit = {},
+    onOpenHistory: () -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize()) {
         TargetChipsRow(
@@ -98,6 +99,7 @@ fun ChatScreen(
             onOpenControl = onOpenControl,
             onOpenModels = onOpenModels,
             onHandoffToAgent = onHandoffToAgent,
+            onOpenHistory = onOpenHistory,
         )
         if (messages.isEmpty()) {
             ChatEmptyState(Modifier.weight(1f))
@@ -152,15 +154,18 @@ private fun TargetChipsRow(
     onOpenControl: () -> Unit,
     onOpenModels: () -> Unit,
     onHandoffToAgent: () -> Unit,
+    onOpenHistory: () -> Unit,
 ) {
     Row(
         Modifier
             .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         InfoChip(label = targetLabel, description = "Yürütme hedefi: $targetLabel", onClick = onOpenControl)
         InfoChip(label = modelLabel, description = "Model: $modelLabel", onClick = onOpenModels)
+        InfoChip(label = "Geçmiş", description = "Sohbet geçmişini aç", onClick = onOpenHistory)
         if (showAgentHandoff) {
             InfoChip(
                 label = "PC ajanına devret",

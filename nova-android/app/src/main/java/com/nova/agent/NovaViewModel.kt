@@ -11,6 +11,10 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nova.agent.data.AppSettings
 import com.nova.agent.data.ChatMessage
+import com.nova.agent.data.Conversation
+import com.nova.agent.data.ConversationStore
+import com.nova.agent.data.ConversationSummary
+import com.nova.agent.data.ConversationText
 import com.nova.agent.data.EFFORTS
 import com.nova.agent.data.MODELS
 import com.nova.agent.data.Mode
@@ -33,7 +37,11 @@ import com.nova.agent.net.GatewayConnectionStatus
 import com.nova.agent.net.GatewayConnectionUiState
 import com.nova.agent.net.NovaClient
 import com.nova.agent.voice.SpeechManager
+import java.io.File
+import java.util.UUID
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.sse.EventSource
 
@@ -69,6 +77,13 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     /** Cihaz-üstü LLM yaşam döngüsü (Faz 1 — yerel öncelikli). */
     val local = LocalLlmController(app, viewModelScope, ::onMain)
 
+    /** Kalıcı sohbet geçmişi (Faz 5). Cihazda JSON. */
+    private val convoStore = ConversationStore(File(app.filesDir, "conversations.json"))
+    private var currentConversationId: String? = null
+    private var currentCreatedAt: Long = 0L
+    var history by mutableStateOf<List<ConversationSummary>>(emptyList()); private set
+    var historyQuery by mutableStateOf(""); private set
+
     val messages = mutableStateListOf<ChatMessage>()
     var settings by mutableStateOf(AppSettings()); private set
     var connectionState by mutableStateOf(GatewayConnectionUiState()); private set
@@ -91,6 +106,71 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             settings = store.load()
             if (settings.baseUrl.isNotBlank()) testConnection(settings.baseUrl, settings.token)
+        }
+        reloadHistory()
+    }
+
+    // ---------- sohbet geçmişi (Faz 5) ----------
+
+    private fun reloadHistory() {
+        val q = historyQuery
+        viewModelScope.launch {
+            val list = withContext(Dispatchers.IO) {
+                if (q.isBlank()) convoStore.list() else convoStore.search(q)
+            }
+            history = list
+        }
+    }
+
+    fun setHistoryQuery(q: String) {
+        historyQuery = q
+        reloadHistory()
+    }
+
+    /** Aktif sohbeti (en az bir kullanıcı mesajı varsa) diske yazar. */
+    private fun saveCurrent() {
+        val snapshot = messages.map { it.copy(streaming = false) }
+        if (snapshot.none { it.role == "user" }) return
+        val id = currentConversationId ?: UUID.randomUUID().toString()
+        currentConversationId = id
+        if (currentCreatedAt == 0L) currentCreatedAt = System.currentTimeMillis()
+        val convo = Conversation(
+            id = id,
+            title = ConversationText.titleFrom(snapshot),
+            createdAt = currentCreatedAt,
+            updatedAt = System.currentTimeMillis(),
+            messages = snapshot,
+        )
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { convoStore.save(convo) }
+            reloadHistory()
+        }
+    }
+
+    fun openConversation(id: String) {
+        if (busy) return
+        saveCurrent()
+        stop()
+        viewModelScope.launch {
+            val convo = withContext(Dispatchers.IO) { convoStore.load(id) } ?: return@launch
+            messages.clear()
+            messages.addAll(convo.messages)
+            currentConversationId = convo.id
+            currentCreatedAt = convo.createdAt
+            pendingFallback = null
+            mode = Mode.CHAT
+        }
+    }
+
+    fun deleteConversation(id: String) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { convoStore.delete(id) }
+            if (id == currentConversationId) {
+                currentConversationId = null
+                currentCreatedAt = 0L
+                messages.clear()
+            }
+            reloadHistory()
         }
     }
 
@@ -206,8 +286,11 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun newChat() {
+        saveCurrent()
         stop()
         messages.clear()
+        currentConversationId = null
+        currentCreatedAt = 0L
         pendingFallback = null
     }
 
@@ -373,6 +456,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         val text = content.ifBlank { "(boş yanıt)" }
         updateLast { it.copy(content = text, thoughts = thoughts, streaming = false) }
         busy = false
+        saveCurrent()
         if (speak) {
             voiceState = VoiceState.SPEAKING
             voiceSub = text.take(160)
@@ -423,6 +507,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         updateLast { it.copy(content = text, streaming = false) }
         busy = false
         es = null
+        saveCurrent()
         if (speak) {
             voiceState = VoiceState.SPEAKING
             voiceSub = text.take(160)
