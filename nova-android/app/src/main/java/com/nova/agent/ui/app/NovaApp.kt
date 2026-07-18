@@ -158,7 +158,7 @@ fun NovaApp(
         ChatHistoryPanel(
             summaries = vm.history,
             query = vm.historyQuery,
-            onQueryChange = vm::setHistoryQuery,
+            onQueryChange = vm::updateHistoryQuery,
             onOpen = {
                 vm.openConversation(it)
                 showHistory = false

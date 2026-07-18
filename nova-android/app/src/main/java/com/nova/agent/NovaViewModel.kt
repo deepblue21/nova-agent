@@ -124,7 +124,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun setHistoryQuery(q: String) {
+    fun updateHistoryQuery(q: String) {
         historyQuery = q
         reloadHistory()
     }
