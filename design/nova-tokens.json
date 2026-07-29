@@ -1,0 +1,309 @@
+{
+  "$schema": "./nova-tokens.schema.md",
+  "version": 1,
+  "note": "NOVA ortak tasarım kaynağı. Web (React/CSS) ve Android (Compose) buradan üretilir. Elle düzenlenecek TEK dosya burasıdır; sonra `npm run tokens` çalıştır.",
+
+  "color": {
+    "bg":       { "hex": "#0A0E1A", "desc": "uygulama zemini" },
+    "bg2":      { "hex": "#0D1326", "desc": "yükseltilmiş yüzey / panel" },
+    "bg3":      { "hex": "#080A11", "desc": "sol ray / en arka katman" },
+    "surface1": { "hex": "#FFFFFF", "alpha": 0.05, "desc": "kart yüzeyi" },
+    "surface2": { "hex": "#FFFFFF", "alpha": 0.08, "desc": "hover / basılı yüzey" },
+    "panel":    { "hex": "#0D1326", "alpha": 0.78, "desc": "mat cam panel dolgusu" },
+    "blurTint": { "hex": "#0A0E1A", "alpha": 0.72, "desc": "bulanık yüzey renk katmanı" },
+    "scrim":    { "hex": "#000000", "alpha": 0.68, "desc": "modal arka plan perdesi" },
+    "line":     { "hex": "#FFFFFF", "alpha": 0.09, "desc": "kenarlık" },
+    "textMain": { "hex": "#EEF1FB", "css": "text", "desc": "ana metin (Compose'da Text composable ile çakışmasın diye TextMain)" },
+    "muted":    { "hex": "#9AA3BD", "desc": "ikincil metin" },
+    "muted2":   { "hex": "#5B6276", "desc": "üçüncül metin / etiket" },
+    "success":  { "hex": "#53D6A6", "desc": "hazır / tamamlandı" },
+    "warning":  { "hex": "#FFC857", "desc": "kontrol ediliyor / uyarı" },
+    "danger":   { "hex": "#FB7185", "desc": "hata / iptal" },
+    "ember":    { "hex": "#FF8A5B", "desc": "ajan & araç izi vurgusu" }
+  },
+
+  "accents": [
+    {
+      "id": "amethyst",
+      "name": "Ametist",
+      "primary": "#7558FF",
+      "secondary": "#5EE8FF",
+      "tertiary": "#B7A7FF",
+      "onPrimary": "#FFFAF1",
+      "aperture": { "light": "#B7A7FF", "mid": "#7558FF", "deep": "#4525ED", "glow": "#5EE8FF", "core": "#FFFAF1" },
+      "sourceAsset": "design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-amethyst.svg",
+      "webDefault": true,
+      "androidDefault": true
+    },
+    {
+      "id": "arctic",
+      "name": "Arktik",
+      "primary": "#27D9E8",
+      "secondary": "#B0FFFF",
+      "tertiary": "#8FF7FF",
+      "onPrimary": "#030C10",
+      "aperture": { "light": "#8FF7FF", "mid": "#27D9E8", "deep": "#0795B6", "glow": "#B0FFFF", "core": "#F8FFFF" },
+      "sourceAsset": "design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-arctic.svg"
+    },
+    {
+      "id": "sapphire",
+      "name": "Safir",
+      "primary": "#398CFF",
+      "secondary": "#74F3FF",
+      "tertiary": "#8ED7FF",
+      "onPrimary": "#040914",
+      "aperture": { "light": "#8ED7FF", "mid": "#398CFF", "deep": "#1454E8", "glow": "#74F3FF", "core": "#F8FEFF" },
+      "sourceAsset": "design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-sapphire.svg"
+    },
+    {
+      "id": "emerald",
+      "name": "Zümrüt",
+      "primary": "#20BD9C",
+      "secondary": "#66F3E7",
+      "tertiary": "#78E9C4",
+      "onPrimary": "#040D0A",
+      "aperture": { "light": "#78E9C4", "mid": "#20BD9C", "deep": "#078C78", "glow": "#66F3E7", "core": "#F6FFF9" },
+      "sourceAsset": "design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-emerald.svg"
+    },
+    {
+      "id": "lime",
+      "name": "Limon",
+      "primary": "#9FE02A",
+      "secondary": "#E7FF94",
+      "tertiary": "#D7FF76",
+      "onPrimary": "#080D03",
+      "aperture": { "light": "#D7FF76", "mid": "#9FE02A", "deep": "#61A80B", "glow": "#E7FF94", "core": "#FFFDF0" },
+      "sourceAsset": "design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-lime.svg"
+    },
+    {
+      "id": "amber",
+      "name": "Amber",
+      "primary": "#F6AD2F",
+      "secondary": "#FFC85B",
+      "tertiary": "#FFE18A",
+      "onPrimary": "#0E0A03",
+      "aperture": { "light": "#FFE18A", "mid": "#F6AD2F", "deep": "#D87808", "glow": "#FFC85B", "core": "#FFF9E7" },
+      "sourceAsset": "design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-amber.svg"
+    },
+    {
+      "id": "copper",
+      "name": "Bakır",
+      "primary": "#DC7136",
+      "secondary": "#FFC27F",
+      "tertiary": "#F5B17C",
+      "onPrimary": "#0E0704",
+      "aperture": { "light": "#F5B17C", "mid": "#DC7136", "deep": "#A63F18", "glow": "#FFC27F", "core": "#FFF7EA" },
+      "sourceAsset": "design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-copper.svg"
+    },
+    {
+      "id": "coral",
+      "name": "Mercan",
+      "primary": "#FF5F8F",
+      "secondary": "#FFBF8F",
+      "tertiary": "#FFAC9E",
+      "onPrimary": "#0D060B",
+      "aperture": { "light": "#FFAC9E", "mid": "#FF5F8F", "deep": "#D82375", "glow": "#FFBF8F", "core": "#FFF8ED" },
+      "sourceAsset": "design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-coral.svg"
+    },
+    {
+      "id": "ruby",
+      "name": "Kızıl",
+      "primary": "#EF3158",
+      "secondary": "#FFAD9E",
+      "tertiary": "#FF8F9F",
+      "onPrimary": "#0E0407",
+      "aperture": { "light": "#FF8F9F", "mid": "#EF3158", "deep": "#B80E36", "glow": "#FFAD9E", "core": "#FFF9F2" },
+      "surface": { "bg": "#050507", "bg2": "#0A0A0D", "bg3": "#030304", "tint": "#17070C" },
+      "sourceAsset": "design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-ruby.svg"
+    },
+    {
+      "id": "lavender",
+      "name": "Lavanta",
+      "primary": "#AD7EE9",
+      "secondary": "#E8CFFF",
+      "tertiary": "#DCC5FF",
+      "onPrimary": "#0A0713",
+      "aperture": { "light": "#DCC5FF", "mid": "#AD7EE9", "deep": "#8050C8", "glow": "#E8CFFF", "core": "#FFFAFB" },
+      "sourceAsset": "design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-lavender.svg"
+    },
+    {
+      "id": "moonstone",
+      "name": "Aytaşı",
+      "primary": "#9EABC1",
+      "secondary": "#CCEFFF",
+      "tertiary": "#E1E8F2",
+      "onPrimary": "#070A11",
+      "aperture": { "light": "#E1E8F2", "mid": "#9EABC1", "deep": "#5F708E", "glow": "#CCEFFF", "core": "#FFFDF8" },
+      "sourceAsset": "design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-moonstone.svg"
+    }
+  ],
+
+  "schemes": {
+    "note": "Yüzey şeması. `dark` varsayılandır ve token'ların ana `color` bloğunu kullanır. `light` saf beyaz DEĞİL, sıcak kırık beyaz (kağıt): marka işaretinin sıcak çekirdeği saf beyazda kaybolduğu için. Açık şemada yüzeyler beyaz-alfa yerine siyah-alfa olur, aurora blob'ları `screen` yerine `multiply` ile çizilir.",
+    "default": "dark",
+    "light": {
+      "id": "light",
+      "name": "Kağıt",
+      "color": {
+        "bg": "#F6F3EC",
+        "bg2": "#FFFFFF",
+        "bg3": "#EDE9E0",
+        "surface1": { "hex": "#131722", "alpha": 0.045 },
+        "surface2": { "hex": "#131722", "alpha": 0.075 },
+        "line": { "hex": "#131722", "alpha": 0.13 },
+        "panel": { "hex": "#FFFFFF", "alpha": 0.82 },
+        "blurTint": { "hex": "#FFFFFF", "alpha": 0.72 },
+        "scrim": { "hex": "#2A2620", "alpha": 0.42 },
+        "textMain": "#171A24",
+        "muted": "#5A6274",
+        "muted2": "#8A93A6"
+      },
+      "aurora": { "blend": "multiply", "opacity": 0.20, "blur": 96 },
+      "aperture": {
+        "note": "Açık zeminde beyaz çekirdek kaybolur: çekirdek koyulaşır, kontur güçlenir, halo noktaları nötr griye döner.",
+        "coreHighlight": "mid",
+        "strokeAlpha": 0.58,
+        "haloDot": "#6B7488"
+      }
+    }
+  },
+
+  "brand": {
+    "note": "NOVA Pulse Aperture — tek marka işareti. Web `ui/NovaMark.jsx` ile Android `ui/brand/NovaThinkingIndicator.kt` aynı geometriyi ve aynı zamanlamayı kullanır. Renkler sabit değildir: aktif aksanın `aperture` seti uygulanır.",
+    "aperture": {
+      "viewport": 560,
+      "originX": 280,
+      "originY": 282,
+      "componentSize": 44,
+      "haloDiameter": 36,
+      "haloDotCount": 14,
+      "markRestSize": 18,
+      "markPeakSize": 23,
+      "coreX": 280,
+      "coreY": 286,
+      "coreGlowRadius": 58,
+      "coreRadius": 22,
+      "highlightX": 273,
+      "highlightY": 278,
+      "highlightRadius": 6.5,
+      "strokeAlpha": 0.42,
+      "motion": {
+        "breathMs": 2750,
+        "corePulseMs": 1375,
+        "orbitMs": 4200,
+        "shimmerMs": 5500,
+        "microTiltDeg": 0.7,
+        "easing": "cubic-bezier(0.45, 0, 0.25, 1)"
+      },
+      "bodyPath": "M280,128 C319,128 319,205 354,226 C381,242 429,244 437,277 C445,311 390,323 361,342 C327,365 319,433 280,436 C241,433 233,365 199,342 C170,323 115,311 123,277 C131,244 179,242 206,226 C241,205 241,128 280,128Z",
+      "foldPath": "M250,130 C285,178 324,198 316,239 C309,277 250,282 246,324 C243,359 286,386 294,434 C261,420 248,379 219,354 C188,327 153,319 126,297 C164,285 203,267 225,238 C249,207 242,165 250,130Z",
+      "bodyGradient": { "startX": 138, "startY": 128, "endX": 420, "endY": 428 },
+      "foldGradient": { "startX": 174, "startY": 132, "endX": 332, "endY": 420 }
+    }
+  },
+
+  "radius": { "xs": 8, "sm": 10, "md": 13, "lg": 16, "xl": 20, "xxl": 26, "pill": 999 },
+
+  "space": { "xxs": 4, "xs": 6, "sm": 8, "md": 12, "lg": 16, "xl": 20, "xxl": 26, "xxxl": 32 },
+
+  "motion": {
+    "duration": {
+      "instant": 120,
+      "fast": 180,
+      "base": 240,
+      "slow": 420,
+      "reveal": 620,
+      "orbCycle": 9000,
+      "auroraDrift": 28000
+    },
+    "easing": {
+      "standard": "cubic-bezier(0.2, 0.7, 0.3, 1)",
+      "emphasized": "cubic-bezier(0.16, 1, 0.3, 1)",
+      "exit": "cubic-bezier(0.4, 0, 1, 1)"
+    },
+    "orb": {
+      "blobCount": 5,
+      "particleCount": 54,
+      "coreRadiusRatio": 0.55,
+      "ringRadiusRatio": 1.16,
+      "levelGain": 0.22,
+      "desc": "Web canvas orb'u ile Compose Orb.kt aynı formülü kullanır."
+    }
+  },
+
+  "typography": {
+    "display": { "web": "Syne", "android": "FontWeight.Black", "desc": "marka + başlık" },
+    "body": { "web": "Sora", "android": "default sans", "desc": "gövde" },
+    "mono": { "web": "JetBrains Mono", "android": "monospace", "desc": "teknik etiket / kod" },
+    "scale": { "label": 11, "caption": 12, "body": 14, "bodyLg": 15, "title": 18, "headline": 22, "display": 30 }
+  },
+
+  "icons": {
+    "note": "Semantik ikon sözlüğü — web lucide-react, Android Material Icons kullanır. Yeni ikon eklerken iki sütunu birlikte doldur. `brand` hazır ikon değildir: Pulse Aperture marka işareti (web NovaMark.jsx / Android NovaThinkingIndicator.kt) ve tek marka görselidir; başka hiçbir yerde jenerik marka ikonu kullanılmaz.",
+    "brand":     { "lucide": "NovaMark",       "material": "NovaThinkingIndicator", "custom": true },
+    "control":   { "lucide": "LayoutDashboard","material": "Dashboard" },
+    "tasks":     { "lucide": "ListChecks",     "material": "Checklist" },
+    "chat":      { "lucide": "MessageSquare",  "material": "ChatBubbleOutline" },
+    "models":    { "lucide": "Boxes",          "material": "ViewInAr" },
+    "voice":     { "lucide": "Mic",            "material": "Mic" },
+    "settings":  { "lucide": "Settings",       "material": "Settings" },
+    "shield":    { "lucide": "ShieldCheck",    "material": "Shield" },
+    "local":     { "lucide": "Smartphone",     "material": "PhoneAndroid" },
+    "gateway":   { "lucide": "Link2",          "material": "Link" },
+    "cloud":     { "lucide": "Cloud",          "material": "Cloud" },
+    "cpu":       { "lucide": "Cpu",            "material": "Memory" },
+    "agent":     { "lucide": "Waves",          "material": "Hub" },
+    "team":      { "lucide": "Workflow",       "material": "AccountTree" },
+    "think":     { "lucide": "Brain",          "material": "Psychology" },
+    "stop":      { "lucide": "Square",         "material": "Stop" },
+    "send":      { "lucide": "Send",           "material": "Send" },
+    "history":   { "lucide": "History",        "material": "History" },
+    "delete":    { "lucide": "Trash2",         "material": "DeleteOutline" },
+    "download":  { "lucide": "Download",       "material": "Download" },
+    "check":     { "lucide": "Check",          "material": "Check" },
+    "pause":     { "lucide": "Pause",          "material": "Pause" },
+    "resume":    { "lucide": "Play",           "material": "PlayArrow" },
+    "cancel":    { "lucide": "X",              "material": "Close" },
+    "retry":     { "lucide": "RotateCcw",      "material": "Refresh" }
+  },
+
+  "navigation": {
+    "note": "Web sol rayı / dar ekran alt çubuğu ile Android NavigationBar aynı sırayı ve etiketleri kullanır.",
+    "destinations": [
+      { "id": "kontrol",  "label": "Kontrol",  "icon": "control" },
+      { "id": "isler",    "label": "İşler",    "icon": "tasks" },
+      { "id": "sohbet",   "label": "Sohbet",   "icon": "chat" },
+      { "id": "modeller", "label": "Modeller", "icon": "models" }
+    ],
+    "secondary": [
+      { "id": "ses", "label": "Ses", "icon": "voice", "note": "Sohbet üst çubuğundaki mikrofonla açılır." }
+    ]
+  },
+
+  "status": {
+    "note": "Bağlantı ve görev durumlarının ortak renk eşlemesi.",
+    "connection": {
+      "READY": "success",
+      "CHECKING": "warning",
+      "AUTH_REQUIRED": "danger",
+      "UNREACHABLE": "danger",
+      "INVALID_URL": "danger",
+      "UNKNOWN": "muted"
+    },
+    "task": {
+      "queued": "muted",
+      "routing": "warning",
+      "observing": "warning",
+      "planning": "warning",
+      "executing": "accent",
+      "verifying": "accent",
+      "waiting_for_confirmation": "warning",
+      "waiting_for_device": "warning",
+      "waiting_for_compute": "warning",
+      "paused": "muted",
+      "completed": "success",
+      "failed": "danger",
+      "cancelled": "muted"
+    }
+  }
+}

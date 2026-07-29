@@ -36,6 +36,7 @@ import { flushUsage } from "./lib/billing.mjs";
 import { makeUsageAccumulator } from "./lib/tokens.mjs";
 import { runAgent, needsLiveData } from "./lib/agent.mjs";
 import { hasImageContent, pickDynamicModel } from "./lib/routing.mjs";
+import { classifyUpstream, describeUpstreamError, upstreamMessage, UP } from "./lib/upstream_errors.mjs";
 import { normalizeSttPayload, normalizeTtsPayload, synthesizeSpeech, transcribeAudio, voiceLimitsFromEnv } from "./lib/voice.mjs";
 import { createVoiceQueue } from "./lib/voice_queue.mjs";
 import { imageInputConfig, resolveImageInputs } from "./lib/image_inputs.mjs";
@@ -61,6 +62,9 @@ import { createErrorReporter } from "./lib/errors.mjs";
 import { runTeam, parsePlan, mapLimit } from "./lib/multiagent.mjs";
 import { estimateCostMicros } from "./lib/pricing.mjs";
 import { runScheduledTask } from "./lib/scheduled_runner.mjs";
+import {
+  buildCatalog, fetchOllamaModels, createCatalogCache, annotateToolSupport, pickInstalledModel,
+} from "./lib/model_catalog.mjs";
 
 // ---------- zero-dependency .env loader ----------
 // Loads KEY=VALUE pairs from ./.env into process.env WITHOUT overwriting
@@ -207,8 +211,14 @@ function safeEqual(a, b) {
   return timingSafeEqual(ba, bb);
 }
 
-// keep upstream error text out of client responses in production
-const clientErr = (msg) => PROD ? "upstream error" : String(msg);
+// Ham upstream metni istemciye asla gitmez. Ama "upstream error" demek de
+// kullanıcıyı kör bırakıyordu; onun yerine gateway'in KENDİ ürettiği sabit
+// Türkçe tanıyı gönderiyoruz (bkz. lib/upstream_errors.mjs). Geliştirmede
+// ham metin de eklenir ki hata ayıklama kolay olsun.
+const clientErr = (msg, meta = {}) => {
+  const { message } = describeUpstreamError(msg && msg.message ? msg : new Error(String(msg)), meta);
+  return PROD ? message : message + " — " + String(msg && msg.message ? msg.message : msg);
+};
 
 function isPublicPath(req) {
   return req.path === "/health" || req.path === "/metrics";
@@ -364,18 +374,45 @@ app.get("/health", (_req, res) => {
 });
 app.get("/metrics", metricsHandler);
 
-app.get("/v1/models", (_req, res) => {
-  res.json({ data: [
-    { id: "auto" }, { id: "openclaw/default" },
-    { id: "ollama/qwen3.5-9b-agent:latest" },
-    { id: "ollama/titus-cyber:latest" },
-    { id: "ollama/gemma4:latest" }, { id: "ollama/gemma4:e4b" }, { id: "ollama/gemma4:e2b" },
-    { id: "ollama/qwen3.6:35b" }, { id: "ollama/qwen3.6:27b" },
-    { id: "ollama/qwen3.5-omni:latest" },
-    { id: "ollama/qwen3:14b" }, { id: "ollama/qwen3.5:9b" },
-    { id: "gemini/gemini-2.5-pro" }, { id: "gemini/gemini-2.5-flash" },
-    { id: "anthropic/claude-sonnet-4-20250514" }, { id: "openai/gpt-4o-mini" },
-  ]});
+// Canlı model listesi: yerel modeller Ollama'dan okunur, bulut modelleri
+// anahtar varlığına göre available/pasif işaretlenir. Sabit liste yok.
+const modelCatalogCache = createCatalogCache(
+  parseInt(process.env.MODELS_CACHE_MS || "30000", 10),
+);
+
+// Yüklü Ollama tag'leri için ayrı, kısa ömürlü bir cache. DEFAULT_MODEL /
+// ROUTE_* değerlerinin makinede gerçekten var olduğunu doğrulamakta kullanılır.
+const installedCache = createCatalogCache(
+  parseInt(process.env.MODELS_CACHE_MS || "30000", 10),
+);
+async function installedOllamaModels(signal) {
+  const cached = installedCache.get();
+  if (cached) return cached;
+  // Ollama'ya ulaşılamazsa boş liste: pickInstalledModel hiçbir şey değiştirmez
+  // ve istek normal hata yoluna düşer (uydurma vekil seçilmez).
+  const { models } = await fetchOllamaModels(OLLAMA, { signal }).catch(() => ({ models: [] }));
+  return installedCache.set(models || []);
+}
+
+app.get("/v1/models", async (req, res) => {
+  const fresh = req.query?.refresh === "1";
+  if (!fresh) {
+    const cached = modelCatalogCache.get();
+    if (cached) return res.json(cached);
+  }
+  const { models, error } = await fetchOllamaModels(OLLAMA);
+  // Araç (agentic) yeteneğini modele sorarak öğren; ulaşılamazsa aileye düşer.
+  // Sonuç katalogla birlikte önbelleklendiği için her istekte tekrarlanmaz.
+  const annotated = models.length ? await annotateToolSupport(OLLAMA, models) : models;
+  const payload = buildCatalog({
+    ollamaModels: annotated,
+    keys: KEYS,
+    allow: ALLOW,
+    ollamaError: error,
+    openclaw: Boolean(process.env.OPENCLAW_URL || process.env.OPENCLAW_TOKEN),
+  });
+  modelCatalogCache.set(payload);
+  res.json(payload);
 });
 
 // Çoklu ajan: görevi paralel alt-görevlere böldürür (yerel model). null → tek ajana düş.
@@ -408,7 +445,8 @@ app.post("/v1/chat/completions", async (req, res) => {
   if (invalid) return res.status(invalid.includes("too large") ? 413 : 400).json({ error: invalid });
   // "auto" / empty → dynamic routing decides by effort + context
   let modelStr = req.body?.model;
-  if (!modelStr || modelStr === "auto") {
+  const autoRouted = !modelStr || modelStr === "auto";
+  if (autoRouted) {
     modelStr = pickDynamicModel({
       effort,
       messages,
@@ -418,7 +456,22 @@ app.post("/v1/chat/completions", async (req, res) => {
       env: process.env,
     });
   }
-  const { provider, model } = routeModel(modelStr, DEFAULT);
+  let { provider, model } = routeModel(modelStr, DEFAULT);
+  // DEFAULT_MODEL / ROUTE_* env değerleri bu makinede yüklü olmayan bir tag'e
+  // işaret edebilir (compose'daki örnek değerler). Dinamik yönlendirmede
+  // isteği düşürmek yerine yüklü bir modele geç — ve bunu kullanıcıya söyle.
+  // Kullanıcının ELİYLE seçtiği model asla değiştirilmez: orada "yüklü değil"
+  // demek doğru davranış, sessizce başka modele geçmek değil.
+  let substitutedFrom = "";
+  if (autoRouted && provider === "ollama") {
+    const picked = pickInstalledModel(model, await installedOllamaModels(undefined));
+    if (picked.substituted) {
+      substitutedFrom = model;
+      model = picked.model;
+      req.log?.warn?.({ wanted: substitutedFrom, used: model, reason: picked.reason },
+        "auto-route model not installed — substituted");
+    }
+  }
   const full = provider + "/" + model;
   if (ALLOW.length && !ALLOW.includes(full) && !ALLOW.includes(provider + "/*")) {
     return res.status(403).json({ error: "model not allowed: " + full });
@@ -453,7 +506,26 @@ app.post("/v1/chat/completions", async (req, res) => {
   const to = setTimeout(() => up.abort(), TIMEOUT_MS);
   res.on("close", () => { if (!res.writableEnded) up.abort(); });
   const usage = makeUsageAccumulator(provider);
-  const ctx = { signal: up.signal, think, params: pickParams(req.body), retries: MAX_RETRIES, usage };
+  const errMeta = { provider, model, wanted: substitutedFrom };
+  // Geri çekilen yetenekler (think / tools). Sessizce düşürmeyiz: kullanıcı
+  // neden düşünce izi ya da araç adımı görmediğini bilmeli. Akışta not anında
+  // yazılır (içerik başlamadan önce), akışsızda gövdeye eklenir.
+  const seenNotices = new Set();
+  let noticeText = "";
+  const noteCapability = (code) => {
+    if (!code || seenNotices.has(code)) return;
+    seenNotices.add(code);
+    const line = "> ⓘ " + upstreamMessage(code, errMeta) + "\n\n";
+    noticeText += line;
+    if (stream) { sse(res); emit(res, line); }
+  };
+  // lib tarafı bu diziye push eder; setter'ı yakalayıp anında bildiririz.
+  const notices = { push: (code) => { noteCapability(code); return 1; }, length: 0 };
+  if (substitutedFrom) {
+    if (!res.headersSent) res.setHeader("x-nova-model-substituted", substitutedFrom);
+    noteCapability(UP.MODEL_SUBSTITUTED);
+  }
+  const ctx = { signal: up.signal, think, params: pickParams(req.body), retries: MAX_RETRIES, usage, notices };
   try {
     let assistantText;
     // kişisel uzun-dönem hafızayı sistem prompt'una otomatik kat (multi-user; hata-toleranslı)
@@ -500,20 +572,46 @@ app.post("/v1/chat/completions", async (req, res) => {
     if (agent && provider === "ollama" && !hasImageContent(messages)) {
       if (stream) sse(res);
       const mcp = await getMcpTools(up.signal);
-      const r = await runAgent({
-        ollamaBase: OLLAMA, model, messages, signal: up.signal,
-        userId: req.principal && req.principal.userId,
-        extraTools: mcp.specs, extraDispatch: mcp.dispatch,
-        think, params: ctx.params,
-        onStep: (ev) => {
-          if (!stream) return;
-          if (ev.type === "tool_call")
-            res.write("data: " + JSON.stringify({ choices: [{ delta: { tool_step: { name: ev.name, args: ev.args } } }] }) + "\n\n");
-          if (ev.type === "tool_result")
-            res.write("data: " + JSON.stringify({ choices: [{ delta: { tool_step: { name: ev.name, done: true, sources: ev.sources || [] } } }] }) + "\n\n");
-        },
-      });
-      let text = r.content || "";
+      let r;
+      try {
+        r = await runAgent({
+          ollamaBase: OLLAMA, model, messages, signal: up.signal,
+          userId: req.principal && req.principal.userId,
+          extraTools: mcp.specs, extraDispatch: mcp.dispatch,
+          think, params: ctx.params, notices,
+          onStep: (ev) => {
+            if (!stream) return;
+            if (ev.type === "tool_call")
+              res.write("data: " + JSON.stringify({ choices: [{ delta: { tool_step: { name: ev.name, args: ev.args } } }] }) + "\n\n");
+            if (ev.type === "tool_result")
+              res.write("data: " + JSON.stringify({ choices: [{ delta: { tool_step: { name: ev.name, done: true, sources: ev.sources || [] } } }] }) + "\n\n");
+          },
+        });
+      } catch (e) {
+        // Model araç çağırmayı desteklemiyorsa isteği düşürme: ajan modunu
+        // geri çek, düz sohbete geç ve kullanıcıya nedenini yaz. Uydurma yok —
+        // araç gerektiren soruya araçsız yanıt verildiği açıkça belirtilir.
+        if (classifyUpstream(e) !== UP.TOOLS_UNSUPPORTED) throw e;
+        req.log?.warn?.({ route: full }, "model does not support tools — falling back to plain chat");
+        if (!res.headersSent) res.setHeader("x-nova-agent-fallback", "1");
+        noteCapability(UP.TOOLS_UNSUPPORTED);
+        const fbMessages = await resolveImageInputs(messages, IMAGE_CONFIG, { signal: up.signal });
+        if (stream) {
+          assistantText = noticeText + await providerClient.chat({
+            provider, model, messages: fbMessages, stream: true, ctx, res,
+          });
+        } else {
+          // res:null → metni yaz değil döndür; notu başa ekleyip biz gönderelim
+          const body = await providerClient.chat({
+            provider, model, messages: fbMessages, stream: false, ctx, res: null,
+          });
+          assistantText = noticeText + body;
+          res.json({ choices: [{ message: { role: "assistant", content: assistantText } }] });
+        }
+        await recordChatCompletion(req, { route: full, model, messages, assistantText, usage });
+        return;
+      }
+      let text = (stream ? "" : noticeText) + (r.content || "");
       if (r.sources && r.sources.length) {
         text += "\n\n**Kaynaklar:**\n" + r.sources.map(s => (
           s.url
@@ -523,7 +621,8 @@ app.post("/v1/chat/completions", async (req, res) => {
       }
       if (stream) { emit(res, text); finish(res); }
       else res.json({ choices: [{ message: { role: "assistant", content: text } }], nova_tools: r.toolsUsed });
-      assistantText = text;
+      // kalıcı geçmişte not her iki modda da yer alsın (akışta ayrı delta gitti)
+      assistantText = stream ? noticeText + text : text;
       await recordChatCompletion(req, { route: full + " (agent)", model, messages, assistantText, usage });
       if (req.principal) agentRunStore.recordRun(req.principal.userId, { mode: "agent", model: full, prompt: messageText(messages[messages.length - 1]) || "", tools: agentRunStore.formatRunTools(r.toolsUsed), result: text, rounds: r.rounds }).catch(() => {});
       return;
@@ -531,14 +630,28 @@ app.post("/v1/chat/completions", async (req, res) => {
     const providerMessages = (provider === "ollama" || provider === "gemini" || provider === "anthropic")
       ? await resolveImageInputs(messages, IMAGE_CONFIG, { signal: up.signal })
       : messages;
-    assistantText = await providerClient.chat({ provider, model, messages: providerMessages, stream, ctx, res });
+    if (stream) {
+      // yetenek notu (varsa) akış içinde noteCapability tarafından zaten yazıldı
+      assistantText = noticeText + await providerClient.chat({ provider, model, messages: providerMessages, stream, ctx, res });
+    } else {
+      // akışsız: notu gövdeye katabilmek için yanıtı biz gönderiyoruz
+      const body = await providerClient.chat({ provider, model, messages: providerMessages, stream: false, ctx, res: null });
+      assistantText = noticeText + body;
+      res.json({ choices: [{ message: { role: "assistant", content: assistantText } }] });
+    }
     await recordChatCompletion(req, { route: full, model, messages, assistantText, usage });
     return;
   } catch (e) {
     if (e && e.name === "AbortError") { if (!res.writableEnded) { try { res.end(); } catch {} } return; }
-    if (res.headersSent) { try { emit(res, "⚠️ " + clientErr(e.message)); finish(res); } catch {} return; }
-    if (stream) { sse(res); emit(res, "⚠️ " + clientErr(e.message)); return finish(res); }
-    res.status(e && e.status ? e.status : 500).json({ error: clientErr(e.message || e) });
+    // Ham hata istemciye gitmez ama SUNUCU LOGUNA mutlaka yazılır — yoksa
+    // üretimde "upstream error" görüp logda da hiçbir şey bulunamıyordu.
+    const code = classifyUpstream(e);
+    req.log?.error?.({ err: e && e.message ? e.message : String(e), code, route: full, provider, model },
+      "chat completion failed");
+    const shown = "⚠️ " + clientErr(e, errMeta);
+    if (res.headersSent) { try { emit(res, shown); finish(res); } catch {} return; }
+    if (stream) { sse(res); emit(res, shown); return finish(res); }
+    res.status(e && e.status ? e.status : 500).json({ error: clientErr(e, errMeta), code });
   } finally { clearTimeout(to); }
 });
 
@@ -593,7 +706,8 @@ app.post("/v1/eval", async (req, res) => {
         return { model: full, ok: true, content: text, ms: Date.now() - t0, tokens_in: tokensIn, tokens_out: tokensOut, cost_micros: estimateCostMicros(full, tokensIn, tokensOut) };
       } catch (e) {
         if (e && e.name === "AbortError") return { model: full, ok: false, error: "aborted", ms: Date.now() - t0 };
-        return { model: full, ok: false, error: clientErr(e && e.message ? e.message : e), ms: Date.now() - t0 };
+        req.log?.warn?.({ err: e && e.message ? e.message : String(e), route: full }, "eval model failed");
+        return { model: full, ok: false, error: clientErr(e, { provider, model }), code: classifyUpstream(e), ms: Date.now() - t0 };
       }
     });
     res.json({ prompt, results });

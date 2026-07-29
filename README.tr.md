@@ -155,104 +155,24 @@ inference icin Nova Gateway'i, gorev kontrol yuzu olarak Android istemciyi kulla
 Bu bolum canli teslimat kaydidir: Her tamamlanan Horus gorevinden sonra hem dogrulanmis
 yapilanlar hem de siradaki somut is burada guncellenir.
 
-**Tamamlanan ve dogrulananlar**
+**Tamamlanan ve dogrulananlar (özet)**
 
-- Gateway'de kalici ve kimligi dogrulanmis mobil gorevler, SSE tekrar oynatma,
-  duraklat/devam et/iptal ve R2/R3 onay kayitlari.
-- Android **Gorevler** alani: gorev olusturma, timeline replay, kontroller ve risk onay
-  arayuzu; unit, lint, APK ve emulator Compose kontrolleri gecti.
-- API anahtarini yazdirmadan gorev olusturan, okuyan, duraklatan, devam ettiren, iptal eden
-  ve event'leri replay eden Docker mobil kontrol duzlemi smoke testi.
-- Debug APK: `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
-- Gorev 7 kontrol merkezi dogrulamasi, uyarlanabilir launcher ikonunu koruyarak sabit ve
-  gorev-oncelikli **Gorevler / Sohbet / Ses** navigasyonunu teslim etti. Tam gate; 50 unit test,
-  Android 17 `emulator-5554` uzerinde 27 connected test, sifir lint hatasi (11 uyari ve 1 bilgi),
-  debug APK kurulum ve launcher resolution ile gecti. Fiziksel ADB serial bagli olmadigi icin
-  fiziksel telefon testi yapilmadi. Dogrulanan APK SHA-256:
-  `4D65812810CBC0C6D80081CC40A5FF716A3A52829A68EB049C6D7681A104E689`.
-- Son regresyon saglamlastirmasi her calisan gorevi basladigi Gateway'e sabitler; bayat veya baska
-  goreve ait callback/event'leri reddeder, kabul edilen Gateway adreslerini `/v1` bicimine getirir
-  ve bozuk kayitli adreslerde guvenli hata verir. Maskeli token alaninda TalkBack duzenleme
-  semantigi korunur; alt inset, mesgul Ses kontrolleri ve yukleme durumundaki gorev istemleri kapsanir.
-- Uygulama ici Gateway testi yerel QA kimligiyle `PC hazir` durumuna ulasti. Sabit baglanti istemi
-  PC modelinde tamamladi; UI-tree orneklemesine gore TTFT 48,337 sn, toplam 48,341 sn ve sanitize
-  rota `ollama/gemma4:latest` idi. Burada ham model govdesi veya kimlik bilgisi tutulmaz.
-- Worker preflight 7 Node ve 39 Python testiyle gecti. Guvenli canli Android surum girisimi,
-  gorev olusmadan once Gateway allowlist tarafindan sanitize
-  `Bu gorev emulator worker'inda desteklenmiyor` mesaji ile reddedildi; terminal worker kosusu
-  tamamlandi diye iddia edilmez.
-- Gorev 7 regresyon turu, sistem yazi olcegi 1.0 ve 1.3 iken Ayarlar/status bar cakismasini cozdu;
-  1.3 olcekte Gorevler composer ve birincil eylem gercek IME'nin tamamen ustunde kaldi. En iyi
-  sicak, UI-dump'siz debug-emulator orneginde 69 frame'in 37'si janky idi (%53,62), p50 34 ms ve
-  p90 44 ms. Perfetto kaniti emulator grafik/buffer baskisi ile Compose isinin birlikte etkisini
-  gosteriyor; kanitlanmis tek bir uygulama hotspot'u yok. Fiziksel donanimdaki release-build
-  performans kontrolu takip maddesi olarak kalir, benchmark sonucu olarak sunulmaz.
-- Ayrilmis worker-goal politikasi ve yalnizca worker icin kimlik dogrulamasi tamamlandi.
-- Gateway worker lease'leri yalnizca token hash'i ile kalici. Odakli anlamsal store testleri hem
-  durum hem de rapor islemlerinde bilinmeyen gorevi (`404`), eksik, bayat, aktif olmayan veya yanlis
-  lease'e sahip gecerli gorevden (`409`) ayirir; event'ler ve kalici kayitlar lease token'ini icermez.
-- Yalnizca worker'a ait Gateway kontrol router'lari yerel `.env` yukleyicisinden sonra factory ile
-  olusturulur; sonra temel middleware'den sonra ve kullanici-principal kimlik dogrulamasindan once
-  mount edilir. Ayrilmis worker bearer auth claim, status, report ve expiry endpoint'lerini korur;
-  Task 4 icin gereken tek kullanimlik opak `lease.token` yalnizca claim yanitinda doner, status/report
-  yanitlarinda asla yer almaz.
-- Dogrulanmis Gorev 3 duzeltmesi: worker bearer auth ve statik guvenli `500` siniri yalnizca
-  `/v1/internal/mobile-worker` kapsamina alindi; boylece public `/health` ve siradan Gateway
-  rotalari, worker iki moddayken de mount edilen router'dan gecer ve beklenmeyen store hata ayrintilari sizmaz.
-- Gorev 4: izole `mobile-worker` paketi `mobilerun==0.6.10` ve `httpx` surumlerini kilitler;
-  yalnizca `emulator-5554` ve yerel Ollama kabul eder, worker token'ini redakte eder, lease
-  header'larini worker HTTP sinirinda tutar ve sadece sinirli guvenli raporlar ile loglar uretir.
-  Hazirlik, ajan isi ve her rapordan once aktif lease yeniden denetlenir; ortak izlenen-gorev yolu
-  duraklatma, iptal veya lease kaybi kazandiginda hazirligi ya da calistirmayi iptal edip bekler.
-  Ozel Mobilerun ping'i sinirli surede sonlanir ve process temizlenir, ekran goruntusu akisi zorla
-  kapatilir, Ollama HTTP timeout'lari `waiting_for_compute` olur ve rapor phase/error degerleri
-  Gateway allowlist'lerine gore yerelde dogrulanir. `uv lock --check` ve standart kutuphane worker
-  test paketi gecer. Canli emulator, Portal, Gateway ve yerel Ollama entegrasyonu kasitli olarak
-  Gorev 6-7'ye ertelenmistir.
-- Gorev 5: Gateway replay-guvenli worker raporlarinda `status` ile birlikte sadece parse edilmis
-  sinirli `summary`, `steps` ve `error_code` alanlarini kalici event payload'ina yazar; worker token,
-  hash ve ham girdi hicbir zaman event'e girmez. Android Gateway event'ini `COMPLETED` ve `Android 17`
-  olarak replay eder; gorunen eslesen-gorev durumunu en yeni sayisal status event'inden turettigi icin
-  gec gelen eski `worker.running` event'i tamamlanmayi geri alamaz. Guvenli Turkce mesaj sadece exact
-  worker hata metni icin kullanilir; diger `400` yanitlari genel kalir. Odakli JVM testleri ile tam
-  unit/lint/debug APK dogrulamasi gecer; terminal Compose kapsami Pixel_10_Pro_XL (Android 17)
-  uzerinde basariyla calisir ve sanitize edilmis worker event'inden `COMPLETED` ile `Android 17`
-  durumunu gosterir.
-- Android uyarlanabilir launcher ikonu: manifest standart ve yuvarlak launcher ikonlarini grafit
-  `#10242D`, guvenli bolgede turkuaz ve acik sinyal ile amber merkez iceren native API 26+
-  foreground/background XML kaynaklarina baglar; Android 13+ overlay'leri tek-path temali monokrom
-  silueti ekler. Kaynak isleme, lint, debug APK paketi ve kurulum gecti; `emulator-5554`,
-  `com.nova.agent/.MainActivity` sonucunu cozer.
-- Gorev 6 durumu: Linux ADB kuruldu ve loopback Gateway baglantisi dogrulandi; ancak WSL-to-Windows
-  ADB bridge DOGRULANMADI. Firewall elevation istendi ve Windows UAC istegi iptal edildi. Genis firewall
-  kurali, public ADB, Portal veya Mobilerun workaround'u kullanilmadi.
-- Gorev 6A: odakli worker testleri, uzak ADB endpoint ayarlarinin dogrulanmasini ve Mobilerun readiness
-  ping'ine aktarilmasini dogruladi. WSL-to-Windows bridge'in kendisi hala dogrulanmadi.
-- Gorev 1: Windows yerel worker, Ollama URL'sini yalnizca dogrulanmis WSL distro'sunun
-  `ip -4 route get 1.1.1.1` ciktisindan turetir. Yalnizca arguman-listesi kullanan `wsl.exe`
-  cagrisi, `172.16.0.0/12` icinde tam olarak bir `src` IPv4 adresi kabul eder ve
-  `http://<ip>:11434` olusturur; gecersiz distro degerleri, Windows disi hostlar, basarisiz
-  sorgular, diger araliklar ve WSL modunda bos olmayan ham Ollama URL'si reddedilir. Odakli
-  konfigurasyon testleri gecer.
-- Gorev 2: Windows yerel launcher, ignore edilen yalnizca worker ayarlarini iceren
-  `mobile-worker/.env` dosyasini tam konfigurasyon olarak kullanir: parent process'ten gelen tum
-  desteklenen worker ayarlarini temizler, sonra sadece dosyada acikca allowlist'e alinmis degerleri
-  yukler ve gateway-only anahtarlari reddeder. Hazirlik cikisinda tum yuklenen degerleri redakte
-  eder, Windows `adb.exe` dosyasini bulur, worker'i `127.0.0.1:5037` degerine zorlar ve ayri
-  `mobile-worker/.venv-windows` kullanir.
-  Dogrulanmis WSL distro secilmeden once ham Ollama URL'sini siler; Task 1 bu nedenle ikinci bir
-  endpoint kabul etmek yerine WSL NAT adresini turetir. Yerel-only preflight venv olusturmaz,
-  paket sync yapmaz ve ADB, firewall, WSL veya Ollama durumunu degistirmez. ADB, Ollama ve worker
-  LAN'a acilmaz; Portal kurulumu daha sonraki acik bir islemdir.
+- Gateway mobil görev kontrol düzlemi: kalıcı kimlik doğrulamalı görevler, tekrar
+  oynatılabilir SSE event'leri, duraklat/devam/iptal, R2/R3 onay kayıtları ve
+  `/v1/internal/mobile-worker` altında yalnız-worker bearer-auth lease uçları
+  (lease token'ı asla kalıcı kayda veya yanıtlara girmez).
+- Android **Görevler** alanı: timeline replay, risk onay arayüzü, uyarlanabilir
+  launcher ikonu, Gateway sabitleme + regresyon sertleştirmesi; unit, lint, APK ve
+  emülatör Compose kapıları geçti. Debug APK:
+  `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
+- İzole `mobile-worker` paketi (pinli `mobilerun`/`httpx`), lease-farkındalıklı güvenli
+  raporlama; worker preflight geçiyor (7 Node + 35 Python testi).
+- Windows-yerel worker başlatıcısı (`scripts/start-windows-mobile-worker.ps1
+  -PrepareOnly`), allowlist'li yalnız-worker `.env` ve WSL'den türetilen Ollama adresi;
+  WSL↔Windows ADB köprüsünün kendisi **henüz doğrulanmadı**.
 
-  Bu checkout yolunda, `C:\Users\salih\Project_Horus`, tam olarak su komutu calistir:
-
-  ```powershell
-  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-windows-mobile-worker.ps1 -PrepareOnly
-  ```
-
-  `-PrepareOnly` Portal kurmaz, emulatorun tam cihaz durumunu dogrulamaz, Ollama cagirmaz, paketleri
-  sync etmez ve worker'i calistirmaz. Yalnizca yerel launcher preflight kontroludur.
+Görev görev ayrıntılı teslimat kaydı (önceden burada satır satır duruyordu) artık
+[`PROGRESS.md`](./PROGRESS.md) içindeki "Horus teslimat kaydı (arşiv)" bölümündedir.
 
 **Siradaki is**
 
@@ -320,7 +240,8 @@ Ayrintili uygulama sirasi:
   dev origin görürse hard fail verir.
   İzlenen Keycloak realm artık varsayılan kullanıcı/parola import etmiyor; public web
   client'ta password grant kapalı, giriş PKCE browser flow üzerinden kalıyor.
-  **Doğrulandı:** gateway testleri `99/99`, web testleri `3/3`, `npm run security`,
+  **Doğrulandı:** gateway testleri `166/166`, web testleri `3/3` (2026-07-19'da yeniden
+  doğrulandı; süit mobile-worker kontrol düzlemiyle büyüdü), `npm run security`,
   production compose config ve güçlü-env `prod-check` geçti. Kalan iş: Faz 8'i kapatmadan
   önce canlı WSL/Ollama/Docker smoke.
 - **Sonraki faz adayı:** Faz 9 public release handoff + first-run reliability. Gerçek
@@ -374,7 +295,7 @@ Nova_Agent_AI/
 | `gateway/gateway.mjs` | Sertleştirilmiş sunucu: auth, CORS allowlist, rate limit. |
 | `gateway/lib/` | Ajan döngüsü, MCP, RAG, memory, RBAC, prodcheck ve yardımcılar. |
 | `gateway/routes/` | Knowledge, memory, scheduled tasks, workspaces, agent runs ve API route'ları. |
-| `gateway/migrations/` | SQL migration'lar `001` ile `008` arası. |
+| `gateway/migrations/` | SQL migration'lar `001` ile `010` arası. |
 | `gateway/.env.example` | `.env` olarak kopyalanır ve makineye göre doldurulur. |
 | `web/` | Vite, React ve PWA destekli tarayıcı arayüzü. |
 | `web/src/nova-agent.jsx` | Ana tarayıcı UI bileşeni. |
@@ -432,6 +353,14 @@ toplam bağlam uzunluğuna göre seçer, mevcut provider key'lerini tercih eder.
 | `GET` | `/v1/mcp/tools` | yapılandırılan MCP sunucuları + keşfedilen araçlar | token |
 | `GET/POST/PATCH/DELETE` | `/v1/scheduled` | zamanlanmış/otomatik ajan görevleri | token |
 | `GET/POST/DELETE` | `/v1/knowledge` | RAG bilgi tabanı (yükle/listele/sil) | token |
+| `GET` | `/metrics` | Prometheus metrikleri (production'da loopback'e bağlı tut) | **public** |
+| `POST` | `/v1/media` | medya yükleme (MIME allowlist + base64 doğrulama) | token |
+| `GET` | `/v1/usage` | kendi kullanım/kota görünümü | token |
+| `GET/POST/DELETE` | `/v1/conversations[...]` | kalıcı sohbet geçmişi (çok kullanıcılı mod) | token |
+| `GET/POST/DELETE` | `/v1/admin/...` | admin API key + kota (`ADMIN_USER_IDS` korumalı) | token |
+| `GET/POST` | `/v1/mobile/tasks[...]` | mobil görev kontrol düzlemi (`/commands`, `/confirmations/:id`, SSE `/events`) | token |
+| `POST` | `/v1/internal/mobile-worker/...` | worker lease claim/status/report/expiry | worker bearer |
+| `POST/GET` | `/v1/voice/jobs[...]` | asenkron ses işleri (opt-in `VOICE_QUEUE_ENABLED=1`) | token |
 | `POST` | `/stt` · `/tts` | konuşma→metin / metin→konuşma | token |
 
 ## Güvenlik
@@ -488,6 +417,9 @@ Diğer kontroller:
 | `npm run secret-scan` | İzlenen dosyalarda sızmış key veya token taraması. |
 | `npm run audit` | Gateway ve web için moderate seviyede npm audit. |
 | `npm --prefix gateway test` | Gateway birim ve ajan-döngüsü testleri. |
+| `npm test` | Gateway + web + smoke-script birim testleri tek komutta. |
+| `npm run test:worker` | Python worker süiti (stdlib çalıştırıcı; `httpx` kurulu olmalı). |
+| `npm run docs-check` | Dokümandaki sayıları (test, migration) koda karşı doğrular. |
 | `npm run smoke:live` | Çalışan gateway'e karşı uçtan uca smoke. |
 
 ## Yapılandırma referansı

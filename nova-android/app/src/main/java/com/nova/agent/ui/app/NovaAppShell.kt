@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Dashboard
@@ -37,6 +36,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import com.nova.agent.ui.brand.NovaBrandMark
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -95,7 +95,7 @@ fun NovaAppShell(
                         icon = { Icon(destination.icon, contentDescription = destination.label) },
                         label = { Text(destination.label) },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color(0xFF04121A),
+                            selectedIconColor = MaterialTheme.colorScheme.onPrimary,
                             selectedTextColor = TextMain,
                             indicatorColor = MaterialTheme.colorScheme.primary,
                             unselectedIconColor = Muted,
@@ -127,27 +127,8 @@ private fun NovaTopBar(
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(11.dp))
-                .background(
-                    Brush.linearGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.primary,
-                            MaterialTheme.colorScheme.secondary,
-                        ),
-                    ),
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.AutoAwesome,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = Color.White,
-            )
-        }
+        // Tek marka görseli: Pulse Aperture. Jenerik "parıltı" ikonu kullanılmaz.
+        NovaBrandMark(modifier = Modifier.size(36.dp))
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
             Text(

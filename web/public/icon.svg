@@ -1,17 +1,47 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- OTOMATİK ÜRETİLDİ — kaynak: design/nova-tokens.json · npm run tokens -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 560" width="560" height="560">
   <defs>
-    <radialGradient id="bg" cx="35%" cy="30%" r="80%">
-      <stop offset="0%" stop-color="#10203a"/>
-      <stop offset="100%" stop-color="#0a0e1a"/>
-    </radialGradient>
-    <linearGradient id="orb" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#6366f1"/>
-      <stop offset="55%" stop-color="#22d3ee"/>
-      <stop offset="100%" stop-color="#a855f7"/>
+    <linearGradient id="field" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#15162B"/>
+      <stop offset="0.54" stop-color="#0A0E1A"/>
+      <stop offset="1" stop-color="#060711"/>
     </linearGradient>
+    <linearGradient id="body" gradientUnits="userSpaceOnUse"
+      x1="138" y1="128"
+      x2="420" y2="428">
+      <stop offset="0" stop-color="#B7A7FF"/>
+      <stop offset="0.44" stop-color="#7558FF"/>
+      <stop offset="1" stop-color="#4525ED"/>
+    </linearGradient>
+    <linearGradient id="fold" gradientUnits="userSpaceOnUse"
+      x1="174" y1="132"
+      x2="332" y2="420">
+      <stop offset="0" stop-color="#B7A7FF" stop-opacity="0.92"/>
+      <stop offset="0.55" stop-color="#7558FF" stop-opacity="0.68"/>
+      <stop offset="1" stop-color="#4525ED" stop-opacity="0.16"/>
+    </linearGradient>
+    <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="0.42" stop-color="#FFFAF1" stop-opacity="0.72"/>
+      <stop offset="1" stop-color="#B7A7FF" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="bodyClip"><path d="M280,128 C319,128 319,205 354,226 C381,242 429,244 437,277 C445,311 390,323 361,342 C327,365 319,433 280,436 C241,433 233,365 199,342 C170,323 115,311 123,277 C131,244 179,242 206,226 C241,205 241,128 280,128Z"/></clipPath>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <circle cx="256" cy="256" r="150" fill="url(#orb)" opacity="0.18"/>
-  <circle cx="256" cy="256" r="104" fill="none" stroke="url(#orb)" stroke-width="14"/>
-  <path d="M256 150 L286 236 L372 256 L286 276 L256 362 L226 276 L140 256 L226 236 Z" fill="url(#orb)"/>
+
+  <rect width="560" height="560" rx="123" fill="url(#field)"/>
+  <circle cx="268.8" cy="246.4" r="190.4" fill="#7558FF" opacity="0.16"/>
+
+  <g transform="translate(280 280) scale(0.7400) translate(-280 -282)">
+    <path d="M280,128 C319,128 319,205 354,226 C381,242 429,244 437,277 C445,311 390,323 361,342 C327,365 319,433 280,436 C241,433 233,365 199,342 C170,323 115,311 123,277 C131,244 179,242 206,226 C241,205 241,128 280,128Z" fill="url(#body)"/>
+    <g clip-path="url(#bodyClip)">
+      <circle cx="247" cy="242" r="74" fill="#5EE8FF" fill-opacity="0.48"/>
+      <circle cx="327" cy="316" r="92" fill="#4525ED" fill-opacity="0.62"/>
+      <path d="M250,130 C285,178 324,198 316,239 C309,277 250,282 246,324 C243,359 286,386 294,434 C261,420 248,379 219,354 C188,327 153,319 126,297 C164,285 203,267 225,238 C249,207 242,165 250,130Z" fill="url(#fold)"/>
+    </g>
+    <path d="M280,128 C319,128 319,205 354,226 C381,242 429,244 437,277 C445,311 390,323 361,342 C327,365 319,433 280,436 C241,433 233,365 199,342 C170,323 115,311 123,277 C131,244 179,242 206,226 C241,205 241,128 280,128Z" fill="none" stroke="#B7A7FF" stroke-opacity="0.42" stroke-width="1.5"/>
+    <circle cx="280" cy="286" r="58" fill="url(#coreGlow)"/>
+    <circle cx="280" cy="286" r="22" fill="#FFFAF1"/>
+    <circle cx="273" cy="278" r="6.5" fill="#FFFFFF" fill-opacity="0.9"/>
+  </g>
 </svg>

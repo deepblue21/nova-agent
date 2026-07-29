@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;font-family:'Manrope',system-ui,sans-serif;}
+  a{color:#38E1D6}
+  a:hover{color:#2BA0FF}
+  @keyframes novaWinUp{from{transform:translateY(28px);opacity:0}to{transform:translateY(0);opacity:1}}
+  @keyframes novaScrim{from{opacity:0}to{opacity:1}}
+  @keyframes novaOrbPulse{0%,100%{transform:scale(1);opacity:0.55}50%{transform:scale(1.12);opacity:0.85}}
+  @keyframes novaBubbleRing{0%,100%{box-shadow:0 0 0 0 rgba(255,255,255,0.18)}50%{box-shadow:0 0 0 8px rgba(255,255,255,0)}}
+  #taskFilterRow::-webkit-scrollbar{display:none}
+  /* Kaydırma çubukları gizli: mobil önizlemede masaüstü scrollbar kötü görünüyor */
+  *{scrollbar-width:none}
+  *::-webkit-scrollbar{display:none;width:0;height:0}
+</style>
+</helmet>
+<div style="min-height:100vh;box-sizing:border-box;padding:56px 24px 80px;display:flex;flex-direction:column;align-items:center;gap:22px;background:radial-gradient(1200px 600px at 50% -10%, rgba(56,225,214,0.07), transparent),#0A0B0F">
+
+  <div style="max-width:540px;text-align:center;display:flex;flex-direction:column;gap:8px">
+    <div style="font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:{{accentPrimary}}">NOVA Horus — Android Arayüzü</div>
+    <div style="font-size:13px;color:#8B93A7;line-height:1.6">Gizlilik öncelikli, cihaz-üstü çalışan bir asistan. Her yanıtta nerede çalıştığı görünür; PC'ye devir her zaman senin onayınla olur.</div>
+  </div>
+
+  <x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" dark="{{true}}" width="{{deviceW}}" height="{{deviceH}}" hint-size="393px,852px">
+    <div ref="{{setDeviceRef}}" style="position:relative;height:100%;width:100%;display:flex;flex-direction:column;background:{{bgMain}};overflow:hidden">
+
+      <!-- TOP BAR -->
+      <div style="flex-shrink:0;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid rgba(255,255,255,0.06)">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:16px;height:16px;border-radius:50%;background:linear-gradient(135deg,{{accentPrimary}},{{accentSecondary}})"></div>
+          <div style="font-size:15px;font-weight:800;color:#E9EDF6;letter-spacing:.02em">NOVA</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:100px;background:{{bgSurface}};border:1px solid rgba(255,255,255,0.07)">
+            <div style="width:6px;height:6px;border-radius:50%;background:{{policyColor}}"></div>
+            <div style="font-size:11px;font-weight:600;color:#8B93A7">{{policyShort}}</div>
+          </div>
+          <button onClick="{{openSettings}}" style="width:32px;height:32px;border-radius:50%;border:none;background:{{bgSurface}};color:#8B93A7;display:flex;align-items:center;justify-content:center;cursor:pointer">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.4M12 18.6V21M21 12h-2.4M5.4 12H3M18.02 5.98l-1.7 1.7M7.68 16.32l-1.7 1.7M18.02 18.02l-1.7-1.7M7.68 7.68l-1.7-1.7"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- OFFLINE BANNER -->
+      <sc-if value="{{isOffline}}" hint-placeholder-val="{{false}}">
+        <div style="flex-shrink:0;padding:8px 16px;background:rgba(255,255,255,0.04);display:flex;align-items:center;gap:8px">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#8B93A7" stroke-width="2" stroke-linecap="round"><path d="M3 3l18 18M8.5 8.5A9 9 0 0 0 4 12M12 20h.01M16 8a9 9 0 0 1 2.5 1.5"/></svg>
+          <div style="font-size:11px;color:#8B93A7">Çevrimdışı mod — hiçbir istek telefon dışına çıkmıyor</div>
+        </div>
+      </sc-if>
+
+      <!-- CONTENT -->
+      <div style="flex:1;min-height:0;position:relative">
+
+        <!-- KONTROL -->
+        <sc-if value="{{isTabKontrol}}" hint-placeholder-val="{{true}}">
+          <div data-screen-label="Kontrol" style="height:100%;overflow-y:auto;padding:16px 18px 28px;display:flex;flex-direction:column;gap:14px;box-sizing:border-box">
+            <div>
+              <div style="font-size:13px;color:#8B93A7">Merhaba</div>
+              <div style="font-size:21px;font-weight:800;color:#E9EDF6;margin-top:2px">Bugün ne yapalım?</div>
+            </div>
+
+            <div style="border-radius:18px;padding:15px;background:{{bgSurface}};border:1px solid rgba(255,255,255,0.07);display:flex;flex-direction:column;gap:10px">
+              <div style="font-size:12px;font-weight:700;color:#8B93A7;letter-spacing:.05em;text-transform:uppercase">Çalıştırma Politikası</div>
+              <sc-for list="{{policyList}}" as="p" hint-placeholder-count="4">
+                <button onClick="{{p.select}}" style="text-align:left;display:flex;flex-direction:column;gap:2px;padding:11px 12px;border-radius:13px;border:1px solid {{p.border}};background:{{p.bg}};cursor:pointer">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <div style="width:15px;height:15px;border-radius:50%;border:2px solid {{p.dotBorder}};background:{{p.dotBg}};flex-shrink:0"></div>
+                    <div style="font-size:13px;font-weight:700;color:#E9EDF6">{{p.label}}</div>
+                  </div>
+                  <div style="font-size:11.5px;color:#5B6276;margin-left:23px;line-height:1.45">{{p.desc}}</div>
+                </button>
+              </sc-for>
+            </div>
+
+            <sc-if value="{{isHybrid}}" hint-placeholder-val="{{false}}">
+              <div style="border-radius:18px;padding:15px;background:{{bgSurface}};border:1px solid rgba(255,255,255,0.07);display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;align-items:center;justify-content:space-between">
+                  <div style="font-size:12px;font-weight:700;color:#8B93A7;letter-spacing:.05em;text-transform:uppercase">Hibrit Kurallar</div>
+                  <div style="display:flex;gap:4px;padding:3px;border-radius:100px;background:rgba(255,255,255,0.05)">
+                    <button onClick="{{setAskEvery}}" style="padding:5px 9px;border-radius:100px;border:none;font-size:10.5px;font-weight:700;cursor:pointer;{{askEveryStyle}}">Her Seferinde Sor</button>
+                    <button onClick="{{setAutoHandoff}}" style="padding:5px 9px;border-radius:100px;border:none;font-size:10.5px;font-weight:700;cursor:pointer;{{autoHandoffStyle}}">Otomatik Devret</button>
+                  </div>
+                </div>
+                <sc-for list="{{hybridRules}}" as="r" hint-placeholder-count="4">
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 2px">
+                    <div style="font-size:12.5px;color:#E9EDF6">{{r.text}}</div>
+                    <div style="font-size:11px;font-weight:700;color:{{r.color}}">{{r.target}}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <div style="border-radius:16px;padding:13px 14px;background:{{bgSurface}};display:flex;align-items:center;justify-content:space-between;gap:10px">
+              <div style="display:flex;align-items:center;gap:10px">
+                <div style="width:9px;height:9px;border-radius:50%;background:{{gatewayDotColor}};flex-shrink:0"></div>
+                <div>
+                  <div style="font-size:13px;font-weight:700;color:#E9EDF6">{{gatewayStatusLabel}}</div>
+                  <sc-if value="{{showGatewayReason}}" hint-placeholder-val="{{false}}">
+                    <div style="font-size:11px;color:#5B6276;margin-top:1px">{{gatewayReason}}</div>
+                  </sc-if>
+                </div>
+              </div>
+              <sc-if value="{{showGatewayRetry}}" hint-placeholder-val="{{false}}">
+                <button onClick="{{retryGateway}}" style="flex-shrink:0;padding:7px 12px;border-radius:100px;border:none;font-size:11px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,{{accentPrimary}},{{accentSecondary}});color:#04121A">Yeniden Dene</button>
+              </sc-if>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <button onClick="{{goSohbet}}" style="text-align:left;border-radius:16px;padding:14px;border:1px solid rgba(255,255,255,0.07);background:{{bgSurface}};color:#E9EDF6;cursor:pointer;display:flex;flex-direction:column;gap:4px">
+                <div style="font-size:13px;font-weight:700">Sohbete başla</div>
+                <div style="font-size:11px;color:#5B6276">Bir şey sor</div>
+              </button>
+              <button onClick="{{goIsler}}" style="text-align:left;border-radius:16px;padding:14px;border:1px solid rgba(255,255,255,0.07);background:{{bgSurface}};color:#E9EDF6;cursor:pointer;display:flex;flex-direction:column;gap:4px">
+                <div style="font-size:13px;font-weight:700">Görev oluştur</div>
+                <div style="font-size:11px;color:#5B6276">Nova senin için yürütsün</div>
+              </button>
+              <button onClick="{{goSesWindow}}" style="text-align:left;border-radius:16px;padding:14px;border:1px solid rgba(255,255,255,0.07);background:{{bgSurface}};color:#E9EDF6;cursor:pointer;display:flex;flex-direction:column;gap:4px">
+                <div style="font-size:13px;font-weight:700">Sesle konuş</div>
+                <div style="font-size:11px;color:#5B6276">Mikrofonu aç</div>
+              </button>
+              <button onClick="{{goModeller}}" style="text-align:left;border-radius:16px;padding:14px;border:1px solid rgba(255,255,255,0.07);background:{{bgSurface}};color:#E9EDF6;cursor:pointer;display:flex;flex-direction:column;gap:4px">
+                <div style="font-size:13px;font-weight:700">Modelleri yönet</div>
+                <div style="font-size:11px;color:#5B6276">Cihaz &amp; gateway</div>
+              </button>
+            </div>
+
+            <div>
+              <div style="font-size:11px;font-weight:700;color:#8B93A7;letter-spacing:.06em;text-transform:uppercase;margin-bottom:9px">Son Etkinlik</div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <sc-for list="{{recentTasks}}" as="rt" hint-placeholder-count="2">
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 13px;border-radius:13px;background:{{bgSurface}}">
+                    <div style="font-size:12.5px;color:#E9EDF6">{{rt.title}}</div>
+                    <div style="font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:100px;color:{{rt.color}};background:{{rt.bg}}">{{rt.statusLabel}}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- SOHBET -->
+        <sc-if value="{{isTabSohbet}}" hint-placeholder-val="{{false}}">
+          <div data-screen-label="Sohbet" style="height:100%;display:flex;flex-direction:column">
+            <div style="flex-shrink:0;padding:10px 18px 4px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <div style="font-size:11px;font-weight:700;padding:4px 9px;border-radius:100px;color:{{accentPrimary}};background:{{accentSoft}}">{{modelChip}}</div>
+              <button onClick="{{openHistory}}" style="display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:100px;border:none;background:{{bgSurface}};color:#8B93A7;font-size:11px;font-weight:700;cursor:pointer">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                Geçmiş
+              </button>
+            </div>
+            <div style="flex:1;overflow-y:auto;padding:10px 18px;display:flex;flex-direction:column;gap:10px">
+              <sc-for list="{{chatMessages}}" as="msg" hint-placeholder-count="3">
+                <div style="display:flex;flex-direction:column;{{msg.rowStyle}}">
+
+                  <sc-if value="{{msg.isConsent}}" hint-placeholder-val="{{false}}">
+                    <div style="max-width:88%;border-radius:16px;padding:13px;background:{{bgSurface}};border:1px solid rgba(255,200,87,0.3);display:flex;flex-direction:column;gap:9px">
+                      <div style="display:flex;align-items:center;gap:7px">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#FFC857" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9 2.5 17.5c-.6 1 .1 2.5 1.5 2.5h16c1.4 0 2.1-1.5 1.5-2.5L13.7 3.9c-.7-1.2-2.7-1.2-3.4 0Z"/></svg>
+                        <div style="font-size:12.5px;font-weight:700;color:#E9EDF6">Yerelde tamamlanamadı</div>
+                      </div>
+                      <div style="font-size:12px;color:#8B93A7;line-height:1.5">{{msg.text}}</div>
+                      <div style="display:flex;gap:8px">
+                        <sc-if value="{{msg.allowHandoff}}" hint-placeholder-val="{{true}}">
+                          <button onClick="{{msg.onHandoff}}" style="flex:1;padding:9px;border-radius:11px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,{{accentPrimary}},{{accentSecondary}});color:#04121A">PC'ye gönder (izinli)</button>
+                        </sc-if>
+                        <button onClick="{{msg.onRetry}}" style="flex:1;padding:9px;border-radius:11px;border:1px solid rgba(255,255,255,0.12);font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:#E9EDF6">Yerelde tekrar dene</button>
+                      </div>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{msg.isNormal}}" hint-placeholder-val="{{true}}">
+                    <div style="max-width:82%;display:flex;flex-direction:column;gap:6px;align-self:{{msg.align}}">
+                      <sc-if value="{{msg.hasThinking}}" hint-placeholder-val="{{false}}">
+                        <button onClick="{{msg.toggleThinking}}" style="display:flex;align-items:center;gap:5px;padding:6px 10px;border-radius:100px;border:none;background:transparent;color:#5B6276;font-size:11px;font-weight:600;cursor:pointer;align-self:flex-start">
+                          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="transform:{{msg.chevronTransform}}"><path d="M9 6l6 6-6 6"/></svg>
+                          Düşünme
+                        </button>
+                        <sc-if value="{{msg.thinkingOpen}}" hint-placeholder-val="{{false}}">
+                          <div style="padding:9px 12px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.1);font-size:11.5px;color:#5B6276;line-height:1.55;font-style:italic">{{msg.thinkingText}}</div>
+                        </sc-if>
+                      </sc-if>
+
+                      <div style="padding:10px 13px;border-radius:16px;font-size:13px;line-height:1.5;{{msg.bubbleStyle}}">{{msg.text}}</div>
+
+                      <sc-if value="{{msg.hasCode}}" hint-placeholder-val="{{false}}">
+                        <div style="border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);background:#08090D">
+                          <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 11px;background:rgba(255,255,255,0.03)">
+                            <div style="font-size:10.5px;font-weight:700;color:#5B6276;text-transform:uppercase;letter-spacing:.04em">{{msg.codeLang}}</div>
+                            <button onClick="{{msg.onCopy}}" style="display:flex;align-items:center;gap:4px;border:none;background:transparent;color:{{msg.copyColor}};font-size:10.5px;font-weight:700;cursor:pointer">
+                              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                              {{msg.copyLabel}}
+                            </button>
+                          </div>
+                          <pre style="margin:0;padding:11px;font-size:11.5px;line-height:1.55;color:#c9e8e4;overflow-x:auto;font-family:'SF Mono',Menlo,monospace">{{msg.codeBody}}</pre>
+                        </div>
+                      </sc-if>
+
+                      <sc-if value="{{msg.showTarget}}" hint-placeholder-val="{{false}}">
+                        <div style="display:flex;align-items:center;gap:5px;align-self:flex-start;padding:3px 8px;border-radius:100px;background:{{msg.targetBg}}">
+                          <div style="width:5px;height:5px;border-radius:50%;background:{{msg.targetColor}}"></div>
+                          <div style="font-size:10px;font-weight:700;color:{{msg.targetColor}}">{{msg.targetLabel}}</div>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </sc-if>
+
+                </div>
+              </sc-for>
+            </div>
+            <div style="flex-shrink:0;padding:8px 14px 4px;display:flex;gap:6px">
+              <sc-if value="{{showHandoffChip}}" hint-placeholder-val="{{true}}">
+                <div style="display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:100px;background:{{bgSurface}};color:#8B93A7;font-size:10.5px;font-weight:600">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+                  PC ajanına devret
+                </div>
+              </sc-if>
+            </div>
+            <div style="flex-shrink:0;padding:6px 14px 16px;display:flex;gap:8px;align-items:center;border-top:1px solid rgba(255,255,255,0.06)">
+              <input value="{{chatInput}}" onChange="{{setChatInput}}" onKeyDown="{{chatKeyDown}}" placeholder="Nova'ya yaz..." style="flex:1;padding:10px 13px;border-radius:100px;border:1px solid rgba(255,255,255,0.09);background:{{bgSurface}};color:#E9EDF6;font-size:13px;font-family:inherit;outline:none"/>
+              <button onClick="{{sendChat}}" style="width:38px;height:38px;flex-shrink:0;border-radius:50%;border:none;cursor:pointer;background:linear-gradient(135deg,{{accentPrimary}},{{accentSecondary}});color:#04121A;display:flex;align-items:center;justify-content:center">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M3 11l18-8-8 18-2.5-7L3 11Z"/></svg>
+              </button>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- İŞLER -->
+        <sc-if value="{{isTabIsler}}" hint-placeholder-val="{{false}}">
+          <div data-screen-label="İşler" style="height:100%;overflow-y:auto;padding:16px 18px 28px;display:flex;flex-direction:column;gap:14px;box-sizing:border-box">
+            <div style="font-size:19px;font-weight:800;color:#E9EDF6">İşler</div>
+            <div id="taskFilterRow" style="display:flex;gap:6px;overflow-x:auto;scrollbar-width:none">
+              <button onClick="{{filterAll}}" style="flex-shrink:0;padding:7px 13px;border-radius:100px;border:none;font-size:12px;font-weight:700;cursor:pointer;{{filterAllStyle}}">Tümü</button>
+              <button onClick="{{filterRunning}}" style="flex-shrink:0;padding:7px 13px;border-radius:100px;border:none;font-size:12px;font-weight:700;cursor:pointer;{{filterRunningStyle}}">Çalışıyor</button>
+              <button onClick="{{filterWaiting}}" style="flex-shrink:0;padding:7px 13px;border-radius:100px;border:none;font-size:12px;font-weight:700;cursor:pointer;{{filterWaitingStyle}}">Onay Bekliyor</button>
+              <button onClick="{{filterDone}}" style="flex-shrink:0;padding:7px 13px;border-radius:100px;border:none;font-size:12px;font-weight:700;cursor:pointer;{{filterDoneStyle}}">Tamamlandı</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <sc-for list="{{filteredTasks}}" as="t" hint-placeholder-count="4">
+                <button onClick="{{t.openDetail}}" style="text-align:left;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:14px;background:{{bgSurface}};cursor:pointer;display:flex;flex-direction:column;gap:8px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                    <div style="font-size:13.5px;font-weight:700;color:#E9EDF6">{{t.title}}</div>
+                    <div style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:100px;flex-shrink:0;color:{{t.color}};background:{{t.bg}}">{{t.statusLabel}}</div>
+                  </div>
+                  <div style="font-size:12px;color:#5B6276">{{t.detail}}</div>
+                  <sc-if value="{{t.hasProgress}}" hint-placeholder-val="{{false}}">
+                    <div style="height:5px;border-radius:100px;background:rgba(255,255,255,0.07);overflow:hidden">
+                      <div style="height:100%;border-radius:100px;width:{{t.progressPct}};background:{{t.color}}"></div>
+                    </div>
+                  </sc-if>
+                </button>
+              </sc-for>
+            </div>
+            <button style="align-self:flex-start;margin-top:2px;display:flex;align-items:center;gap:7px;padding:10px 16px;border-radius:100px;border:none;cursor:pointer;background:linear-gradient(135deg,{{accentPrimary}},{{accentSecondary}});color:#04121A;font-size:12.5px;font-weight:700">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              Yeni Görev
+            </button>
+          </div>
+        </sc-if>
+
+        <!-- MODELLER -->
+        <sc-if value="{{isTabModeller}}" hint-placeholder-val="{{false}}">
+          <div data-screen-label="Modeller" style="height:100%;overflow-y:auto;padding:16px 18px 28px;display:flex;flex-direction:column;gap:16px;box-sizing:border-box">
+            <div style="font-size:19px;font-weight:800;color:#E9EDF6">Modeller</div>
+
+            <div style="border-radius:16px;padding:13px 14px;background:{{accentSoft}};border:1px solid {{accentPrimary}}44;display:flex;align-items:center;justify-content:space-between;gap:10px">
+              <div>
+                <div style="font-size:12px;font-weight:700;color:{{accentPrimary}}">Cihazına önerilen</div>
+                <div style="font-size:12px;color:#8B93A7;margin-top:2px">Nova Mini 3B · 8 GB RAM'de rahat çalışır</div>
+              </div>
+            </div>
+
+            <div>
+              <div style="font-size:11px;font-weight:700;color:#8B93A7;letter-spacing:.06em;text-transform:uppercase;margin-bottom:9px">Cihazda</div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <sc-for list="{{localModels}}" as="m" hint-placeholder-count="4">
+                  <div style="padding:13px 14px;border-radius:15px;border:1px solid {{m.border}};background:{{bgSurface}};display:flex;flex-direction:column;gap:8px">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <div style="font-size:13.5px;font-weight:700;color:#E9EDF6">{{m.name}}</div>
+                        <sc-if value="{{m.gated}}" hint-placeholder-val="{{false}}">
+                          <div style="font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:100px;color:#FFC857;background:#FFC85722">Kapılı</div>
+                        </sc-if>
+                      </div>
+                      <div style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:100px;flex-shrink:0;color:{{m.suitColor}};background:{{m.suitBg}}">{{m.suitLabel}}</div>
+                    </div>
+                    <div style="font-size:11.5px;color:#5B6276">{{m.meta}}</div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+                      <div style="font-size:11px;color:#5B6276">{{m.perf}}</div>
+                      <sc-if value="{{m.isInstalled}}" hint-placeholder-val="{{false}}">
+                        <button onClick="{{m.select}}" style="width:20px;height:20px;border-radius:50%;border:2px solid {{m.dotBorder}};background:{{m.dotBg}};flex-shrink:0;cursor:pointer"></button>
+                      </sc-if>
+                      <sc-if value="{{m.showAction}}" hint-placeholder-val="{{false}}">
+                        <button onClick="{{m.onAction}}" style="flex-shrink:0;padding:6px 12px;border-radius:100px;border:none;font-size:11px;font-weight:700;cursor:pointer;{{m.actionStyle}}">{{m.actionLabel}}</button>
+                      </sc-if>
+                    </div>
+                    <sc-if value="{{m.showProgress}}" hint-placeholder-val="{{false}}">
+                      <div style="height:5px;border-radius:100px;background:rgba(255,255,255,0.07);overflow:hidden">
+                        <div style="height:100%;border-radius:100px;width:{{m.pct}};background:{{accentPrimary}}"></div>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div>
+              <div style="font-size:11px;font-weight:700;color:#8B93A7;letter-spacing:.06em;text-transform:uppercase;margin-bottom:9px">Gateway (PC üzerinden)</div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <sc-for list="{{gatewayModels}}" as="m" hint-placeholder-count="2">
+                  <button onClick="{{m.select}}" style="text-align:left;display:flex;align-items:center;justify-content:space-between;padding:13px 14px;border-radius:15px;border:1px solid {{m.border}};background:{{bgSurface}};cursor:pointer">
+                    <div>
+                      <div style="font-size:13.5px;font-weight:700;color:#E9EDF6">{{m.name}}</div>
+                      <div style="font-size:11.5px;color:#5B6276;margin-top:2px">{{m.size}}</div>
+                    </div>
+                    <div style="width:18px;height:18px;border-radius:50%;border:2px solid {{m.dotBorder}};background:{{m.dotBg}};flex-shrink:0"></div>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-size:11px;color:#8B93A7">Model klasörü</div>
+                <div style="font-size:11px;color:#8B93A7">{{storageUsed}} / {{storageTotal}}</div>
+              </div>
+              <div style="height:5px;border-radius:100px;background:rgba(255,255,255,0.07);overflow:hidden">
+                <div style="height:100%;border-radius:100px;width:{{storagePct}};background:#5B6276"></div>
+              </div>
+            </div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 14px;border-radius:15px;background:{{bgSurface}}">
+              <div>
+                <div style="font-size:12.5px;font-weight:700;color:#E9EDF6">Yerel araçlar (deneysel)</div>
+                <div style="font-size:11px;color:#5B6276;margin-top:2px">Dosya sistemi &amp; hesap makinesi erişimi</div>
+              </div>
+              <button onClick="{{toggleLocalTools}}" style="flex-shrink:0;width:40px;height:24px;border-radius:100px;border:none;cursor:pointer;background:{{localToolsTrack}};position:relative">
+                <div style="position:absolute;top:2px;left:{{localToolsKnobLeft}};width:20px;height:20px;border-radius:50%;background:#fff;transition:left 150ms"></div>
+              </button>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+
+      <!-- BOTTOM NAV -->
+      <sc-if value="{{hasTabs}}" hint-placeholder-val="{{true}}">
+        <div style="flex-shrink:0;display:flex;align-items:stretch;padding:6px 8px 4px;border-top:1px solid rgba(255,255,255,0.06);background:{{bgMain}}">
+          <sc-for list="{{tabScreens}}" as="sc" hint-placeholder-count="4">
+            <button onClick="{{sc.select}}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px;border:none;background:transparent;cursor:pointer;color:{{sc.color}}">
+              <sc-if value="{{sc.isKontrol}}" hint-placeholder-val="{{false}}"><svg viewBox="0 0 24 24" width="19" height="19"><rect x="3" y="3" width="8" height="8" rx="2" fill="currentColor" opacity="{{sc.op}}"/><rect x="13" y="3" width="8" height="8" rx="2" fill="currentColor" opacity="0.55"/><rect x="3" y="13" width="8" height="8" rx="2" fill="currentColor" opacity="0.55"/><rect x="13" y="13" width="8" height="8" rx="2" fill="currentColor" opacity="{{sc.op}}"/></svg></sc-if>
+              <sc-if value="{{sc.isSohbet}}" hint-placeholder-val="{{false}}"><svg viewBox="0 0 24 24" width="19" height="19" fill="none"><path d="M4 6.2C4 5 5 4 6.2 4h11.6C19 4 20 5 20 6.2v8.1c0 1.2-1 2.2-2.2 2.2H9l-3.6 3v-3H6.2C5 16.5 4 15.5 4 14.3V6.2Z" fill="currentColor"/></svg></sc-if>
+              <sc-if value="{{sc.isIsler}}" hint-placeholder-val="{{false}}"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg></sc-if>
+              <sc-if value="{{sc.isModeller}}" hint-placeholder-val="{{false}}"><svg viewBox="0 0 24 24" width="19" height="19"><path d="M12 3 21 8l-9 5-9-5 9-5Z" fill="currentColor"/><path d="M3 12l9 5 9-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 16l9 5 9-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></sc-if>
+              <sc-if value="{{sc.isSes}}" hint-placeholder-val="{{false}}"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3" fill="currentColor" stroke="none"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></sc-if>
+              <div style="font-size:10px;font-weight:700">{{sc.label}}</div>
+            </button>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <!-- FLOATING BUBBLES -->
+      <sc-for list="{{bubbleScreens}}" as="b" hint-placeholder-count="1">
+        <div
+          onPointerDown="{{b.onDown}}" onPointerMove="{{onBubbleMove}}" onPointerUp="{{onBubbleUp}}"
+          style="position:absolute;left:{{b.left}};top:{{b.top}};width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:grab;z-index:40;touch-action:none;background:linear-gradient(135deg,{{accentPrimary}},{{accentSecondary}});box-shadow:0 10px 26px rgba(0,0,0,0.45);animation:novaBubbleRing 2.6s ease-in-out infinite;color:#04121A">
+          <sc-if value="{{b.isSes}}" hint-placeholder-val="{{true}}"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3" fill="currentColor" stroke="none"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></sc-if>
+          <sc-if value="{{b.isKontrol}}" hint-placeholder-val="{{false}}"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="3" y="3" width="8" height="8" rx="2" fill="currentColor"/><rect x="13" y="3" width="8" height="8" rx="2" fill="currentColor" opacity="0.6"/><rect x="3" y="13" width="8" height="8" rx="2" fill="currentColor" opacity="0.6"/><rect x="13" y="13" width="8" height="8" rx="2" fill="currentColor"/></svg></sc-if>
+          <sc-if value="{{b.isSohbet}}" hint-placeholder-val="{{false}}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="M4 6.2C4 5 5 4 6.2 4h11.6C19 4 20 5 20 6.2v8.1c0 1.2-1 2.2-2.2 2.2H9l-3.6 3v-3H6.2C5 16.5 4 15.5 4 14.3V6.2Z" fill="currentColor"/></svg></sc-if>
+          <sc-if value="{{b.isIsler}}" hint-placeholder-val="{{false}}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg></sc-if>
+          <sc-if value="{{b.isModeller}}" hint-placeholder-val="{{false}}"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 3 21 8l-9 5-9-5 9-5Z" fill="currentColor"/><path d="M3 12l9 5 9-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 16l9 5 9-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></sc-if>
+        </div>
+      </sc-for>
+
+      <!-- FLOATING WINDOW -->
+      <sc-if value="{{isWindowOpen}}" hint-placeholder-val="{{false}}">
+        <div onClick="{{closeWindow}}" style="position:absolute;inset:0;background:rgba(3,4,7,0.6);z-index:50;animation:novaScrim 180ms ease-out"></div>
+        <div style="position:absolute;left:12px;right:12px;top:70px;bottom:88px;z-index:51;border-radius:26px;background:{{bgMain}};border:1px solid rgba(255,255,255,0.08);box-shadow:0 30px 70px rgba(0,0,0,0.6);display:flex;flex-direction:column;overflow:hidden;animation:novaWinUp 220ms cubic-bezier(.2,.9,.3,1)">
+          <div style="flex-shrink:0;height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 16px;border-bottom:1px solid rgba(255,255,255,0.06)">
+            <div style="font-size:14px;font-weight:800;color:#E9EDF6">{{windowTitle}}</div>
+            <div style="display:flex;align-items:center;gap:4px">
+              <sc-if value="{{showPin}}" hint-placeholder-val="{{false}}">
+                <button onClick="{{pinCurrent}}" title="Sekmeye sabitle" style="width:32px;height:32px;border-radius:50%;border:none;background:transparent;color:#8B93A7;display:flex;align-items:center;justify-content:center;cursor:pointer">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg>
+                </button>
+              </sc-if>
+              <button onClick="{{closeWindow}}" style="width:32px;height:32px;border-radius:50%;border:none;background:transparent;color:#8B93A7;display:flex;align-items:center;justify-content:center;cursor:pointer">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
+          </div>
+          <div style="flex:1;min-height:0;position:relative">
+
+            <!-- SES window -->
+            <sc-if value="{{isWinSes}}" hint-placeholder-val="{{false}}">
+              <div data-screen-label="Ses" style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:20px;box-sizing:border-box">
+                <div style="position:relative;width:150px;height:150px;display:flex;align-items:center;justify-content:center">
+                  <div style="position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,{{accentPrimary}}55,transparent 70%);animation:novaOrbPulse 2.4s ease-in-out infinite"></div>
+                  <div style="position:absolute;inset:20px;border-radius:50%;background:radial-gradient(circle,{{accentSecondary}}66,transparent 70%);animation:novaOrbPulse 2.4s ease-in-out infinite 0.4s"></div>
+                  <div style="position:relative;width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#fff,{{accentPrimary}});box-shadow:0 0 40px {{accentPrimary}}"></div>
+                </div>
+                <div style="font-size:13px;color:#8B93A7;text-align:center">{{voiceStatusText}}</div>
+                <sc-if value="{{isOffline}}" hint-placeholder-val="{{false}}">
+                  <div style="font-size:11px;color:#5B6276;text-align:center;max-width:220px">Çevrimdışı mod: cihaz-içi konuşma tanıma tercih ediliyor</div>
+                </sc-if>
+                <button onClick="{{toggleVoice}}" style="width:60px;height:60px;border-radius:50%;border:none;cursor:pointer;background:{{micBg}};color:{{micColor}};display:flex;align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(0,0,0,0.4)">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3" fill="currentColor" stroke="none"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+                </button>
+              </div>
+            </sc-if>
+
+            <!-- AYARLAR window -->
+            <sc-if value="{{isWinAyarlar}}" hint-placeholder-val="{{false}}">
+              <div data-screen-label="Ayarlar" style="height:100%;overflow-y:auto;padding:16px 18px 26px;display:flex;flex-direction:column;gap:20px;box-sizing:border-box">
+                <div>
+                  <div style="font-size:11px;font-weight:700;color:#8B93A7;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Görünüm</div>
+                  <div style="display:flex;gap:10px">
+                    <sc-for list="{{themeList}}" as="th" hint-placeholder-count="4">
+                      <button onClick="{{th.select}}" style="display:flex;flex-direction:column;align-items:center;gap:6px;background:transparent;border:none;cursor:pointer">
+                        <div style="width:40px;height:40px;border-radius:50%;border:2px solid {{th.ring}};background:linear-gradient(135deg,{{th.primary}},{{th.secondary}})"></div>
+                        <div style="font-size:10px;color:{{th.labelColor}};font-weight:700">{{th.name}}</div>
+                      </button>
+                    </sc-for>
+                  </div>
+                </div>
+
+                <div>
+                  <div style="font-size:11px;font-weight:700;color:#8B93A7;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Gateway &amp; Bağlantı</div>
+                  <div style="display:flex;flex-direction:column;gap:8px">
+                    <div style="padding:11px 13px;border-radius:14px;background:{{bgSurface}};display:flex;flex-direction:column;gap:4px">
+                      <div style="font-size:10.5px;color:#5B6276">Gateway Adresi</div>
+                      <input value="{{gatewayAddress}}" onChange="{{setGatewayAddress}}" style="border:none;background:transparent;color:#E9EDF6;font-size:12.5px;font-family:inherit;outline:none;padding:0"/>
+                    </div>
+                    <div style="padding:11px 13px;border-radius:14px;background:{{bgSurface}};display:flex;align-items:center;justify-content:space-between;gap:8px">
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:10.5px;color:#5B6276">Gateway Token</div>
+                        <div style="font-size:12.5px;color:#E9EDF6;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{gatewayTokenDisplay}}</div>
+                      </div>
+                      <button onClick="{{toggleTokenVisible}}" style="flex-shrink:0;width:28px;height:28px;border-radius:50%;border:none;background:transparent;color:#8B93A7;display:flex;align-items:center;justify-content:center;cursor:pointer">
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </button>
+                    </div>
+                    <div style="padding:11px 13px;border-radius:14px;background:{{bgSurface}};display:flex;flex-direction:column;gap:4px">
+                      <div style="font-size:10.5px;color:#5B6276">Hugging Face Token (kapılı modeller için)</div>
+                      <input value="{{hfToken}}" onChange="{{setHfToken}}" placeholder="hf_..." style="border:none;background:transparent;color:#E9EDF6;font-size:12.5px;font-family:inherit;outline:none;padding:0"/>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div style="font-size:11px;font-weight:700;color:#8B93A7;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Persona · Sistem Talimatı</div>
+                  <textarea value="{{persona}}" onChange="{{setPersona}}" rows="3" style="width:100%;box-sizing:border-box;padding:11px 13px;border-radius:14px;background:{{bgSurface}};border:none;color:#E9EDF6;font-size:12.5px;font-family:inherit;outline:none;resize:none"></textarea>
+                </div>
+
+                <div>
+                  <div style="font-size:11px;font-weight:700;color:#8B93A7;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Pencereler</div>
+                  <div style="display:flex;flex-direction:column;gap:8px">
+                    <sc-for list="{{screensWithMode}}" as="sw" hint-placeholder-count="5">
+                      <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 13px;border-radius:14px;background:{{bgSurface}}">
+                        <div style="font-size:13px;font-weight:600;color:#E9EDF6">{{sw.label}}</div>
+                        <div style="display:flex;gap:4px;padding:3px;border-radius:100px;background:rgba(255,255,255,0.05)">
+                          <button onClick="{{sw.setTab}}" style="padding:5px 10px;border-radius:100px;border:none;font-size:11px;font-weight:700;cursor:pointer;{{sw.tabBtnStyle}}">Sekme</button>
+                          <button onClick="{{sw.setBubble}}" style="padding:5px 10px;border-radius:100px;border:none;font-size:11px;font-weight:700;cursor:pointer;{{sw.bubbleBtnStyle}}">Balon</button>
+                        </div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+
+                <div>
+                  <div style="font-size:11px;font-weight:700;color:#8B93A7;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Veri Yönetimi</div>
+                  <div style="display:flex;flex-direction:column;gap:8px">
+                    <sc-for list="{{dataRows}}" as="d" hint-placeholder-count="3">
+                      <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 13px;border-radius:14px;background:{{bgSurface}}">
+                        <div style="font-size:12.5px;color:#E9EDF6">{{d.label}}</div>
+                        <button onClick="{{d.onClick}}" style="flex-shrink:0;padding:6px 12px;border-radius:100px;border:none;font-size:11px;font-weight:700;cursor:pointer;{{d.style}}">{{d.actionLabel}}</button>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+
+                <div style="font-size:11px;color:#3d4250;text-align:center;margin-top:2px">NOVA Horus · Android · Faz 1</div>
+              </div>
+            </sc-if>
+
+            <!-- HISTORY window -->
+            <sc-if value="{{isWinHistory}}" hint-placeholder-val="{{false}}">
+              <div data-screen-label="Geçmiş" style="height:100%;display:flex;flex-direction:column">
+                <div style="flex-shrink:0;padding:12px 16px 8px">
+                  <input value="{{historyQuery}}" onChange="{{setHistoryQuery}}" placeholder="Sohbetlerde ara..." style="width:100%;box-sizing:border-box;padding:9px 13px;border-radius:100px;border:1px solid rgba(255,255,255,0.09);background:{{bgSurface}};color:#E9EDF6;font-size:12.5px;font-family:inherit;outline:none"/>
+                </div>
+                <div style="flex:1;overflow-y:auto;padding:6px 16px 16px;display:flex;flex-direction:column;gap:8px">
+                  <sc-for list="{{historyList}}" as="h" hint-placeholder-count="4">
+                    <div style="display:flex;align-items:center;gap:8px;padding:11px 12px;border-radius:14px;background:{{bgSurface}}">
+                      <button onClick="{{h.onOpen}}" style="flex:1;min-width:0;text-align:left;background:transparent;border:none;cursor:pointer;display:flex;flex-direction:column;gap:2px">
+                        <div style="font-size:12.5px;font-weight:700;color:#E9EDF6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{h.title}}</div>
+                        <div style="font-size:11px;color:#5B6276">{{h.date}}</div>
+                      </button>
+                      <button title="Markdown olarak paylaş" style="flex-shrink:0;width:28px;height:28px;border-radius:50%;border:none;background:transparent;color:#5B6276;display:flex;align-items:center;justify-content:center;cursor:pointer">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
+                      </button>
+                      <button onClick="{{h.onDelete}}" title="Sil" style="flex-shrink:0;width:28px;height:28px;border-radius:50%;border:none;background:transparent;color:#5B6276;display:flex;align-items:center;justify-content:center;cursor:pointer">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                      </button>
+                    </div>
+                  </sc-for>
+                  <sc-if value="{{historyEmpty}}" hint-placeholder-val="{{false}}">
+                    <div style="text-align:center;padding:30px 10px;font-size:12.5px;color:#5B6276">Sonuç bulunamadı</div>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- TASK DETAIL window -->
+            <sc-if value="{{isWinTaskDetail}}" hint-placeholder-val="{{false}}">
+              <div data-screen-label="Görev Detayı" style="height:100%;overflow-y:auto;padding:16px 18px 24px;display:flex;flex-direction:column;gap:16px;box-sizing:border-box">
+                <div>
+                  <div style="font-size:15px;font-weight:800;color:#E9EDF6">{{taskDetail.title}}</div>
+                  <div style="font-size:11.5px;color:#5B6276;margin-top:3px">{{taskDetail.detail}}</div>
+                </div>
+
+                <sc-if value="{{taskDetail.isRisky}}" hint-placeholder-val="{{false}}">
+                  <div style="border-radius:16px;padding:13px;background:#FFC85714;border:1px solid #FFC85744;display:flex;flex-direction:column;gap:9px">
+                    <div style="display:flex;align-items:center;gap:7px">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#FFC857" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9 2.5 17.5c-.6 1 .1 2.5 1.5 2.5h16c1.4 0 2.1-1.5 1.5-2.5L13.7 3.9c-.7-1.2-2.7-1.2-3.4 0Z"/></svg>
+                      <div style="font-size:12.5px;font-weight:700;color:#E9EDF6">Riskli işlem — onayın gerekiyor</div>
+                    </div>
+                    <div style="font-size:12px;color:#8B93A7;line-height:1.5">{{taskDetail.riskText}}</div>
+                    <div style="display:flex;gap:8px">
+                      <button onClick="{{taskDetail.onApprove}}" style="flex:1;padding:9px;border-radius:11px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,{{accentPrimary}},{{accentSecondary}});color:#04121A">Onayla</button>
+                      <button onClick="{{closeWindow}}" style="flex:1;padding:9px;border-radius:11px;border:1px solid rgba(255,255,255,0.12);font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:#E9EDF6">İptal</button>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <div style="display:flex;flex-direction:column;gap:2px">
+                  <sc-for list="{{taskDetail.timeline}}" as="ev" hint-placeholder-count="4">
+                    <div style="display:flex;gap:10px">
+                      <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
+                        <div style="width:9px;height:9px;border-radius:50%;background:{{ev.dotColor}};margin-top:5px"></div>
+                        <div style="width:1.5px;flex:1;background:rgba(255,255,255,0.08);min-height:22px"></div>
+                      </div>
+                      <div style="padding-bottom:14px">
+                        <div style="font-size:12.5px;color:#E9EDF6">{{ev.label}}</div>
+                        <div style="font-size:10.5px;color:#5B6276;margin-top:1px">{{ev.time}}</div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <sc-if value="{{taskDetail.showControls}}" hint-placeholder-val="{{false}}">
+                  <div style="display:flex;gap:8px">
+                    <sc-if value="{{taskDetail.primaryLabel}}" hint-placeholder-val="{{false}}">
+                      <button onClick="{{taskDetail.onPrimary}}" style="flex:1;padding:10px;border-radius:12px;border:none;font-size:12.5px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,{{accentPrimary}},{{accentSecondary}});color:#04121A">{{taskDetail.primaryLabel}}</button>
+                    </sc-if>
+                    <button onClick="{{taskDetail.onCancel}}" style="flex:1;padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);font-size:12.5px;font-weight:700;cursor:pointer;background:transparent;color:#E9EDF6">İptal Et</button>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-if>
+
+          </div>
+        </div>
+      </sc-if>
+
+    </div>
+  </x-import>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    tab: 'kontrol',
+    theme: 'nova',
+    screenMode: { kontrol: 'tab', sohbet: 'tab', isler: 'tab', modeller: 'tab', ses: 'bubble' },
+    bubblePos: { ses: { x: 321, y: 470 } },
+    openWindow: null,
+    policy: 'hybrid',
+    askEvery: true,
+    gatewayOk: false,
+    voiceListening: false,
+    chatInput: '',
+    thinkingOpen: {},
+    copiedIdx: null,
+    chatMessages: [
+      { role: 'user', text: 'Yarın için 3 toplantımı özetler misin?' },
+      { role: 'assistant', target: 'telefon', thinking: 'Takvim verilerini tarıyorum, saatleri ve önceliklerini karşılaştırıyorum...', text: 'Yarın 3 toplantın var: 09:00 Ürün senkronu, 13:00 Yatırımcı görüşmesi, 17:00 Bire bir. En kritik olan 13:00 — hazırlık dokümanını henüz onaylamamışsın.' },
+      { role: 'user', text: 'Bu Python fonksiyonunu optimize eder misin?' },
+      { role: 'assistant', target: 'telefon', code: { lang: 'python', body: 'def toplam(sayilar):\n    return sum(sayilar)  # yerleşik sum() daha hızlı' }, text: 'Döngü yerine yerleşik sum() kullandım — büyük listelerde belirgin şekilde daha hızlı.' },
+      { role: 'user', text: '500 sayfalık PDF\u2019i özetle' },
+      { role: 'consent', reason: 'Bu belge cihazın bellek sınırını aşıyor (500 sayfa, ~40k token). Yerelde güvenilir şekilde işlenemez.' },
+    ],
+    taskFilter: 'all',
+    activeModel: 'mini3b',
+    modelDl: {
+      mini3b: { status: 'installed', pct: 100 },
+      mini1b: { status: 'installed', pct: 100 },
+      vision7b: { status: 'downloading', pct: 63 },
+      code13b: { status: 'paused', pct: 30 },
+      reasoning8b: { status: 'verifying', pct: 100 },
+      tiny500m: { status: 'idle', pct: 0 },
+    },
+    localToolsEnabled: false,
+    tasks: [
+      { id: 1, title: 'Gelen kutusunu temizle', status: 'running', detail: 'E-postalar kategorize ediliyor', progress: 62 },
+      { id: 2, title: 'Sistem ayarlarını güncelle', status: 'waiting', detail: 'Onayın gerekiyor — riskli işlem', progress: null, risky: true, riskText: 'Bu görev cihaz sistem ayarlarını (bildirim izinleri, arka plan verisi) değiştirecek. Onaylamadan devam etmez.' },
+      { id: 3, title: 'Uçuş fiyatlarını izle', status: 'queued', detail: 'Sırada — her gün 09:00\u2019da çalışır', progress: null },
+      { id: 4, title: 'Sunum notlarını çevir', status: 'done', detail: '2 saat önce bitti', progress: 100 },
+      { id: 5, title: 'Yedekleme senkronu', status: 'paused', detail: 'Kullanıcı tarafından duraklatıldı', progress: 45 },
+      { id: 6, title: 'PC bağlantısını kontrol et', status: 'error', detail: 'Zaman aşımı — PC\u2019ye ulaşılamadı', progress: null },
+    ],
+    gatewayAddress: 'https://gateway.ev-pc.local:8443',
+    gatewayTokenVisible: false,
+    hfToken: '',
+    persona: 'Kısa ve doğrudan yanıt ver. Belirsizlik varsa önce soru sor.',
+    historyQuery: '',
+    historyItems: [
+      { id: 'h1', title: 'Yarınki toplantı özeti', date: 'Bugün, 09:14' },
+      { id: 'h2', title: 'Python fonksiyon optimizasyonu', date: 'Dün, 21:02' },
+      { id: 'h3', title: 'Tatil bütçesi planı', date: '3 gün önce' },
+      { id: 'h4', title: 'Rapor taslağı düzenleme', date: '1 hafta önce' },
+    ],
+    dataConfirm: null,
+    openTaskId: null,
+  };
+
+  themes = {
+    nova:   { name: 'Turkuaz', primary: '#38E1D6', secondary: '#2BA0FF', bg: '#06070B', bg2: '#0B0D14' },
+    aurora: { name: 'Aurora',  primary: '#786EFF', secondary: '#B388FF', bg: '#06070B', bg2: '#0B0D14' },
+    amber:  { name: 'Amber',   primary: '#FFC857', secondary: '#FF8A5B', bg: '#06070B', bg2: '#0B0D14' },
+    karbon: { name: 'Karbon',  primary: '#C6FF3D', secondary: '#7CFF6B', bg: '#0A0A0B', bg2: '#101113' },
+  };
+
+  screens = [
+    { id: 'kontrol', label: 'Kontrol' },
+    { id: 'sohbet', label: 'Sohbet' },
+    { id: 'isler', label: 'İşler' },
+    { id: 'modeller', label: 'Modeller' },
+    { id: 'ses', label: 'Ses' },
+  ];
+
+  policies = [
+    { id: 'gateway', label: 'PC / Gateway', desc: 'İstekler PC gateway\u2019ine gönderilir: bulut sağlayıcılar veya PC\u2019deki yerel LLM.' },
+    { id: 'local', label: 'Yerel Öncelikli', desc: 'Önce telefonda çalıştırılır; gerekirse PC\u2019ye devredilir — ama her zaman senin onayınla.' },
+    { id: 'offline', label: 'Çevrimdışı', desc: 'Sadece telefondaki modeller kullanılır. Hiçbir istek dışarı çıkmaz.' },
+    { id: 'hybrid', label: 'Hibrit', desc: 'Aşağıdaki kurallara göre otomatik karar verir.' },
+  ];
+
+  hybridRulesBase = [
+    { text: 'Uzun istem', target: 'PC', color: '#FFC857' },
+    { text: 'Düşük pil', target: 'PC', color: '#FFC857' },
+    { text: 'Aşırı ısınma', target: 'PC', color: '#FFC857' },
+    { text: 'Hassas istem', target: 'Telefonda kalır', color: '#53D6A6' },
+  ];
+
+  TARGET_COLORS = { telefon: '#53D6A6', pc: '#FFC857', bulut: '#5EA1FF' };
+  TARGET_LABELS = { telefon: 'Telefon', pc: 'PC', bulut: 'Bulut' };
+
+  setTab = (id) => this.setState({ tab: id });
+  setTheme = (id) => this.setState({ theme: id });
+  openWindowById = (id) => this.setState({ openWindow: id });
+  closeWindow = () => this.setState({ openWindow: null });
+  openSettings = () => this.setState({ openWindow: 'ayarlar' });
+  openHistory = () => this.setState({ openWindow: 'history' });
+  selectPolicy = (id) => this.setState({ policy: id });
+  setAskEvery = () => this.setState({ askEvery: true });
+  setAutoHandoff = () => this.setState({ askEvery: false });
+  retryGateway = () => this.setState({ gatewayOk: true });
+
+  setMode = (id, mode) => {
+    this.setState((s) => {
+      const tabCount = this.screens.filter((sc) => s.screenMode[sc.id] === 'tab').length;
+      if (mode === 'bubble' && s.screenMode[id] === 'tab' && tabCount <= 1) return null;
+      const screenMode = { ...s.screenMode, [id]: mode };
+      let tab = s.tab;
+      if (mode === 'bubble' && s.tab === id) {
+        const remaining = this.screens.filter((sc) => screenMode[sc.id] === 'tab');
+        tab = remaining.length ? remaining[0].id : s.tab;
+      }
+      let bubblePos = s.bubblePos;
+      if (mode === 'bubble' && !bubblePos[id]) {
+        const n = Object.keys(bubblePos).length;
+        bubblePos = { ...bubblePos, [id]: { x: 321, y: 400 + n * 66 } };
+      }
+      return { screenMode, tab, bubblePos };
+    });
+  };
+
+  pinToTab = (id) => {
+    this.setState((s) => ({ screenMode: { ...s.screenMode, [id]: 'tab' }, tab: id, openWindow: null }));
+  };
+  pinCurrent = () => { if (this.state.openWindow === 'ses') this.pinToTab('ses'); };
+
+  onBubbleDown = (id, e) => {
+    if (!this.deviceRef) return;
+    e.preventDefault();
+    const rect = this.deviceRef.getBoundingClientRect();
+    const pos = this.state.bubblePos[id] || { x: 321, y: 470 };
+    this._drag = { id, rect, offX: e.clientX - rect.left - pos.x, offY: e.clientY - rect.top - pos.y, moved: false, startX: e.clientX, startY: e.clientY };
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+  };
+  onBubbleMove = (e) => {
+    const d = this._drag;
+    if (!d) return;
+    const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) d.moved = true;
+    if (!d.moved) return;
+    let x = e.clientX - d.rect.left - d.offX;
+    let y = e.clientY - d.rect.top - d.offY;
+    x = Math.max(8, Math.min(d.rect.width - 64, x));
+    y = Math.max(60, Math.min(d.rect.height - 76, y));
+    this.setState((s) => ({ bubblePos: { ...s.bubblePos, [d.id]: { x, y } } }));
+  };
+  onBubbleUp = () => {
+    const d = this._drag;
+    if (d && !d.moved) this.openWindowById(d.id);
+    this._drag = null;
+  };
+
+  setChatInput = (e) => this.setState({ chatInput: e.target.value });
+  sendChat = () => {
+    const text = this.state.chatInput.trim();
+    if (!text) return;
+    this.setState((s) => ({ chatMessages: [...s.chatMessages, { role: 'user', text }], chatInput: '' }));
+    setTimeout(() => {
+      this.setState((s) => ({ chatMessages: [...s.chatMessages, { role: 'assistant', target: s.policy === 'offline' ? 'telefon' : 'telefon', text: 'Bunun üzerinde çalışıyorum, birkaç saniye sürebilir.' }] }));
+    }, 900);
+  };
+  chatKeyDown = (e) => { if (e.key === 'Enter') this.sendChat(); };
+  toggleThinking = (idx) => this.setState((s) => ({ thinkingOpen: { ...s.thinkingOpen, [idx]: !s.thinkingOpen[idx] } }));
+  copyCode = (idx) => {
+    this.setState({ copiedIdx: idx });
+    setTimeout(() => this.setState((s) => (s.copiedIdx === idx ? { copiedIdx: null } : null)), 1400);
+  };
+  consentHandoff = (idx) => {
+    this.setState((s) => {
+      const msgs = s.chatMessages.slice();
+      msgs[idx] = { role: 'assistant', target: 'pc', text: 'PC üzerinden tamamlandı: belge özetlendi, 6 ana başlık çıkarıldı.' };
+      return { chatMessages: msgs };
+    });
+  };
+  consentRetry = (idx) => {
+    this.setState((s) => {
+      const msgs = s.chatMessages.slice();
+      msgs[idx] = { role: 'assistant', target: 'telefon', text: 'Yerelde tekrar denendi — belge yine de sınırı aşıyor, kısaltılmış bir özet çıkardım (ilk 40 sayfa).' };
+      return { chatMessages: msgs };
+    });
+  };
+
+  setTaskFilter = (f) => this.setState({ taskFilter: f });
+  toggleVoice = () => this.setState((s) => ({ voiceListening: !s.voiceListening }));
+  selectModel = (id) => this.setState({ activeModel: id });
+  toggleLocalTools = () => this.setState((s) => ({ localToolsEnabled: !s.localToolsEnabled }));
+
+  modelAction = (id) => {
+    this.setState((s) => {
+      const cur = s.modelDl[id];
+      let next;
+      if (cur.status === 'idle') next = { status: 'downloading', pct: 42 };
+      else if (cur.status === 'downloading') next = { status: 'paused', pct: cur.pct };
+      else if (cur.status === 'paused') next = { status: 'downloading', pct: cur.pct };
+      else if (cur.status === 'error') next = { status: 'downloading', pct: 10 };
+      else next = cur;
+      return { modelDl: { ...s.modelDl, [id]: next } };
+    });
+  };
+
+  openTaskDetail = (id) => this.setState({ openWindow: 'taskDetail', openTaskId: id });
+  taskAction = (id, patch) => this.setState((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)) }));
+
+  setGatewayAddress = (e) => this.setState({ gatewayAddress: e.target.value });
+  toggleTokenVisible = () => this.setState((s) => ({ gatewayTokenVisible: !s.gatewayTokenVisible }));
+  setHfToken = (e) => this.setState({ hfToken: e.target.value });
+  setPersona = (e) => this.setState({ persona: e.target.value });
+  setHistoryQuery = (e) => this.setState({ historyQuery: e.target.value });
+  deleteHistory = (id) => this.setState((s) => ({ historyItems: s.historyItems.filter((h) => h.id !== id) }));
+  openHistoryItem = () => this.setState({ openWindow: null, tab: 'sohbet' });
+
+  dataAction = (key) => {
+    if (this.state.dataConfirm !== key) { this.setState({ dataConfirm: key }); return; }
+    this.setState({ dataConfirm: null });
+    setTimeout(() => this.setState((s) => (s.dataConfirm === null ? null : { dataConfirm: null })), 10);
+  };
+
+  setDeviceRef = (el) => { this.deviceRef = el; };
+
+  renderVals() {
+    const s = this.state;
+    const th = this.themes[s.theme];
+    const isOffline = s.policy === 'offline';
+    const isHybrid = s.policy === 'hybrid';
+
+    const iconFlags = (id) => ({
+      isKontrol: id === 'kontrol', isSohbet: id === 'sohbet', isIsler: id === 'isler',
+      isModeller: id === 'modeller', isSes: id === 'ses',
+    });
+
+    const tabScreens = this.screens
+      .filter((sc) => s.screenMode[sc.id] === 'tab')
+      .map((sc) => ({
+        ...sc, ...iconFlags(sc.id),
+        color: sc.id === s.tab ? th.primary : '#5B6276',
+        op: sc.id === s.tab ? '1' : '0.55',
+        select: () => this.setTab(sc.id),
+      }));
+
+    const bubbleScreens = this.screens
+      .filter((sc) => s.screenMode[sc.id] === 'bubble')
+      .map((sc) => {
+        const pos = s.bubblePos[sc.id] || { x: 321, y: 470 };
+        return { ...sc, ...iconFlags(sc.id), left: pos.x + 'px', top: pos.y + 'px', onDown: (e) => this.onBubbleDown(sc.id, e) };
+      });
+
+    const pillStyle = (active) => active
+      ? `background:linear-gradient(135deg,${th.primary},${th.secondary});color:#04121A`
+      : `background:${th.bg2};color:#8B93A7`;
+
+    const policyList = this.policies.map((p) => {
+      const active = p.id === s.policy;
+      return {
+        ...p, select: () => this.selectPolicy(p.id),
+        border: active ? th.primary : 'rgba(255,255,255,0.06)',
+        bg: active ? th.primary + '14' : 'transparent',
+        dotBorder: active ? th.primary : '#3d4250',
+        dotBg: active ? th.primary : 'transparent',
+      };
+    });
+
+    const policyShort = { gateway: 'PC/Gateway', local: 'Yerel', offline: 'Çevrimdışı', hybrid: 'Hibrit' }[s.policy];
+    const policyColor = isOffline ? '#5B6276' : th.primary;
+
+    const gatewayDisabled = isOffline;
+    const gatewayStatusLabel = gatewayDisabled ? 'Gateway devre dışı' : (s.gatewayOk ? 'PC hazır' : 'PC\u2019ye ulaşılamıyor');
+    const gatewayDotColor = gatewayDisabled ? '#3d4250' : (s.gatewayOk ? '#53D6A6' : '#FF6B6B');
+    const gatewayReason = 'Zaman aşımı — aynı ağda olduğundan emin ol';
+
+    const statusMeta = {
+      running: { label: 'Çalışıyor', color: th.primary },
+      waiting: { label: 'Onay Bekliyor', color: '#FFC857' },
+      queued: { label: 'Kuyrukta', color: '#8B93A7' },
+      done: { label: 'Tamamlandı', color: '#53D6A6' },
+      paused: { label: 'Duraklatıldı', color: '#8B93A7' },
+      error: { label: 'Hata', color: '#FF6B6B' },
+    };
+    const tasksMapped = s.tasks.map((t) => {
+      const meta = statusMeta[t.status];
+      return {
+        ...t, color: meta.color, bg: meta.color + '22', statusLabel: meta.label,
+        hasProgress: t.progress != null, progressPct: (t.progress || 0) + '%',
+        openDetail: () => this.openTaskDetail(t.id),
+      };
+    });
+    const filterMap = { all: null, running: 'running', waiting: 'waiting', done: 'done' };
+    const filteredTasks = s.taskFilter === 'all' ? tasksMapped : tasksMapped.filter((t) => t.status === filterMap[s.taskFilter]);
+    const recentTasks = tasksMapped.slice(0, 2);
+
+    const chatMapped = s.chatMessages.map((m, idx) => {
+      if (m.role === 'consent') {
+        return {
+          isConsent: true, isNormal: false, text: m.reason,
+          allowHandoff: !isOffline,
+          onHandoff: () => this.consentHandoff(idx), onRetry: () => this.consentRetry(idx),
+        };
+      }
+      const isUser = m.role === 'user';
+      const targetColor = m.target ? this.TARGET_COLORS[m.target] : null;
+      const open = !!s.thinkingOpen[idx];
+      return {
+        isConsent: false, isNormal: true,
+        align: isUser ? 'flex-end' : 'flex-start',
+        rowStyle: isUser ? 'align-items:flex-end' : 'align-items:flex-start',
+        text: m.text,
+        bubbleStyle: isUser
+          ? `background:linear-gradient(135deg,${th.primary},${th.secondary});color:#04121A`
+          : `background:${th.bg2};color:#E9EDF6;border:1px solid rgba(255,255,255,0.06)`,
+        hasThinking: !!m.thinking, thinkingText: m.thinking, thinkingOpen: open,
+        chevronTransform: open ? 'rotate(90deg)' : 'rotate(0deg)',
+        toggleThinking: () => this.toggleThinking(idx),
+        hasCode: !!m.code, codeLang: m.code ? m.code.lang : '', codeBody: m.code ? m.code.body : '',
+        onCopy: () => this.copyCode(idx),
+        copyLabel: s.copiedIdx === idx ? 'Kopyalandı' : 'Kopyala',
+        copyColor: s.copiedIdx === idx ? '#53D6A6' : '#5B6276',
+        showTarget: !isUser && !!m.target,
+        targetLabel: targetColor ? this.TARGET_LABELS[m.target] : '',
+        targetColor, targetBg: targetColor ? targetColor + '18' : 'transparent',
+      };
+    });
+
+    const localBase = [
+      { id: 'mini3b', name: 'Nova Mini 3B', meta: 'Q4_K_M · 1.8 GB · Apache-2.0', suit: 'rahat' },
+      { id: 'mini1b', name: 'Nova Mini 1B', meta: 'Q4_K_M · 620 MB · Apache-2.0', suit: 'rahat' },
+      { id: 'vision7b', name: 'Nova Vision 7B', meta: 'Q4_K_M · 4.1 GB · Apache-2.0', suit: 'sinirli' },
+      { id: 'code13b', name: 'Nova Code 13B', meta: 'Q4_K_M · 7.6 GB · Llama-lisanslı', suit: 'riskli', gated: true },
+      { id: 'reasoning8b', name: 'Nova Reasoning 8B', meta: 'Q5_K_M · 5.2 GB · Apache-2.0', suit: 'sinirli' },
+      { id: 'tiny500m', name: 'Nova Tiny 500M', meta: 'Q4_0 · 310 MB · Apache-2.0', suit: 'rahat' },
+    ];
+    const suitMeta = { rahat: { label: 'Rahat', color: '#53D6A6' }, sinirli: { label: 'Sınırlı', color: '#FFC857' }, riskli: { label: 'Riskli', color: '#FF6B6B' } };
+    const perfByStatus = {
+      installed: 'Yükleme 4.2sn · ~28 tok/sn',
+      downloading: 'İndiriliyor...', paused: 'Duraklatıldı', verifying: 'SHA-256 doğrulanıyor...', idle: 'Henüz indirilmedi', error: 'Bozuk indirme',
+    };
+    const actionLabelByStatus = { idle: 'İndir', downloading: 'Duraklat', paused: 'Devam Et', error: 'Tekrar Dene' };
+    const localModels = localBase.map((m) => {
+      const dl = s.modelDl[m.id];
+      const active = m.id === s.activeModel;
+      const suit = suitMeta[m.suit];
+      const isInstalled = dl.status === 'installed';
+      const showAction = dl.status === 'idle' || dl.status === 'downloading' || dl.status === 'paused' || dl.status === 'error';
+      return {
+        ...m, suitLabel: suit.label, suitColor: suit.color, suitBg: suit.color + '22',
+        border: active && isInstalled ? th.primary : 'rgba(255,255,255,0.06)',
+        select: () => this.selectModel(m.id),
+        dotBorder: active ? th.primary : '#3d4250', dotBg: active ? th.primary : 'transparent',
+        isInstalled,
+        perf: dl.status === 'verifying' ? 'SHA-256 doğrulanıyor...' : (dl.status === 'downloading' ? `İndiriliyor · %${dl.pct}` : perfByStatus[dl.status]),
+        showAction, actionLabel: actionLabelByStatus[dl.status],
+        actionStyle: dl.status === 'error' ? 'background:#FF6B6B22;color:#FF6B6B' : pillStyle(false),
+        onAction: () => this.modelAction(m.id),
+        showProgress: dl.status === 'downloading' || dl.status === 'paused',
+        pct: dl.pct + '%',
+      };
+    });
+    const gatewayModelsBase = [
+      { id: 'pro', name: 'Nova Pro', size: 'Bulut · PC üzerinden' },
+      { id: 'reasoning', name: 'Nova Reasoning', size: 'Bulut · PC üzerinden' },
+    ];
+    const gatewayModels = gatewayModelsBase.map((m) => {
+      const active = m.id === s.activeModel;
+      return { ...m, select: () => this.selectModel(m.id), border: active ? th.primary : 'rgba(255,255,255,0.06)', dotBorder: active ? th.primary : '#3d4250', dotBg: active ? th.primary : 'transparent' };
+    });
+
+    const themeList = Object.keys(this.themes).map((id) => ({
+      id, name: this.themes[id].name, primary: this.themes[id].primary, secondary: this.themes[id].secondary,
+      ring: id === s.theme ? '#FFFFFF' : 'rgba(255,255,255,0.15)',
+      labelColor: id === s.theme ? '#E9EDF6' : '#5B6276',
+      select: () => this.setTheme(id),
+    }));
+
+    const screensWithMode = this.screens.map((sc) => {
+      const isTab = s.screenMode[sc.id] === 'tab';
+      return { ...sc, setTab: () => this.setMode(sc.id, 'tab'), setBubble: () => this.setMode(sc.id, 'bubble'), tabBtnStyle: pillStyle(isTab), bubbleBtnStyle: pillStyle(!isTab) };
+    });
+
+    const dataRows = [
+      { key: 'chat', label: 'Sohbet geçmişini temizle' },
+      { key: 'notes', label: 'Notları temizle' },
+      { key: 'models', label: 'İndirilen modelleri sil' },
+    ].map((d) => ({
+      ...d,
+      onClick: () => this.dataAction(d.key),
+      actionLabel: s.dataConfirm === d.key ? 'Emin misin? Onayla' : 'Temizle',
+      style: s.dataConfirm === d.key ? 'background:#FF6B6B22;color:#FF6B6B' : 'background:rgba(255,255,255,0.06);color:#8B93A7',
+    }));
+
+    const historyFiltered = s.historyItems.filter((h) => h.title.toLowerCase().includes(s.historyQuery.toLowerCase()));
+    const historyList = historyFiltered.map((h) => ({ ...h, onOpen: () => this.openHistoryItem(h.id), onDelete: () => this.deleteHistory(h.id) }));
+
+    const openWindow = s.openWindow;
+    const task = s.tasks.find((t) => t.id === s.openTaskId);
+    let taskDetail = null;
+    if (task) {
+      const baseTimeline = {
+        running: [{ label: 'Görev başlatıldı', time: '14:02' }, { label: 'E-postalar taranıyor', time: '14:03' }, { label: 'Kategorize ediliyor (%62)', time: 'şimdi', current: true }],
+        waiting: [{ label: 'Görev başlatıldı', time: '11:40' }, { label: 'Ayar değişikliği hazırlandı', time: '11:41' }, { label: 'Onayın bekleniyor', time: 'şimdi', current: true }],
+        queued: [{ label: 'Görev oluşturuldu', time: 'Dün' }, { label: 'Sırada — 09:00\u2019da başlayacak', time: 'bekliyor', current: true }],
+        done: [{ label: 'Görev başlatıldı', time: '2 saat önce' }, { label: 'Çeviri tamamlandı', time: '2 saat önce' }, { label: 'Tamamlandı', time: '2 saat önce', current: true }],
+        paused: [{ label: 'Görev başlatıldı', time: 'Bugün 08:10' }, { label: 'Kullanıcı duraklattı', time: '08:32', current: true }],
+        error: [{ label: 'Bağlantı denendi', time: '09:05' }, { label: 'Zaman aşımı', time: '09:06', current: true }],
+      }[task.status] || [];
+      const timeline = baseTimeline.map((ev) => ({ ...ev, dotColor: ev.current ? statusMeta[task.status].color : '#3d4250' }));
+      const controlsByStatus = {
+        running: { primaryLabel: 'Duraklat', onPrimary: () => this.taskAction(task.id, { status: 'paused' }) },
+        paused: { primaryLabel: 'Devam Et', onPrimary: () => this.taskAction(task.id, { status: 'running' }) },
+        error: { primaryLabel: 'Tekrar Dene', onPrimary: () => this.taskAction(task.id, { status: 'running' }) },
+        queued: { primaryLabel: null, onPrimary: null },
+        done: { primaryLabel: null, onPrimary: null },
+        waiting: { primaryLabel: null, onPrimary: null },
+      }[task.status] || { primaryLabel: null, onPrimary: null };
+      taskDetail = {
+        title: task.title, detail: task.detail, timeline,
+        isRisky: task.status === 'waiting' && !!task.risky, riskText: task.riskText,
+        onApprove: () => this.taskAction(task.id, { status: 'running', risky: false }),
+        showControls: task.status !== 'done' && task.status !== 'waiting',
+        primaryLabel: controlsByStatus.primaryLabel,
+        onPrimary: controlsByStatus.onPrimary || (() => {}),
+        onCancel: () => { this.taskAction(task.id, { status: 'done', detail: 'İptal edildi' }); this.closeWindow(); },
+      };
+    }
+
+    return {
+      setDeviceRef: this.setDeviceRef,
+      deviceW: 393, deviceH: 852,
+      bgMain: th.bg, bgSurface: th.bg2,
+      accentPrimary: th.primary, accentSecondary: th.secondary, accentSoft: th.primary + '22',
+      isOffline,
+      policyShort, policyColor,
+      openSettings: this.openSettings, closeWindow: this.closeWindow, openHistory: this.openHistory,
+      goSohbet: () => this.setTab('sohbet'), goIsler: () => this.setTab('isler'), goModeller: () => this.setTab('modeller'),
+      goSesWindow: () => this.openWindowById('ses'),
+      recentTasks,
+
+      isTabKontrol: s.tab === 'kontrol' && s.screenMode.kontrol === 'tab',
+      isTabSohbet: s.tab === 'sohbet' && s.screenMode.sohbet === 'tab',
+      isTabIsler: s.tab === 'isler' && s.screenMode.isler === 'tab',
+      isTabModeller: s.tab === 'modeller' && s.screenMode.modeller === 'tab',
+
+      policyList, isHybrid,
+      hybridRules: this.hybridRulesBase,
+      askEveryStyle: pillStyle(s.askEvery), autoHandoffStyle: pillStyle(!s.askEvery),
+      setAskEvery: this.setAskEvery, setAutoHandoff: this.setAutoHandoff,
+      gatewayDotColor, gatewayStatusLabel, gatewayReason, showGatewayReason: !gatewayDisabled && !s.gatewayOk,
+      showGatewayRetry: !gatewayDisabled && !s.gatewayOk, retryGateway: this.retryGateway,
+
+      modelChip: 'Nova Mini · Cihazda',
+      chatMessages: chatMapped, chatInput: s.chatInput, setChatInput: this.setChatInput, sendChat: this.sendChat, chatKeyDown: this.chatKeyDown,
+      showHandoffChip: !isOffline,
+
+      filterAll: () => this.setTaskFilter('all'), filterRunning: () => this.setTaskFilter('running'),
+      filterWaiting: () => this.setTaskFilter('waiting'), filterDone: () => this.setTaskFilter('done'),
+      filterAllStyle: pillStyle(s.taskFilter === 'all'), filterRunningStyle: pillStyle(s.taskFilter === 'running'),
+      filterWaitingStyle: pillStyle(s.taskFilter === 'waiting'), filterDoneStyle: pillStyle(s.taskFilter === 'done'),
+      filteredTasks,
+
+      localModels, gatewayModels,
+      storageUsed: '3.8 GB', storageTotal: '31.2 GB', storagePct: '12%',
+      localToolsEnabled: s.localToolsEnabled, toggleLocalTools: this.toggleLocalTools,
+      localToolsTrack: s.localToolsEnabled ? th.primary : 'rgba(255,255,255,0.12)',
+      localToolsKnobLeft: s.localToolsEnabled ? '18px' : '2px',
+
+      hasTabs: tabScreens.length > 0, tabScreens,
+      bubbleScreens, onBubbleMove: this.onBubbleMove, onBubbleUp: this.onBubbleUp,
+
+      isWindowOpen: !!openWindow,
+      windowTitle: openWindow === 'ayarlar' ? 'Ayarlar' : openWindow === 'history' ? 'Geçmiş' : openWindow === 'taskDetail' ? 'Görev Detayı' : openWindow === 'ses' ? 'Ses' : '',
+      showPin: openWindow === 'ses',
+      pinCurrent: this.pinCurrent,
+      isWinSes: openWindow === 'ses', isWinAyarlar: openWindow === 'ayarlar', isWinHistory: openWindow === 'history', isWinTaskDetail: openWindow === 'taskDetail',
+
+      voiceStatusText: s.voiceListening ? 'Dinliyorum…' : 'Konuşmak için dokun',
+      micBg: s.voiceListening ? `linear-gradient(135deg,${th.primary},${th.secondary})` : th.bg2,
+      micColor: s.voiceListening ? '#04121A' : '#E9EDF6',
+      toggleVoice: this.toggleVoice,
+
+      themeList, screensWithMode,
+      gatewayAddress: s.gatewayAddress, setGatewayAddress: this.setGatewayAddress,
+      gatewayTokenDisplay: s.gatewayTokenVisible ? 'ntk_live_8f2a9c7d4e1b6f30' : '••••••••••••••••',
+      toggleTokenVisible: this.toggleTokenVisible,
+      hfToken: s.hfToken, setHfToken: this.setHfToken,
+      persona: s.persona, setPersona: this.setPersona,
+      dataRows,
+      historyQuery: s.historyQuery, setHistoryQuery: this.setHistoryQuery, historyList, historyEmpty: historyList.length === 0,
+
+      taskDetail,
+    };
+  }
+}
+
+</script>
+</body>
+</html>

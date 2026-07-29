@@ -1,3 +1,5 @@
+import { classifyUpstream, tagUpstream, UP } from "./upstream_errors.mjs";
+
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const backoff = (n) => Math.min(4000, 400 * Math.pow(2, n)) + Math.random() * 200;
 
@@ -30,7 +32,11 @@ export function pickParams(body) {
   return p;
 }
 
+// Idempotent: başlıklar gönderildiyse sessizce çıkar. Ajan yolundan düz
+// sohbete düşerken sse() ikinci kez çağrılıyor; guard olmasa
+// ERR_HTTP_HEADERS_SENT fırlatırdı.
 export function sse(res) {
+  if (!res || res.headersSent) return;
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
@@ -183,11 +189,33 @@ export function createProviderClient({
       if (n.images.length) o.images = n.images.map(i => i.b64);
       return o;
     });
-    const r = await upFetch(ollamaUrl.replace(/\/$/, "") + "/api/chat", {
+
+    // Ollama, "think" desteklemeyen bir modele think:true gelirse 400 döner.
+    // Tüm isteği düşürmek yerine düşünmeyi bir kez geri çekip yeniden dene —
+    // ama bunu sessizce yapma: ctx.notices'a düşülen yeteneği yaz ki kullanıcı
+    // neden düşünce izi görmediğini bilsin ("desteklenmeyeni taklit etme").
+    const call = async (think) => upFetch(ollamaUrl.replace(/\/$/, "") + "/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages: msgs, stream: true, think: !!ctx.think, options }),
-    }, ctx).catch(e => { throw new Error("ollama " + e.message); });
+      body: JSON.stringify({ model, messages: msgs, stream: true, think, options }),
+    }, ctx);
+
+    let r;
+    try {
+      r = await call(!!ctx.think);
+    } catch (e) {
+      const code = classifyUpstream(e);
+      if (code === UP.THINK_UNSUPPORTED && ctx.think) {
+        ctx.notices?.push(UP.THINK_UNSUPPORTED);
+        ctx.think = false;
+        r = await call(false).catch((e2) => {
+          throw tagUpstream(new Error("ollama " + e2.message), classifyUpstream(e2));
+        });
+      } else {
+        throw tagUpstream(new Error("ollama " + e.message), code);
+      }
+    }
+
     return relay(res, stream, r.body, (line) => {
       line = line.trim();
       if (!line) return "";

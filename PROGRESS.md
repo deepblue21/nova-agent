@@ -1,12 +1,36 @@
 # NOVA — Durum & Sonraki Adımlar
 
 > Bu dosya "nereden devam edeceğiz"i tutar. Her oturum sonunda güncellenir.
-> **Son güncelleme:** 17 Haziran 2026.
+> **Son güncelleme:** 19 Temmuz 2026.
 
 ## Oturum Hafızası / Handoff
 
 Bu dosya yeni oturuma başlarken ilk okunacak hafıza dosyasıdır. Her çalışma sonunda
 bu bölüm veya "SIRADAKİ ADIM" bölümü güncel bırakılmalı.
+
+### Oturum — 19 Temmuz 2026 (Doküman bakımı + CI genişletme)
+
+Tüm süitler yeniden koşuldu ve geçti: gateway 166/166, web 3/3, smoke-script 7/7,
+worker (Python) 35/35; Android sayıları koddan doğrulandı (119 birim + 36 enstrümanlı).
+Model kataloğu HF API'ye karşı doğrulandı (Qwen SHA-256+boyut birebir; Gemma/FunctionGemma
+dosya adı+boyut pinli revizyonda eşleşiyor).
+
+- README EN+TR: gateway `99/99` → `166/166`, migrations `001–008` → `001–010`, worker
+  Python test sayısı `39` → `35`; endpoint tablosuna eksik uçlar eklendi (`/metrics`,
+  `/v1/media`, `/v1/usage`, `/v1/conversations`, `/v1/admin`, `/v1/mobile/tasks`,
+  `/v1/internal/mobile-worker`, `/v1/voice/jobs`).
+- README'lerdeki uzun Horus teslimat kaydı bu dosyaya taşındı (aşağıda arşiv bölümü).
+- Kök `package.json`: `npm test` toplayıcı (gateway+web+smoke-script) ve
+  `npm run test:worker` (`mobile-worker/run_tests.py`) eklendi.
+- CI: web testleri, smoke-script testleri, Python 3.12 pinli worker işi ve Android JVM
+  birim test işi eklendi (gradle-wrapper.jar depoda; bayat "wrapper eksik" notu kaldırıldı).
+- Hijyen: `*.apk` `.gitignore`'a eklendi, `scripts/last-run.log` silindi.
+- `scripts/docs-check.mjs` eklendi (`npm run docs-check`, CI'da da koşuyor): dokümandaki
+  test/migration sayılarını koddan doğrular; sayı kayması artık CI'da yakalanır.
+- Elle tetiklenen emülatör workflow'u eklendi (`android-instrumented.yml`, KVM + API 34,
+  rapor artefaktı) — ROADMAP "Sürekli" maddesi. Android birim CI işine Gradle cache eklendi.
+- Takipsiz 4 yardımcı script (fix-bridge/fix-ollama/serve-apk/start-horus) denetlendi:
+  secret/kişisel veri yok; commit edilmeleri güvenli (karar kullanıcıda).
 
 ### Oturum — 17 Temmuz 2026 (Cihaz-üstü LLM: Faz 1-2-3 tamamlandı)
 
@@ -514,3 +538,212 @@ yeni özellikler · maliyet kontrolü.
 - Yetkili `Get-AppxPackage -AllUsers *Ubuntu*` teşhisi araç kullanım limiti nedeniyle çalıştırılamadı; kullanıcı PowerShell'de manuel çalıştırmalı.
 - Destructive olmayan en güvenli sonraki adım: yeni adla kurmak: `wsl --install -d Ubuntu --name NovaUbuntu`.
 - `wsl --unregister Ubuntu` sadece kullanıcı Ubuntu içinde kayıp veri olmadığını onaylarsa düşünülmeli; bu komut distro verisini silebilir.
+
+## Horus teslimat kaydı (arşiv — README'den taşındı, 2026-07-19)
+
+README'lerin "Project Horus" bölümündeki görev görev teslimat kaydının tam metni.
+Yeni girişler artık burada tutulur; README yalnız özet taşır.
+
+**Tamamlanan ve dogrulananlar**
+
+- Gateway'de kalici ve kimligi dogrulanmis mobil gorevler, SSE tekrar oynatma,
+  duraklat/devam et/iptal ve R2/R3 onay kayitlari.
+- Android **Gorevler** alani: gorev olusturma, timeline replay, kontroller ve risk onay
+  arayuzu; unit, lint, APK ve emulator Compose kontrolleri gecti.
+- API anahtarini yazdirmadan gorev olusturan, okuyan, duraklatan, devam ettiren, iptal eden
+  ve event'leri replay eden Docker mobil kontrol duzlemi smoke testi.
+- Debug APK: `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
+- Gorev 7 kontrol merkezi dogrulamasi, uyarlanabilir launcher ikonunu koruyarak sabit ve
+  gorev-oncelikli **Gorevler / Sohbet / Ses** navigasyonunu teslim etti. Tam gate; 50 unit test,
+  Android 17 `emulator-5554` uzerinde 27 connected test, sifir lint hatasi (11 uyari ve 1 bilgi),
+  debug APK kurulum ve launcher resolution ile gecti. Fiziksel ADB serial bagli olmadigi icin
+  fiziksel telefon testi yapilmadi. Dogrulanan APK SHA-256:
+  `4D65812810CBC0C6D80081CC40A5FF716A3A52829A68EB049C6D7681A104E689`.
+- Son regresyon saglamlastirmasi her calisan gorevi basladigi Gateway'e sabitler; bayat veya baska
+  goreve ait callback/event'leri reddeder, kabul edilen Gateway adreslerini `/v1` bicimine getirir
+  ve bozuk kayitli adreslerde guvenli hata verir. Maskeli token alaninda TalkBack duzenleme
+  semantigi korunur; alt inset, mesgul Ses kontrolleri ve yukleme durumundaki gorev istemleri kapsanir.
+- Uygulama ici Gateway testi yerel QA kimligiyle `PC hazir` durumuna ulasti. Sabit baglanti istemi
+  PC modelinde tamamladi; UI-tree orneklemesine gore TTFT 48,337 sn, toplam 48,341 sn ve sanitize
+  rota `ollama/gemma4:latest` idi. Burada ham model govdesi veya kimlik bilgisi tutulmaz.
+- Worker preflight 7 Node ve 39 Python testiyle gecti (bugunku suit: 35 test — 2026-07-19 sayimi). Guvenli canli Android surum girisimi,
+  gorev olusmadan once Gateway allowlist tarafindan sanitize
+  `Bu gorev emulator worker'inda desteklenmiyor` mesaji ile reddedildi; terminal worker kosusu
+  tamamlandi diye iddia edilmez.
+- Gorev 7 regresyon turu, sistem yazi olcegi 1.0 ve 1.3 iken Ayarlar/status bar cakismasini cozdu;
+  1.3 olcekte Gorevler composer ve birincil eylem gercek IME'nin tamamen ustunde kaldi. En iyi
+  sicak, UI-dump'siz debug-emulator orneginde 69 frame'in 37'si janky idi (%53,62), p50 34 ms ve
+  p90 44 ms. Perfetto kaniti emulator grafik/buffer baskisi ile Compose isinin birlikte etkisini
+  gosteriyor; kanitlanmis tek bir uygulama hotspot'u yok. Fiziksel donanimdaki release-build
+  performans kontrolu takip maddesi olarak kalir, benchmark sonucu olarak sunulmaz.
+- Ayrilmis worker-goal politikasi ve yalnizca worker icin kimlik dogrulamasi tamamlandi.
+- Gateway worker lease'leri yalnizca token hash'i ile kalici. Odakli anlamsal store testleri hem
+  durum hem de rapor islemlerinde bilinmeyen gorevi (`404`), eksik, bayat, aktif olmayan veya yanlis
+  lease'e sahip gecerli gorevden (`409`) ayirir; event'ler ve kalici kayitlar lease token'ini icermez.
+- Yalnizca worker'a ait Gateway kontrol router'lari yerel `.env` yukleyicisinden sonra factory ile
+  olusturulur; sonra temel middleware'den sonra ve kullanici-principal kimlik dogrulamasindan once
+  mount edilir. Ayrilmis worker bearer auth claim, status, report ve expiry endpoint'lerini korur;
+  Task 4 icin gereken tek kullanimlik opak `lease.token` yalnizca claim yanitinda doner, status/report
+  yanitlarinda asla yer almaz.
+- Dogrulanmis Gorev 3 duzeltmesi: worker bearer auth ve statik guvenli `500` siniri yalnizca
+  `/v1/internal/mobile-worker` kapsamina alindi; boylece public `/health` ve siradan Gateway
+  rotalari, worker iki moddayken de mount edilen router'dan gecer ve beklenmeyen store hata ayrintilari sizmaz.
+- Gorev 4: izole `mobile-worker` paketi `mobilerun==0.6.10` ve `httpx` surumlerini kilitler;
+  yalnizca `emulator-5554` ve yerel Ollama kabul eder, worker token'ini redakte eder, lease
+  header'larini worker HTTP sinirinda tutar ve sadece sinirli guvenli raporlar ile loglar uretir.
+  Hazirlik, ajan isi ve her rapordan once aktif lease yeniden denetlenir; ortak izlenen-gorev yolu
+  duraklatma, iptal veya lease kaybi kazandiginda hazirligi ya da calistirmayi iptal edip bekler.
+  Ozel Mobilerun ping'i sinirli surede sonlanir ve process temizlenir, ekran goruntusu akisi zorla
+  kapatilir, Ollama HTTP timeout'lari `waiting_for_compute` olur ve rapor phase/error degerleri
+  Gateway allowlist'lerine gore yerelde dogrulanir. `uv lock --check` ve standart kutuphane worker
+  test paketi gecer. Canli emulator, Portal, Gateway ve yerel Ollama entegrasyonu kasitli olarak
+  Gorev 6-7'ye ertelenmistir.
+- Gorev 5: Gateway replay-guvenli worker raporlarinda `status` ile birlikte sadece parse edilmis
+  sinirli `summary`, `steps` ve `error_code` alanlarini kalici event payload'ina yazar; worker token,
+  hash ve ham girdi hicbir zaman event'e girmez. Android Gateway event'ini `COMPLETED` ve `Android 17`
+  olarak replay eder; gorunen eslesen-gorev durumunu en yeni sayisal status event'inden turettigi icin
+  gec gelen eski `worker.running` event'i tamamlanmayi geri alamaz. Guvenli Turkce mesaj sadece exact
+  worker hata metni icin kullanilir; diger `400` yanitlari genel kalir. Odakli JVM testleri ile tam
+  unit/lint/debug APK dogrulamasi gecer; terminal Compose kapsami Pixel_10_Pro_XL (Android 17)
+  uzerinde basariyla calisir ve sanitize edilmis worker event'inden `COMPLETED` ile `Android 17`
+  durumunu gosterir.
+- Android uyarlanabilir launcher ikonu: manifest standart ve yuvarlak launcher ikonlarini grafit
+  `#10242D`, guvenli bolgede turkuaz ve acik sinyal ile amber merkez iceren native API 26+
+  foreground/background XML kaynaklarina baglar; Android 13+ overlay'leri tek-path temali monokrom
+  silueti ekler. Kaynak isleme, lint, debug APK paketi ve kurulum gecti; `emulator-5554`,
+  `com.nova.agent/.MainActivity` sonucunu cozer.
+- Gorev 6 durumu: Linux ADB kuruldu ve loopback Gateway baglantisi dogrulandi; ancak WSL-to-Windows
+  ADB bridge DOGRULANMADI. Firewall elevation istendi ve Windows UAC istegi iptal edildi. Genis firewall
+  kurali, public ADB, Portal veya Mobilerun workaround'u kullanilmadi.
+- Gorev 6A: odakli worker testleri, uzak ADB endpoint ayarlarinin dogrulanmasini ve Mobilerun readiness
+  ping'ine aktarilmasini dogruladi. WSL-to-Windows bridge'in kendisi hala dogrulanmadi.
+- Gorev 1: Windows yerel worker, Ollama URL'sini yalnizca dogrulanmis WSL distro'sunun
+  `ip -4 route get 1.1.1.1` ciktisindan turetir. Yalnizca arguman-listesi kullanan `wsl.exe`
+  cagrisi, `172.16.0.0/12` icinde tam olarak bir `src` IPv4 adresi kabul eder ve
+  `http://<ip>:11434` olusturur; gecersiz distro degerleri, Windows disi hostlar, basarisiz
+  sorgular, diger araliklar ve WSL modunda bos olmayan ham Ollama URL'si reddedilir. Odakli
+  konfigurasyon testleri gecer.
+- Gorev 2: Windows yerel launcher, ignore edilen yalnizca worker ayarlarini iceren
+  `mobile-worker/.env` dosyasini tam konfigurasyon olarak kullanir: parent process'ten gelen tum
+  desteklenen worker ayarlarini temizler, sonra sadece dosyada acikca allowlist'e alinmis degerleri
+  yukler ve gateway-only anahtarlari reddeder. Hazirlik cikisinda tum yuklenen degerleri redakte
+  eder, Windows `adb.exe` dosyasini bulur, worker'i `127.0.0.1:5037` degerine zorlar ve ayri
+  `mobile-worker/.venv-windows` kullanir.
+  Dogrulanmis WSL distro secilmeden once ham Ollama URL'sini siler; Task 1 bu nedenle ikinci bir
+  endpoint kabul etmek yerine WSL NAT adresini turetir. Yerel-only preflight venv olusturmaz,
+  paket sync yapmaz ve ADB, firewall, WSL veya Ollama durumunu degistirmez. ADB, Ollama ve worker
+  LAN'a acilmaz; Portal kurulumu daha sonraki acik bir islemdir.
+
+  Bu checkout yolunda, `C:\Users\salih\Project_Horus`, tam olarak su komutu calistir:
+
+  ```powershell
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-windows-mobile-worker.ps1 -PrepareOnly
+  ```
+
+  `-PrepareOnly` Portal kurmaz, emulatorun tam cihaz durumunu dogrulamaz, Ollama cagirmaz, paketleri
+  sync etmez ve worker'i calistirmaz. Yalnizca yerel launcher preflight kontroludur.
+
+---
+
+## 21 Temmuz 2026 — Donma düzeltmesi, telefon bağlantısı, yeni ikon, ayarlar
+
+**Cihaz-üstü LLM 2. soru donması (Gemma E4B) çözüldü:**
+- `OnDeviceEngine`: her mesajda taze `Conversation` kurmak yerine konuşma turlar
+  arasında canlı tutuluyor (KV önbelleği korunur; E4B'de 2. sorudan itibaren tüm
+  geçmişin dakikalarca yeniden işlenmesi bitti). Geçmiş değişirse (düzenle/iptal/
+  hata/kişilik/araç değişimi) oturum yeniden kurulur. `close()` artık asla native
+  callback thread'inde çağrılmıyor (kilitlenme riski); kapatma sonraki
+  generate/unload'da arka planda.
+- `LocalLlmController`: bekçi (watchdog) eklendi — ilk token 240 sn'de gelmez ya
+  da akış 90 sn durursa üretim iptal edilir ve dürüst zaman aşımı hatası verilir.
+
+**Gateway "ulaşılamadı" sorunu kökten çözüldü:**
+- Asıl neden: `docker-compose.yml` gateway portu `127.0.0.1:8088`e SABİTTİ;
+  `start-horus.ps1 -Lan`ın verdiği `GATEWAY_BIND` compose'da hiç okunmuyordu.
+  Artık `${GATEWAY_BIND:-127.0.0.1}:${GATEWAY_PORT:-8088}:8088` (Caddy portları da
+  değişkene bağlandı).
+- `start-horus.ps1`: `-Lan` ve `-Tailscale` artık BİRLİKTE kurulabiliyor; seçim
+  kök `.env`e kalıcı yazılıyor (elle `docker compose up` da aynı kalır; bayraksız
+  çalıştırma loopback'e döndürür). Güvenlik duvarı kuralları dar kapsam:
+  LAN → yalnız LocalSubnet, Tailscale → yalnız 100.64.0.0/10. Kurulum sonrası
+  LAN IP'sinden `/health` doğrulaması + iki Base URL'yi birden basar.
+- Uygulama: `GatewayConnectionClient.classifyFailure` hata katmanını ayırt eder
+  (zaman aşımı / bağlantı reddi / ad çözülemedi / rota yok / TLS / 404 / 5xx) ve
+  Ayarlar'da nedene özel Türkçe çözüm ipucu gösterilir.
+
+**Görsel yenileme:**
+- Yeni uygulama ikonu: modern, gradyanlı stilize Horus gözü (adaptive:
+  background/foreground/monochrome vektörleri yeniden çizildi).
+- Üst bardaki `AutoAwesome` yerine marka ikonu `ic_nova_eye` (üst bar + sohbet
+  boş durumu).
+
+**Ayarlar arayüzü:** bölümler kartlara ayrıldı, "Nasıl bağlanırım?" katlanır
+3 adımlık rehber, Gateway adresi alanına örnek/placeholder + URI klavyesi,
+durum satırı renkli ikon + ipucu, veri temizleme butonu hata renginde.
+
+**Testler:**
+- Yeni: `OnDeviceEngineSessionTest` (normalize/finishLocal paritesi — hızlı yolun
+  sessizce bozulmasını erken yakalar), `GatewayConnectionFailureTest` (7 hata
+  sınıfı + ipuçları). `GatewayConnectionClientTest.mapsNetworkFailure*` yeni
+  nedene-özel mesaja göre güncellendi.
+- Gateway: 21 test dosyası sandbox'ta koşuldu — 155 test, 0 hata.
+- Android build sandbox'ta koşulamadı (SDK yok): PC'de doğrulama gerekli:
+  `cd nova-android; .\gradlew.bat test lintDebug assembleDebug`
+
+**Sonraki adım (kullanıcı turu):** APK'yı telefona kur; E4B ile 3+ turlu sohbet
+(donma yok beklenir), `.\scripts\start-horus.ps1 -Lan -Tailscale` ile bağlantı
+kutusundaki adres/anahtarla Ayarlar'dan bağlan.
+
+---
+
+## 25 Temmuz 2026 — Tema sistemi bütünleştirme + Kızıl (kırmızı-siyah) tema
+
+**Derleme kırıktı, düzeltildi.** `design/nova-tokens.json` → `NovaTokens.kt` token
+üretimi devreye girerken elle yazılmış `Theme.kt` aynı paketteki `Bg`, `Bg2`,
+`Surface1/2`, `Line`, `TextMain`, `Muted`, `Muted2`, `Success`, `NovaAccent`,
+`NOVA_ACCENTS` ve `accentFor` tanımlarını **ikinci kez** bildiriyordu (aynı paket →
+çift JVM bildirimi). `Theme.kt` yalnız çalışma-zamanı bağlamasına indirildi:
+`LocalNovaAccent`, `accentBrush()`, `orbPalette()`, `NovaTheme()` ve token adlarına
+iki geriye-dönük takma ad (`Amber = Warning`, `Coral = Ember`). Token değerleri artık
+tek yerde.
+
+**Tema yalnız yarı yarıya bağlıydı.** `NovaTheme` `colorScheme`'i doğru kuruyordu ama
+Material dışı yüzeyler sabit turkuaz kodluydu; Aurora/Amber seçilse bile ekranın yarısı
+turkuaz kalıyordu:
+
+| Dosya | Sorun |
+|-------|-------|
+| `ChatScreen.kt` | `chatGradient` üst-düzey `val` — kompozisyondan önce kurulduğu için temayı hiç göremiyordu (boş durum rozeti, gönder düğmesi, onay kartı, kullanıcı balonu, imleç) |
+| `MobileTaskScreen.kt` | 3 düğme `containerColor = Cyan`, bağlantı metni, olay etiketi, imleç |
+| `VoiceScreen.kt` | mikrofon düğmesi zemini/kenarlığı/ikonu (`Cyan`, `LineBright`) |
+| `Orb.kt` | palet `listOf(Cyan, Azure, Violet, Coral)` sabit |
+| `NovaAppShell.kt` | seçili sekme ikonu `Color(0xFF04121A)` sabit |
+
+Hepsi `MaterialTheme.colorScheme` / `LocalNovaAccent` üzerinden bağlandı. Vurgu üstü
+metin rengi artık aksanın kendi `onPrimary`'si; yıkıcı eylem rengi aksandan bağımsız
+(`Danger`) — Kızıl temada "sil" düğmesi vurguyla karışmıyor.
+
+**Kızıl teması** tek kaynağa (`design/nova-tokens.json > accents`) eklendi:
+`#FF3344` / `#B3121F` / `#FF7A6B`, `onPrimary #150206`. `package.json`'da eksik olan
+`npm run tokens` betiği eklendi (üretici zaten vardı, çağrısı yoktu); web CSS +
+Android Kotlin yeniden üretildi. Aksan sayısı 4 → 5.
+
+- Ayarlar > Görünüm seçicisi tek satırdan **satır başına 2** ızgaraya geçti; 5 tema
+  adı kırpılmadan sığıyor, tek kalan öğe için hizalama boşluğu var.
+- `res/values/colors.xml > bg` token değeriyle eşitlendi (`#06070B` → `#0A0E1A`);
+  pencere/durum çubuğu ile Compose zemini arasındaki dikiş kalktı.
+- Orb'un sabit sayıları (`5`, `0.55`, `1.16`, `0.22`, `9000 ms`) `NovaOrb`/`NovaDuration`
+  token'larına bağlandı.
+- Yeni `NovaAccentTest` (5 test): kimlik benzersizliği, bilinmeyen kimlikte varsayılana
+  düşme, Kızıl'ın seçilebilirliği ve turkuazdan ayrıklığı, her aksanın okunur
+  `onPrimary`'si, birincil renklerin ayrıklığı.
+
+**Doğrulama (Pixel 10 Pro XL, API 37, AGP 9.2.1 / Gradle 9.4.1):** derleme başarılı,
+uygulama emülatöre kuruldu ve açıldı. Kızıl geçici olarak varsayılan yapılıp Kontrol,
+İşler ve Sohbet ekranları görsel olarak doğrulandı — üçü de kızıl-siyah; özellikle
+Sohbet'teki marka gradyanı (eski sabit turkuaz `chatGradient`) artık temayı izliyor.
+Varsayılan `nova`ya geri alındı ve yeniden derlenip kuruldu.
+
+**Açık kalan:** `web/src` üretilen `tokens.generated.mjs`'i henüz tüketmiyor (CSS
+değişkenleri ve `ACCENTS` hazır, bağlanması ayrı iş). Enstrümanlı test süiti bu turda
+koşulmadı.

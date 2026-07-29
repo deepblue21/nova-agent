@@ -3,6 +3,7 @@
 // Akış (onStep) ile UI'a "araç kullanılıyor" izleri verilir.
 import { TOOL_SPECS, runTool } from "./tools.mjs";
 import { agentRuns, agentToolCalls, agentToolDuration } from "./metrics.mjs";
+import { classifyUpstream, tagUpstream, UP } from "./upstream_errors.mjs";
 
 const MAX_ROUNDS = parseInt(process.env.AGENT_MAX_ROUNDS || "4", 10);
 
@@ -72,34 +73,61 @@ function toOllama(messages) {
   });
 }
 
-// Tek bir Ollama /api/chat çağrısı (stream yok, tools ile)
-async function ollamaChat(ollamaBase, model, messages, tools, { signal, think = false, params = {} } = {}) {
+// Tek bir Ollama /api/chat çağrısı (stream yok, tools ile).
+// Hata durumunda upstreamCode iliştirilmiş bir Error fırlatır; çağıran taraf
+// "araç desteklenmiyor" ile "Ollama kapalı"yı ayırt edebilsin diye.
+async function ollamaChat(ollamaBase, model, messages, tools, { signal, think = false, params = {}, notices } = {}) {
   const options = {};
   if (params.temperature != null) options.temperature = params.temperature;
   if (params.top_p != null) options.top_p = params.top_p;
   if (params.max_tokens != null) options.num_predict = params.max_tokens;
-  const r = await fetch(ollamaBase.replace(/\/$/, "") + "/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      messages: toOllama(messages),
-      tools,
-      stream: false,
-      think: !!think,
-      ...(Object.keys(options).length ? { options } : {}),
-    }),
-    signal,
-  });
-  if (!r.ok) throw new Error("ollama " + r.status + " " + (await r.text()).slice(0, 200));
-  const d = await r.json();
-  return d.message || {};
+
+  const post = async (wantThink) => {
+    let r;
+    try {
+      r = await fetch(ollamaBase.replace(/\/$/, "") + "/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          messages: toOllama(messages),
+          tools,
+          stream: false,
+          think: !!wantThink,
+          ...(Object.keys(options).length ? { options } : {}),
+        }),
+        signal,
+      });
+    } catch (e) {
+      // ağ katmanı (Ollama kapalı, DNS, abort…)
+      throw tagUpstream(new Error("ollama " + e.message), classifyUpstream(e));
+    }
+    if (!r.ok) {
+      const body = (await r.text().catch(() => "")).slice(0, 200);
+      const err = new Error("ollama " + r.status + " " + body);
+      throw tagUpstream(err, classifyUpstream(err));
+    }
+    const d = await r.json();
+    return d.message || {};
+  };
+
+  try {
+    return await post(think);
+  } catch (e) {
+    // Düşünmeyi desteklemeyen model: düşünmeyi geri çekip bir kez daha dene.
+    // Araç desteği yoksa burada düşürmeyiz — çağıran taraf düz sohbete düşer.
+    if (think && e.upstreamCode === UP.THINK_UNSUPPORTED) {
+      notices?.push(UP.THINK_UNSUPPORTED);
+      return await post(false);
+    }
+    throw e;
+  }
 }
 
 // messages: OpenAI tarzı [{role,content}]. system zaten içinde.
 // onStep(evt): { type:"tool_call"|"tool_result", name, args?, text? }
 // Döner: { content, sources:[], rounds, toolsUsed:[] }
-export async function runAgent({ ollamaBase, model, messages, signal, onStep, userId, extraTools = [], extraDispatch, think = false, params = {} }) {
+export async function runAgent({ ollamaBase, model, messages, signal, onStep, userId, extraTools = [], extraDispatch, think = false, params = {}, notices }) {
   agentRuns.inc();
   const convo = [...messages];
   const sources = [];
@@ -110,7 +138,7 @@ export async function runAgent({ ollamaBase, model, messages, signal, onStep, us
   const extraNames = new Set((extraTools || []).map((t) => t.function && t.function.name).filter(Boolean));
 
   for (; rounds < MAX_ROUNDS; rounds++) {
-    const msg = await ollamaChat(ollamaBase, model, convo, specs, { signal, think, params });
+    const msg = await ollamaChat(ollamaBase, model, convo, specs, { signal, think, params, notices });
     let calls = msg.tool_calls || [];
     // Yerel model araç çağırmadıysa ama soru canlı veri gerektiriyorsa (ilk tur)
     // güvenli bir geri-dönüş çağrısı üret: weather_forecast / web_search.
@@ -146,6 +174,6 @@ export async function runAgent({ ollamaBase, model, messages, signal, onStep, us
     }
   }
   // tur limiti: son bir kez araçsız özet iste
-  const fin = await ollamaChat(ollamaBase, model, convo, undefined, { signal, think, params });
+  const fin = await ollamaChat(ollamaBase, model, convo, undefined, { signal, think, params, notices });
   return { content: fin.content || "", sources, rounds, toolsUsed };
 }

@@ -4,8 +4,13 @@ Tarih: 2026-07-16 (güncellendi 2026-07-17) · Dal: `codex/phase1-local-first`
 
 ## Tamamlanan fazlar (özet)
 
-Faz 1–8 kod olarak tamamlandı, `testDebugUnitTest + assembleDebug` = **BUILD SUCCESSFUL**
-(119 birim + 36 enstrümanlı test). Detaylar aşağıdaki bölümlerde.
+Faz 1–8 kod olarak tamamlandı; **151 birim + 101 enstrümanlı test** yazıldı.
+Detaylar aşağıdaki bölümlerde.
+
+> ⚠️ **Android derleme durumu:** Son `BUILD SUCCESSFUL` kaydı, ajan/araç
+> entegrasyonu ve Pulse Aperture ikon değişikliklerinden **önceye** ait.
+> O değişikliklerden sonra `./gradlew testDebugUnitTest assembleDebug`
+> henüz çalıştırılmadı — doğrulanana kadar "derleniyor" varsayma.
 
 | Faz | Kapsam | Durum |
 |-----|--------|-------|
@@ -108,6 +113,45 @@ Telefonda **çevrimdışı çalışan agentic bir yapay zeka** + PC'deki LLM iş
   uygunluk çipi ve son performans özeti, "önerilen" rozeti.
 - Sıradaki: düşük RAM'de otomatik quantization tercihi, indirme öncesi yer kontrolü uyarısı.
 
+### Katalog genişletme (2026-07-19) — 4B'den 14B'ye kapısız modeller
+
+Kataloğa beş büyük **kapısız, Apache-2.0** model eklendi; tüm boyut/SHA-256 değerleri HuggingFace
+API'sinden doğrulandı ve indirme URL'leri sabit commit'e kilitlendi:
+
+| Model | Depo revizyonu | Boyut | Önerilen RAM |
+|-------|----------------|-------|--------------|
+| Qwen3 4B (int4) | `84cc5a35…` | 2.659.057.664 B | 8 GB |
+| Gemma 4 E4B (uç-cihaz) | `f7ad3343…` | 3.659.530.240 B | 8 GB |
+| Qwen3 8B (int4) | `71ff7055…` | 4.887.412.736 B | 12 GB |
+| Gemma 4 12B | `44cf85a3…` | 6.547.589.312 B | 16 GB |
+| Qwen3 14B (int4) | `e4122fd3…` | 8.655.863.808 B | 24 GB |
+
+Dürüstlük sınırı korundu: uygunluk çipi cihaz RAM'ine göre **Riskli** gösterebilir, model kartında
+beklenen RAM/indirme uyarısı (`LocalModelSpec.note`) yazar ve `DownloadPreflight` yer yetmezse ağa
+çıkmadan uyarır. Varsayılan model kapısız Qwen3 0.6B olarak kaldı (ilk kurulum tokensız).
+LiteRT-LM'in `enable_thinking` desteği Gemma 4 şablonunda da doğrulandı → düşünme anahtarı açık.
+
+### Canlı model listesi (2026-07-19) — sabit listeler kaldırıldı
+
+Web ve Android'deki sabit (ve bayatlamış) model listeleri kaldırıldı; kaynak artık
+gateway'in `GET /v1/models` ucudur:
+
+- **Gateway:** `lib/model_catalog.mjs` — Ollama `/api/tags`'ten **canlı** yerel model
+  listesi (ad, parametre boyutu, quantization, disk boyutu), 30 sn TTL cache,
+  `?refresh=1` ile zorla tazeleme. Ollama kapalıysa liste yine döner, `ollama.ok:false`
+  + dürüst hata mesajıyla. Bulut modelleri 2026 kimlikleriyle (Opus 4.8 / Sonnet 5 /
+  Gemini 3.5 Flash / GPT-5.6) ve anahtar yoksa `available:false` + gerekçe ile gelir.
+  `ALLOW_MODELS` allowlist'i listeye de uygulanır.
+- **Dinamik yönlendirme artık varsayılan değil.** Yanıtın `defaultModel` alanı ilk canlı
+  yerel modeli işaret eder; istemciler seçim yapılmamışken onu seçer. `auto` listede
+  durur ama ancak kullanıcı bilinçli seçerse kullanılır. Eski kurulumlardaki kayıtlı
+  `auto` (ve artık var olmayan model kimlikleri) bir kez temizlenir.
+- **İstemciler:** web'de seçicide "Canlı liste · gateway" rozeti + Yenile düğmesi,
+  anahtarsız modeller pasif ve nedenli; Android'de Ayarlar ve Modeller ekranı aynı
+  canlı listeyi kullanır (`GatewayConnectionClient.parseCatalog`, saf/testli).
+  Gateway'e ulaşılamazsa her iki istemci de küçük bir yedek listeye düşer — uydurma
+  model gösterilmez.
+
 ## Faz 5 — Kalıcı sohbet geçmişi (2026-07-17)
 
 - **Depo:** `ConversationStore` (cihazda JSON) — çoklu sohbeti tüm mesajlarıyla saklar; en yeni
@@ -154,7 +198,7 @@ Ardından tüm modülde paket-farkında import ve yinelenen-fonksiyon denetimi �
 ## Durum özeti (2026-07-17)
 
 Faz 1-8 çekirdek teslimatları **kod olarak tamamlandı ve derleme yeşil**: `testDebugUnitTest`
-(119 test) + `assembleDebug` = BUILD SUCCESSFUL. Süreçte yakalanan derleme/test hataları düzeltildi
+(127 test) + `assembleDebug` = BUILD SUCCESSFUL. Süreçte yakalanan derleme/test hataları düzeltildi
 (Kotlin 2.2.21 yükseltmesi, eksik import'lar, `setHistoryQuery` JVM setter çakışması, bozuk-JSON
 nazik ele alma). Kalan tek adım fiziksel ARM64 cihazda uçtan uca doğrulama.
 
@@ -174,8 +218,11 @@ otomatik boşaltma, düşük RAM'de otomatik quantization tercihi.
 hızlandırma; çoklu dil (i18n); cihazda çevrimdışı RAG (yerel gömme + arama); Play Store dağıtımı,
 release imzalama ve sürüm kanalları.
 
-**Sürekli.** Enstrümanlı testlerin CI'da (emülatör) koşulması; çevrimdışı STT/TTS dil paketi
-rehberi; istek sınıflandırmanın incelmesi (araç ihtiyacı tahmini, gizlilik etiketi seviyeleri).
+**Sürekli.** Enstrümanlı testlerin CI'da (emülatör) koşulması — **eklendi (2026-07-19)**:
+elle tetiklenen `android-instrumented.yml` workflow'u (KVM + API 34, rapor artefaktı); push
+CI'ında JVM birim testleri + `docs-check` (doküman sayıları koddan doğrulanır) koşuyor.
+Kalan: çevrimdışı STT/TTS dil paketi rehberi; istek sınıflandırmanın incelmesi (araç
+ihtiyacı tahmini, gizlilik etiketi seviyeleri).
 
 > İlke: her yeni faz da "desteklenmeyeni taklit etme, sessiz devir yok, veri varsayılan olarak
 > cihazda" güvencelerini korur.

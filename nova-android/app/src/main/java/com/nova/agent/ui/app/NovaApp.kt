@@ -8,7 +8,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.nova.agent.NovaViewModel
 import com.nova.agent.data.AppSettings
-import com.nova.agent.data.MODELS
+import com.nova.agent.data.FALLBACK_MODELS
+import com.nova.agent.data.ModelOption
 import com.nova.agent.data.Mode
 import com.nova.agent.feature.chat.ChatScreen
 import com.nova.agent.feature.control.ControlScreen
@@ -34,8 +35,11 @@ fun NovaApp(
     var showHistory by rememberSaveable { mutableStateOf(false) }
 
     // Kontrol/Modeller açılınca disk durumunu tazele (indirme dışı değişiklikler için).
+    // Modeller ekranında ayrıca PC kataloğu da tazelenir: bağlandıktan sonra
+    // `ollama pull` edilen bir model, yeniden bağlantı testi beklemeden listeye düşsün.
     LaunchedEffect(vm.mode) {
         if (vm.mode == Mode.KONTROL || vm.mode == Mode.MODELLER) vm.local.refresh()
+        if (vm.mode == Mode.MODELLER && vm.settings.baseUrl.isNotBlank()) vm.refreshGatewayModels()
     }
 
     val activeSpec = vm.activeLocalSpec()
@@ -127,7 +131,7 @@ fun NovaApp(
                 offlineReady = activeInstalled && activeVerified,
                 recommendedId = vm.local.recommended.id,
                 metrics = vm.local.metrics,
-                gatewayModels = MODELS,
+                gatewayModels = vm.modelOptions(),
                 gatewaySelectedId = vm.settings.modelId,
                 onDownload = { vm.local.startDownload(it.spec, vm.settings.hfToken) },
                 onCancelDownload = { vm.local.cancelDownload(it.spec) },
@@ -179,6 +183,10 @@ fun NovaApp(
             onModelChange = vm::setModel,
             onEffortChange = vm::setEffort,
             onReasoningChange = vm::setReasoning,
+            models = vm.modelOptions(),
+            modelsLive = vm.gatewayCatalog != null,
+            modelsNote = vm.gatewayCatalog?.ollamaError.orEmpty(),
+            onRefreshModels = { vm.refreshGatewayModels() },
             onThemeChange = vm::setTheme,
             onHfTokenChange = vm::setHfToken,
             onPersonaChange = vm::setPersona,
@@ -199,6 +207,10 @@ internal fun NovaSettingsPanel(
     onModelChange: (String) -> Unit,
     onEffortChange: (String) -> Unit,
     onReasoningChange: (Boolean) -> Unit,
+    models: List<ModelOption> = FALLBACK_MODELS,
+    modelsLive: Boolean = false,
+    modelsNote: String = "",
+    onRefreshModels: () -> Unit = {},
     onThemeChange: (String) -> Unit = {},
     onHfTokenChange: (String) -> Unit = {},
     onPersonaChange: (String) -> Unit = {},
@@ -228,6 +240,10 @@ internal fun NovaSettingsPanel(
         onModelChange = onModelChange,
         onEffortChange = onEffortChange,
         onReasoningChange = onReasoningChange,
+        models = models,
+        modelsLive = modelsLive,
+        modelsNote = modelsNote,
+        onRefreshModels = onRefreshModels,
         onThemeChange = onThemeChange,
         onHfTokenChange = onHfTokenChange,
         onPersonaChange = onPersonaChange,

@@ -183,8 +183,18 @@ const EXECUTORS = {
     };
   },
   async web_search(args, ctx) {
-    const results = await webSearch(args.query, { signal: ctx && ctx.signal });
-    return { text: formatResults(results), sources: results.map(r => ({ n: r.n, title: r.title, url: r.url })) };
+    try {
+      const results = await webSearch(args.query, { signal: ctx && ctx.signal });
+      return { text: formatResults(results), sources: results.map(r => ({ n: r.n, title: r.title, url: r.url })) };
+    } catch (e) {
+      // SearXNG kapalı/erişilemez ise agent'ı çökertme; dürüst, kullanılabilir bir sonuç dön.
+      return {
+        text: "Web arama servisi (SearXNG) şu an erişilemiyor; internetten güncel sonuç getirilemedi. "
+          + "Yanıtı mevcut bilgine dayanarak ver ve gerçek zamanlı doğrulama yapılamadığını belirt.",
+        ok: false,
+        sources: [],
+      };
+    }
   },
   // Hava tahmini: Open-Meteo (anahtarsiz, ucretsiz). Once geocoding (sehir ->
   // koordinat), sonra gunluk tahmin. date: today|tomorrow|YYYY-MM-DD (varsayilan tomorrow).

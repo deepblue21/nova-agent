@@ -18,10 +18,13 @@ import com.nova.agent.data.ConversationStore
 import com.nova.agent.data.ConversationSummary
 import com.nova.agent.data.ConversationText
 import com.nova.agent.data.EFFORTS
-import com.nova.agent.data.MODELS
+import com.nova.agent.data.FALLBACK_MODELS
+import com.nova.agent.data.GatewayCatalog
+import com.nova.agent.data.ModelOption
 import com.nova.agent.data.Mode
 import com.nova.agent.data.PendingFallback
 import com.nova.agent.data.SettingsStore
+import com.nova.agent.data.ToolStep
 import com.nova.agent.data.VoiceState
 import com.nova.agent.llm.EngineRouter
 import com.nova.agent.llm.ExecutionPolicy
@@ -89,6 +92,8 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     val messages = mutableStateListOf<ChatMessage>()
     var settings by mutableStateOf(AppSettings()); private set
     var connectionState by mutableStateOf(GatewayConnectionUiState()); private set
+    /** Gateway'den gelen canlı model kataloğu; null = henüz yok, yedek liste kullanılır. */
+    var gatewayCatalog by mutableStateOf<GatewayCatalog?>(null); private set
     var busy by mutableStateOf(false); private set
     var mode by mutableStateOf(Mode.KONTROL)
     var voiceState by mutableStateOf(VoiceState.IDLE); private set
@@ -100,7 +105,9 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
 
     private var es: EventSource? = null
     private var connectionCall: Call? = null
+    private var modelsCall: Call? = null
     private val sb = StringBuilder()
+    private val thoughtBuf = StringBuilder()
     private var activeLocal = false
 
     init {
@@ -232,7 +239,8 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setLocalThinking(enabled: Boolean) = persist(settings.copy(localThinking = enabled))
     fun setLocalTools(enabled: Boolean) = persist(settings.copy(localTools = enabled))
-    fun setTheme(id: String) = persist(settings.copy(themeId = id))
+    fun setTheme(id: String) =
+        persist(settings.copy(themeId = com.nova.agent.ui.theme.normalizeThemeId(id)))
     fun setHfToken(token: String) = persist(settings.copy(hfToken = token.trim()))
     fun setHybridAutoFallback(enabled: Boolean) = persist(settings.copy(hybridAutoFallback = enabled))
     fun setPersona(text: String) = persist(settings.copy(persona = text.trim()))
@@ -271,20 +279,55 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
                         GatewayConnectionResult.AuthRequired -> GatewayConnectionUiState(
                             GatewayConnectionStatus.AUTH_REQUIRED,
                             "Kimlik doğrulama gerekli",
+                            "Adres doğru; erişim belirteci eksik ya da yanlış. PC'de " +
+                                "start-horus -Lan çıktısındaki API anahtarını gir.",
                         )
                         GatewayConnectionResult.InvalidUrl -> GatewayConnectionUiState(
                             GatewayConnectionStatus.INVALID_URL,
                             "Gateway adresi geçersiz",
+                            "Biçim: http://<PC-IP>:8088/v1 — örn. http://192.168.1.20:8088/v1",
                         )
                         is GatewayConnectionResult.Failure -> GatewayConnectionUiState(
                             GatewayConnectionStatus.UNREACHABLE,
                             result.message,
+                            result.hint,
                         )
+                    }
+                    if (result == GatewayConnectionResult.Ready) refreshGatewayModels(baseUrl, token)
+                }
+            }
+        }
+    }
+
+    /**
+     * Canlı model listesini gateway'den çeker (Ollama'da yüklü modeller +
+     * anahtarı tanımlı bulut sağlayıcıları). Başarısız olursa yedek liste
+     * kullanılmaya devam eder — uydurma model gösterilmez.
+     */
+    fun refreshGatewayModels(baseUrl: String = settings.baseUrl, token: String = settings.token) {
+        modelsCall?.cancel()
+        modelsCall = connectionClient.fetchModels(baseUrl, token) { catalog ->
+            onMain {
+                gatewayCatalog = catalog
+                // Kullanıcı henüz seçim yapmadıysa ya da kayıtlı seçim artık
+                // listede yoksa canlı varsayılana (ilk yerel model) geç.
+                val list = catalog?.models.orEmpty()
+                if (list.isNotEmpty()) {
+                    val current = list.firstOrNull { it.id == settings.modelId }
+                    if (current == null || !current.available) {
+                        val fallback = catalog?.defaultModelId
+                            ?.let { id -> list.firstOrNull { it.id == id && it.available } }
+                            ?: list.firstOrNull { it.available && it.model != "auto" }
+                        if (fallback != null) persist(settings.copy(modelId = fallback.id))
                     }
                 }
             }
         }
     }
+
+    /** Seçicide gösterilecek liste: canlı varsa o, yoksa yedek. */
+    fun modelOptions(): List<ModelOption> =
+        gatewayCatalog?.models?.takeIf { it.isNotEmpty() } ?: FALLBACK_MODELS
 
     private fun persist(s: AppSettings) {
         settings = s
@@ -293,7 +336,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
 
     fun currentModelName(): String = when (executionPolicy) {
         ExecutionPolicy.LOCAL_FIRST, ExecutionPolicy.LOCAL_ONLY -> activeLocalSpec().displayName
-        else -> MODELS.find { it.id == settings.modelId }?.name ?: "auto"
+        else -> modelOptions().find { it.id == settings.modelId }?.name ?: "auto"
     }
 
     fun currentEffortName(): String = EFFORTS.find { it.id == settings.effort }?.name ?: ""
@@ -433,7 +476,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         complete(messages.toList(), speakWhenDone = false, modelOverride = PC_AGENT_MODEL)
     }
 
-    private fun resolveModel(): String = MODELS.find { it.id == settings.modelId }?.model ?: "auto"
+    private fun resolveModel(): String = modelOptions().find { it.id == settings.modelId }?.model ?: "auto"
 
     /** Cihaz-üstü akışlı üretim. Gateway yoluna (complete) hiç dokunmaz. */
     private fun completeLocal(spec: LocalModelSpec, speakWhenDone: Boolean) {
@@ -442,6 +485,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         val history = prior.dropLast(1).map { it.role to it.content }
 
         sb.clear()
+        thoughtBuf.clear()
         messages.add(ChatMessage("assistant", "", route = "telefon/${spec.id}", streaming = true))
         busy = true
         activeLocal = true
@@ -517,20 +561,31 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         modelOverride: String? = null,
     ) {
         sb.clear()
+        thoughtBuf.clear()
         messages.add(ChatMessage("assistant", "", streaming = true))
         busy = true
         if (speakWhenDone) { voiceState = VoiceState.THINKING; voiceSub = "Düşünüyor…"; level = 0.28f }
 
+        val model = modelOverride ?: resolveModel()
         es = client.stream(
             baseUrl = settings.baseUrl,
             token = settings.token,
-            model = modelOverride ?: resolveModel(),
+            model = model,
             effort = settings.effort,
             reasoning = settings.reasoning,
             history = history,
+            // Araç destekli modelde ajan modu kendiliğinden açılır: kullanıcı
+            // ayrı bir anahtar çevirmez, ama hangi araçların çalıştığını
+            // araç izi kartında görür.
+            agent = agenticForModel(model),
             cb = object : NovaClient.Callbacks {
                 override fun onRoute(route: String) = onMain { updateLast { it.copy(route = route) } }
                 override fun onToken(text: String) = onMain { sb.append(text); updateLast { it.copy(content = sb.toString()) } }
+                override fun onThought(text: String) = onMain {
+                    thoughtBuf.append(text)
+                    updateLast { it.copy(thoughts = thoughtBuf.toString()) }
+                }
+                override fun onTool(step: ToolStep) = onMain { mergeToolStep(step) }
                 override fun onDone() = onMain { finish(speakWhenDone) }
                 override fun onError(message: String) = onMain {
                     sb.append(if (sb.isEmpty()) "⚠️ $message" else "\n\n⚠️ $message")
@@ -559,6 +614,41 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     private fun updateLast(f: (ChatMessage) -> ChatMessage) {
         val i = messages.lastIndex
         if (i >= 0) messages[i] = f(messages[i])
+    }
+
+    /**
+     * Seçili modelin araç yeteneği. Kullanıcı ayrı bir anahtar çevirmez:
+     * destekleyen modelde ajan modu açılır, desteklemeyende kapalı kalır —
+     * yoksa gateway boş araç turu döndürür ya da model uydurur.
+     * Katalog gelmediyse (yedek liste) ajan açılmaz; tahminle araç çalıştırmayız.
+     */
+    fun agenticForModel(model: String): Boolean =
+        modelOptions().firstOrNull { it.model == model || it.id == model }?.tools == true
+
+    /** Sohbet başlığındaki rozet için: şu anki seçim araç destekliyor mu. */
+    fun currentModelSupportsTools(): Boolean = agenticForModel(resolveModel())
+
+    /**
+     * Araç adımlarını birleştirir. Gateway aynı adımı önce `done:false`,
+     * sonra sonuçla birlikte `done:true` gönderir; ikinci kayıt öncekini
+     * günceller, yenisini eklemez (web'deki onTool ile aynı mantık).
+     */
+    private fun mergeToolStep(step: ToolStep) {
+        updateLast { msg ->
+            val list = msg.tools.toMutableList()
+            if (step.done) {
+                val idx = list.indexOfLast { it.name == step.name && (step.query.isEmpty() || it.query == step.query) }
+                if (idx >= 0) {
+                    val prev = list[idx]
+                    list[idx] = step.copy(query = prev.query.ifEmpty { step.query })
+                } else {
+                    list.add(step)
+                }
+            } else {
+                list.add(step)
+            }
+            msg.copy(tools = list)
+        }
     }
 
     // ---------- ses ----------

@@ -1,0 +1,871 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta
+    name="description"
+    content="NOVA Pulse Aperture marka işaretinin tema, durum, yüzey, hareket ve küçük boyut kullanım kütüphanesi."
+  >
+  <title>NOVA Pulse Aperture — Tasarım Kütüphanesi</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #070911;
+      --panel: #0d1120;
+      --panel-strong: #11172a;
+      --line: rgba(255, 255, 255, 0.1);
+      --line-strong: rgba(255, 255, 255, 0.16);
+      --text: #eef1fb;
+      --muted: #9aa3bd;
+      --quiet: #68718b;
+      --accent: #8c78ff;
+      --accent-soft: rgba(140, 120, 255, 0.13);
+      --success: #53d6a6;
+      --radius-sm: 12px;
+      --radius-md: 18px;
+      --radius-lg: 26px;
+      --shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      background: var(--bg);
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family:
+        Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    img {
+      display: block;
+      max-width: 100%;
+    }
+
+    .page {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 56px 0 96px;
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: #b7a7ff;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      max-width: 760px;
+      margin-bottom: 18px;
+      font-size: clamp(36px, 6vw, 68px);
+      line-height: 1.02;
+      letter-spacing: -0.045em;
+    }
+
+    h2 {
+      margin-bottom: 8px;
+      font-size: clamp(24px, 3vw, 34px);
+      line-height: 1.16;
+      letter-spacing: -0.025em;
+    }
+
+    h3 {
+      margin-bottom: 5px;
+      font-size: 16px;
+    }
+
+    .lede,
+    .section-copy,
+    .card p,
+    .caption {
+      color: var(--muted);
+    }
+
+    .lede {
+      max-width: 680px;
+      margin-bottom: 0;
+      font-size: 17px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
+      gap: 48px;
+      align-items: center;
+      min-height: 520px;
+      padding: 48px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: #0b0e1a;
+      box-shadow: var(--shadow);
+    }
+
+    .hero-art {
+      width: min(100%, 390px);
+      margin-inline: auto;
+      border: 1px solid var(--line-strong);
+      border-radius: 32px;
+      box-shadow: 0 18px 55px rgba(50, 30, 130, 0.2);
+    }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 24px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 5px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.035);
+      color: #cbd2e5;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    section {
+      margin-top: 72px;
+    }
+
+    .section-heading {
+      display: flex;
+      justify-content: space-between;
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 22px;
+    }
+
+    .section-heading > div {
+      max-width: 710px;
+    }
+
+    .section-copy {
+      margin-bottom: 0;
+    }
+
+    .section-count {
+      flex: none;
+      color: var(--quiet);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .variant-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .variant-card,
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: var(--panel);
+    }
+
+    .variant-card {
+      margin: 0;
+      padding: 14px;
+    }
+
+    .variant-card img {
+      width: 100%;
+      aspect-ratio: 1;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-sm);
+    }
+
+    .variant-card figcaption {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: baseline;
+      padding: 12px 2px 1px;
+    }
+
+    .variant-name {
+      color: var(--text);
+      font-weight: 750;
+    }
+
+    .variant-id {
+      color: var(--quiet);
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 11px;
+    }
+
+    .variant-card[data-featured="true"] {
+      border-color: rgba(183, 167, 255, 0.42);
+      background: #12132a;
+    }
+
+    .usage-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      overflow: hidden;
+    }
+
+    .card-art {
+      display: grid;
+      min-height: 260px;
+      place-items: center;
+      background: #090c16;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .card-art img {
+      width: 172px;
+      height: 172px;
+      border-radius: 24px;
+    }
+
+    [data-state="brand"] .card-art img {
+      width: 192px;
+      height: 192px;
+    }
+
+    [data-state="thinking"] .card-art {
+      background: #11132a;
+    }
+
+    [data-state="thinking"] .card-art img {
+      width: 144px;
+      height: 144px;
+      box-shadow: 0 0 44px rgba(117, 88, 255, 0.18);
+    }
+
+    [data-state="preview"] .card-art {
+      background: #101624;
+    }
+
+    [data-state="preview"] .card-art img {
+      width: 112px;
+      height: 112px;
+      border: 8px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .card-body {
+      padding: 18px;
+    }
+
+    .card-body p {
+      margin-bottom: 0;
+      font-size: 13px;
+    }
+
+    .spec-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 14px;
+    }
+
+    .size-panel,
+    .surface-panel,
+    .motion-panel {
+      padding: 24px;
+    }
+
+    .size-row {
+      display: flex;
+      min-height: 148px;
+      gap: 24px;
+      align-items: end;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: #090c16;
+    }
+
+    .size-sample {
+      display: grid;
+      gap: 9px;
+      justify-items: center;
+      color: var(--quiet);
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 11px;
+    }
+
+    .size-sample img {
+      border-radius: 20%;
+    }
+
+    .surface-panel {
+      display: grid;
+      grid-template-columns: 1fr 150px;
+      gap: 24px;
+      align-items: center;
+      min-height: 100%;
+      background: #030304;
+    }
+
+    .surface-panel p {
+      margin-bottom: 0;
+    }
+
+    .surface-panel img {
+      width: 150px;
+      height: 150px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 22px;
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.48);
+    }
+
+    .surface-label {
+      color: #ff8f9f;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .motion-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .motion-panel {
+      display: grid;
+      grid-template-columns: 108px 1fr;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .motion-panel img {
+      width: 108px;
+      height: 108px;
+      border-radius: 18px;
+    }
+
+    .motion-panel p {
+      margin-bottom: 0;
+      font-size: 13px;
+    }
+
+    .motion-status {
+      display: inline-flex;
+      margin-bottom: 8px;
+      color: var(--success);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    [data-animation="none"] {
+      animation: none !important;
+      transform: none !important;
+    }
+
+    .source-note {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 14px;
+      align-items: start;
+      margin-top: 20px;
+      padding: 18px 20px;
+      border: 1px solid rgba(183, 167, 255, 0.22);
+      border-radius: var(--radius-sm);
+      background: var(--accent-soft);
+      color: #dfe2f4;
+    }
+
+    .source-note strong {
+      color: #c8bbff;
+    }
+
+    code {
+      color: #cdd3e7;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 0.9em;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .hero,
+      .spec-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .variant-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .usage-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .card {
+        display: grid;
+        grid-template-columns: minmax(210px, 0.8fr) 1fr;
+      }
+
+      .card-art {
+        border-right: 1px solid var(--line);
+        border-bottom: 0;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .page {
+        width: min(100% - 24px, 1180px);
+        padding-top: 20px;
+      }
+
+      .hero {
+        min-height: auto;
+        padding: 28px 22px;
+        border-radius: 20px;
+      }
+
+      .variant-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .section-heading,
+      .card,
+      .motion-panel,
+      .surface-panel {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+
+      .section-heading {
+        align-items: start;
+      }
+
+      .card-art {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .size-row {
+        gap: 16px;
+        overflow-x: auto;
+      }
+
+      .surface-panel img {
+        width: 132px;
+        height: 132px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">NOVA marka sistemi · Pulse Aperture</p>
+        <h1>Tek işaret, on bir tema, ortak kullanım dili.</h1>
+        <p class="lede">
+          Bu kütüphane yeni işaret çizmez. Token sözleşmesinde kayıtlı, onaylı
+          Pulse Aperture kaynaklarını marka, düşünme ve önizleme bağlamlarında
+          yeniden kullanır.
+        </p>
+        <div class="hero-meta" aria-label="Kaynak özellikleri">
+          <span class="tag">560 × 560 kaynak</span>
+          <span class="tag">Göreli dosya yolları</span>
+          <span class="tag">Web + Android ortak dili</span>
+        </div>
+      </div>
+      <img
+        class="hero-art"
+        src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-amethyst.svg"
+        alt="Ametist ve camgöbeği NOVA Pulse Aperture işareti"
+        width="560"
+        height="560"
+      >
+    </header>
+
+    <section aria-labelledby="variants-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Tema kaynakları</p>
+          <h2 id="variants-title">Onaylı varyantların tamamı</h2>
+          <p class="section-copy">
+            Sıra ve dosya yolları <code>design/nova-tokens.json</code> içindeki
+            <code>accents[].sourceAsset</code> sözleşmesini izler.
+          </p>
+        </div>
+        <span class="section-count">11 gerçek kaynak</span>
+      </div>
+
+      <div class="variant-grid">
+        <figure class="variant-card" data-featured="true">
+          <img
+            data-variant="amethyst"
+            src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-amethyst.svg"
+            alt="Ametist Pulse Aperture varyantı"
+            width="560"
+            height="560"
+          >
+          <figcaption><span class="variant-name">Ametist</span><span class="variant-id">amethyst</span></figcaption>
+        </figure>
+        <figure class="variant-card">
+          <img
+            data-variant="arctic"
+            src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-arctic.svg"
+            alt="Arktik Pulse Aperture varyantı"
+            width="560"
+            height="560"
+            loading="lazy"
+          >
+          <figcaption><span class="variant-name">Arktik</span><span class="variant-id">arctic</span></figcaption>
+        </figure>
+        <figure class="variant-card">
+          <img
+            data-variant="sapphire"
+            src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-sapphire.svg"
+            alt="Safir Pulse Aperture varyantı"
+            width="560"
+            height="560"
+            loading="lazy"
+          >
+          <figcaption><span class="variant-name">Safir</span><span class="variant-id">sapphire</span></figcaption>
+        </figure>
+        <figure class="variant-card">
+          <img
+            data-variant="emerald"
+            src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-emerald.svg"
+            alt="Zümrüt Pulse Aperture varyantı"
+            width="560"
+            height="560"
+            loading="lazy"
+          >
+          <figcaption><span class="variant-name">Zümrüt</span><span class="variant-id">emerald</span></figcaption>
+        </figure>
+        <figure class="variant-card">
+          <img
+            data-variant="lime"
+            src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-lime.svg"
+            alt="Limon Pulse Aperture varyantı"
+            width="560"
+            height="560"
+            loading="lazy"
+          >
+          <figcaption><span class="variant-name">Limon</span><span class="variant-id">lime</span></figcaption>
+        </figure>
+        <figure class="variant-card">
+          <img
+            data-variant="amber"
+            src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-amber.svg"
+            alt="Amber Pulse Aperture varyantı"
+            width="560"
+            height="560"
+            loading="lazy"
+          >
+          <figcaption><span class="variant-name">Amber</span><span class="variant-id">amber</span></figcaption>
+        </figure>
+        <figure class="variant-card">
+          <img
+            data-variant="copper"
+            src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-copper.svg"
+            alt="Bakır Pulse Aperture varyantı"
+            width="560"
+            height="560"
+            loading="lazy"
+          >
+          <figcaption><span class="variant-name">Bakır</span><span class="variant-id">copper</span></figcaption>
+        </figure>
+        <figure class="variant-card">
+          <img
+            data-variant="coral"
+            src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-coral.svg"
+            alt="Mercan Pulse Aperture varyantı"
+            width="560"
+            height="560"
+            loading="lazy"
+          >
+          <figcaption><span class="variant-name">Mercan</span><span class="variant-id">coral</span></figcaption>
+        </figure>
+        <figure class="variant-card">
+          <img
+            data-variant="ruby"
+            src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-ruby.svg"
+            alt="Kızıl Pulse Aperture varyantı"
+            width="560"
+            height="560"
+            loading="lazy"
+          >
+          <figcaption><span class="variant-name">Kızıl</span><span class="variant-id">ruby</span></figcaption>
+        </figure>
+        <figure class="variant-card">
+          <img
+            data-variant="lavender"
+            src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-lavender.svg"
+            alt="Lavanta Pulse Aperture varyantı"
+            width="560"
+            height="560"
+            loading="lazy"
+          >
+          <figcaption><span class="variant-name">Lavanta</span><span class="variant-id">lavender</span></figcaption>
+        </figure>
+        <figure class="variant-card">
+          <img
+            data-variant="moonstone"
+            src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-moonstone.svg"
+            alt="Aytaşı Pulse Aperture varyantı"
+            width="560"
+            height="560"
+            loading="lazy"
+          >
+          <figcaption><span class="variant-name">Aytaşı</span><span class="variant-id">moonstone</span></figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section aria-labelledby="states-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Durum sözlüğü</p>
+          <h2 id="states-title">Brand, thinking ve preview</h2>
+          <p class="section-copy">
+            Aynı kaynak, bağlama göre ölçek ve yerleşim değiştirir; geometri
+            kopyalanmaz ve yeniden çizilmez.
+          </p>
+        </div>
+        <span class="section-count">3 kullanım durumu</span>
+      </div>
+
+      <div class="usage-grid">
+        <article class="card" data-state="brand">
+          <div class="card-art">
+            <img
+              src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-amethyst.svg"
+              alt="Marka durumunda Ametist Pulse Aperture"
+              width="192"
+              height="192"
+              loading="lazy"
+            >
+          </div>
+          <div class="card-body">
+            <h3>Brand</h3>
+            <p>Açılış, ürün kimliği ve ana marka anları için en yüksek görsel ağırlık.</p>
+          </div>
+        </article>
+
+        <article class="card" data-state="thinking">
+          <div class="card-art">
+            <img
+              src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-sapphire.svg"
+              alt="Düşünme durumunda Safir Pulse Aperture"
+              width="144"
+              height="144"
+              loading="lazy"
+            >
+          </div>
+          <div class="card-body">
+            <h3>Thinking</h3>
+            <p>Asistanın aktif akıl yürütmesini, kaynak SVG’nin kendi hareket diliyle gösterir.</p>
+          </div>
+        </article>
+
+        <article class="card" data-state="preview">
+          <div class="card-art">
+            <img
+              src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-amber.svg"
+              alt="Önizleme durumunda Amber Pulse Aperture"
+              width="112"
+              height="112"
+              loading="lazy"
+            >
+          </div>
+          <div class="card-body">
+            <h3>Preview</h3>
+            <p>Tema seçici, ayar satırı ve küçük kartlarda hızlı karşılaştırma görünümü.</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="checks-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Görsel sağlamlık</p>
+          <h2 id="checks-title">Küçük boyut ve yüzey kontrolü</h2>
+          <p class="section-copy">
+            Okunurluk örnekleri kaynak dosyayı dönüştürmeden, tarayıcı ölçeklemesiyle gösterilir.
+          </p>
+        </div>
+      </div>
+
+      <div class="spec-grid">
+        <article class="card size-panel">
+          <h3>Küçük boyut kontrolü</h3>
+          <p class="caption">Ana siluet ve sıcak çekirdek dört kompakt ölçekte birlikte denetlenir.</p>
+          <div class="size-row">
+            <div class="size-sample">
+              <img
+                data-size="96"
+                src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-amethyst.svg"
+                alt="96 piksel Ametist Pulse Aperture"
+                width="96"
+                height="96"
+                loading="lazy"
+              >
+              <span>96 px</span>
+            </div>
+            <div class="size-sample">
+              <img
+                data-size="72"
+                src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-amethyst.svg"
+                alt="72 piksel Ametist Pulse Aperture"
+                width="72"
+                height="72"
+                loading="lazy"
+              >
+              <span>72 px</span>
+            </div>
+            <div class="size-sample">
+              <img
+                data-size="48"
+                src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-amethyst.svg"
+                alt="48 piksel Ametist Pulse Aperture"
+                width="48"
+                height="48"
+                loading="lazy"
+              >
+              <span>48 px</span>
+            </div>
+            <div class="size-sample">
+              <img
+                data-size="36"
+                src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-amethyst.svg"
+                alt="36 piksel Ametist Pulse Aperture"
+                width="36"
+                height="36"
+                loading="lazy"
+              >
+              <span>36 px</span>
+            </div>
+          </div>
+        </article>
+
+        <article
+          class="card surface-panel"
+          data-surface="ruby-black"
+          data-accent="ruby"
+          data-surface-color="#030304"
+        >
+          <div>
+            <span class="surface-label">Ruby · siyah-dominant yüzey</span>
+            <h3>Kızıl odak, düşük parlaklık</h3>
+            <p class="caption">
+              Ruby örneği, token setindeki <code>#030304</code> arka yüzey üzerinde
+              kırmızı gövdeyi ve sıcak çekirdeği öne çıkarır.
+            </p>
+          </div>
+          <img
+            src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-ruby.svg"
+            alt="Siyah-dominant yüzeyde Kızıl Pulse Aperture"
+            width="150"
+            height="150"
+            loading="lazy"
+          >
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="motion-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Hareket erişilebilirliği</p>
+          <h2 id="motion-title">Sistem tercihine saygı</h2>
+          <p class="section-copy">
+            Pulse Aperture kaynaklarının kendi azaltılmış hareket kuralı korunur;
+            sayfa da aynı tercihte geçiş ve animasyon sürelerini kapatır.
+          </p>
+        </div>
+      </div>
+
+      <div class="motion-grid">
+        <article class="card motion-panel">
+          <img
+            src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-moonstone.svg"
+            alt="Standart hareket örneğinde Aytaşı Pulse Aperture"
+            width="108"
+            height="108"
+            loading="lazy"
+          >
+          <div>
+            <span class="motion-status">Standart hareket</span>
+            <h3>Kaynak zamanlaması</h3>
+            <p class="caption">Nefes, yörünge ve çekirdek nabzı dosyanın onaylı ritmini kullanır.</p>
+          </div>
+        </article>
+
+        <article class="card motion-panel">
+          <img
+            data-motion="reduced"
+            data-animation="none"
+            style="animation: none; transform: none"
+            src="../../design/brand/pulse-aperture/nova-pulse-aperture-orbital-v4-moonstone.svg"
+            alt="Azaltılmış hareket örneğinde Aytaşı Pulse Aperture"
+            width="108"
+            height="108"
+            loading="lazy"
+          >
+          <div>
+            <span class="motion-status">Azaltılmış hareket</span>
+            <h3>Sabit, anlamı korunmuş</h3>
+            <p class="caption">
+              İşletim sistemi tercihi etkin olduğunda kaynak içindeki hareket durur;
+              işaret ve durum bilgisi görünür kalır.
+            </p>
+          </div>
+        </article>
+      </div>
+
+      <div class="source-note">
+        <strong>Kaynak ilkesi</strong>
+        <span>
+          Bu sayfadaki tüm görseller <code>design/brand/pulse-aperture/</code>
+          altındaki gerçek dosyalara göreli <code>img</code> yollarıyla bağlanır.
+          Sayfa içinde yeni ya da kopya vektör çizimi bulunmaz.
+        </span>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

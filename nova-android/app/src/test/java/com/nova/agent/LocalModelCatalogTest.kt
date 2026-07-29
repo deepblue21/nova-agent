@@ -55,6 +55,54 @@ class LocalModelCatalogTest {
     }
 
     @Test
+    fun `buyuk modeller kapisiz apache lisansli ve dogrulanmis degerlerle kayitli`() {
+        // 2026-07-19'da HuggingFace API'sinden doğrulanan boyut + SHA-256 değerleri.
+        val beklenen = mapOf(
+            "qwen3-4b-int4" to (2_659_057_664L to
+                "f0794bc77efeaaf4f7af815f04c483b19b8f2ae4a102cef1b7b760a25848a18e"),
+            "gemma4-e4b" to (3_659_530_240L to
+                "0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0"),
+            "qwen3-8b-int4" to (4_887_412_736L to
+                "cb4e6d0de4bbf6656d177812cf0c6a983967dedd17e7f88e84b901c3a9862a42"),
+            "gemma4-12b" to (6_547_589_312L to
+                "74fc29a10c20eb5b3ced6c389471a7994a0ffd657255b2a1c764262fb9054aef"),
+            "qwen3-14b-int4" to (8_655_863_808L to
+                "71de7d58f1b46a3fcba2f7bb700ebcc3c3715877d9a7028d93dd1bcd89bbe946"),
+        )
+        for ((id, degerler) in beklenen) {
+            val spec = LocalModelCatalog.byId(id)!!
+            val (boyut, sha) = degerler
+            assertEquals(id, boyut, spec.sizeBytes)
+            assertEquals(id, sha, spec.sha256)
+            // Hepsi kapısız: ilk kurulumda HF token istemez.
+            assertTrue(id, !spec.gated)
+            assertEquals(id, "Apache-2.0", spec.licenseName)
+            // Büyük modeller dürüst bir RAM beklentisi bildirir.
+            assertTrue(id, spec.recommendedRamGb >= 8)
+        }
+    }
+
+    @Test
+    fun `buyuk modellerde RAM beklentisi boyutla birlikte artar`() {
+        val sirali = LocalModelCatalog.entries
+            .filter { it.recommendedRamGb >= 8 }
+            .sortedBy { it.sizeBytes }
+        assertTrue("en az 5 büyük model", sirali.size >= 5)
+        for ((onceki, sonraki) in sirali.zipWithNext()) {
+            assertTrue(
+                "${onceki.id} -> ${sonraki.id}",
+                sonraki.recommendedRamGb >= onceki.recommendedRamGb,
+            )
+        }
+        // 8 GB RAM'li bir telefon 14B'yi riskli görmeli — taklit yok.
+        val enBuyuk = sirali.last()
+        assertEquals(
+            com.nova.agent.llm.local.ModelRecommender.Fit.RISKY,
+            com.nova.agent.llm.local.ModelRecommender.fit(enBuyuk, 8.0),
+        )
+    }
+
+    @Test
     fun `gemma kapili ve dogrulanmis degerlerle kayitli`() {
         val gemma = LocalModelCatalog.byId("gemma3-1b-int4")!!
         assertTrue(gemma.gated)

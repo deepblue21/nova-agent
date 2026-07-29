@@ -1,7 +1,7 @@
 // NOVA Agent service worker — offline app shell.
 // Same-origin only: NEVER intercepts gateway / Ollama / provider API calls
 // (those are cross-origin and must always hit the network).
-const CACHE = "nova-shell-v1";
+const CACHE = "nova-shell-v2";
 
 self.addEventListener("install", () => self.skipWaiting());
 
@@ -29,7 +29,22 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // Static assets: cache-first, then network (and cache the result).
+  // Uygulama paketi (/assets/*): dosya adı hash'siz (main.js) olduğu için
+  // cache-first YANLIŞ — yeni derleme alındığında tarayıcı eskiyi servis eder.
+  // Ağ önce, çevrimdışıysa önbellek.
+  if (url.pathname.startsWith("/assets/")) {
+    e.respondWith(
+      fetch(req)
+        .then((r) => {
+          if (r && r.ok) { const cp = r.clone(); caches.open(CACHE).then((c) => c.put(req, cp)); }
+          return r;
+        })
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  // Gerçekten değişmeyen varlıklar (ikon, manifest, font): cache-first.
   e.respondWith(
     caches.match(req).then((m) =>
       m ||

@@ -15,10 +15,10 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import com.nova.agent.ui.theme.Azure
-import com.nova.agent.ui.theme.Coral
-import com.nova.agent.ui.theme.Cyan
-import com.nova.agent.ui.theme.Violet
+import com.nova.agent.ui.theme.LocalNovaAccent
+import com.nova.agent.ui.theme.NovaDuration
+import com.nova.agent.ui.theme.NovaOrb
+import com.nova.agent.ui.theme.orbPalette
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -29,32 +29,37 @@ fun Orb(level: Float, modifier: Modifier = Modifier) {
     val t by transition.animateFloat(
         initialValue = 0f,
         targetValue = (Math.PI * 2).toFloat(),
-        animationSpec = infiniteRepeatable(tween(9000, easing = LinearEasing), RepeatMode.Restart),
+        animationSpec = infiniteRepeatable(
+            tween(NovaDuration.orbCycle, easing = LinearEasing),
+            RepeatMode.Restart,
+        ),
         label = "phase"
     )
     val shimmer = 0.5f + 0.5f * sin(t * 3f)
     val lv = (level + 0.05f * shimmer).coerceIn(0f, 1f)
-    val palette = listOf(Cyan, Azure, Violet, Coral)
+    // Palet seçili temadan gelir; tema değişince orb da birlikte değişir.
+    val palette = orbPalette()
+    val halo = LocalNovaAccent.current.primary
 
     Canvas(modifier = modifier) {
         val cx = size.width / 2f
         val cy = size.height / 2f
         val base = min(size.width, size.height) * 0.25f
-        val r = base * (1f + lv * 0.22f)
+        val r = base * (1f + lv * NovaOrb.levelGain)
         val center = Offset(cx, cy)
 
         // bloom
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(Cyan.copy(alpha = 0.16f + lv * 0.25f), Color.Transparent),
+                colors = listOf(halo.copy(alpha = 0.16f + lv * 0.25f), Color.Transparent),
                 center = center, radius = r * 2.5f
             ),
             radius = r * 2.5f, center = center
         )
 
         // canlı bloblar (additive)
-        for (i in 0 until 5) {
-            val a = t * (1f + i * 0.15f) + i * (Math.PI * 2 / 5).toFloat()
+        for (i in 0 until NovaOrb.blobCount) {
+            val a = t * (1f + i * 0.15f) + i * (Math.PI * 2 / NovaOrb.blobCount).toFloat()
             val dist = r * 0.30f * (0.6f + 0.4f * sin(t * (i + 1) * 0.5f))
             val x = cx + cos(a) * dist * (1f + lv * 0.5f)
             val y = cy + sin(a * 1.1f) * dist * (1f + lv * 0.5f)
@@ -73,15 +78,15 @@ fun Orb(level: Float, modifier: Modifier = Modifier) {
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(Color.White.copy(alpha = 0.45f + lv * 0.4f), Color.Transparent),
-                center = center, radius = r * 0.55f
+                center = center, radius = r * NovaOrb.coreRadiusRatio
             ),
-            radius = r * 0.55f, center = center
+            radius = r * NovaOrb.coreRadiusRatio, center = center
         )
 
         // ince halka
         drawCircle(
-            color = Cyan.copy(alpha = 0.10f + lv * 0.18f),
-            radius = r * 1.16f, center = center, style = Stroke(width = 2f)
+            color = halo.copy(alpha = 0.10f + lv * 0.18f),
+            radius = r * NovaOrb.ringRadiusRatio, center = center, style = Stroke(width = 2f)
         )
     }
 }
