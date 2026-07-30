@@ -5,6 +5,24 @@ import { trim } from "./format.mjs";
 /** ".../v1" son ekini atarak kök adresi verir. */
 export const gwBase = (prov) => trim(prov && prov.baseUrl).replace(/\/v1$/, "");
 
+/**
+ * HTTP durumunu ne yapılacağını söyleyen bir mesaja çevirir. "HTTP 401"
+ * kullanıcıya hiçbir şey anlatmıyordu; en sık karşılaşılan durum da bu
+ * (gateway çok-kullanıcılı modda ve anahtar girilmemiş).
+ */
+export function gatewayHttpMessage(status) {
+  if (status === 401) {
+    return "Gateway anahtarı yok ya da geçersiz (401) — Ayarlar → Model Sağlayıcıları → "
+      + "Gateway → Anahtar alanına API anahtarını yapıştır "
+      + "(oluşturmak için: docker compose exec gateway node scripts/bootstrap-user.mjs <e-posta> 5).";
+  }
+  if (status === 403) return "Bu anahtarın bu işlem için yetkisi yok (403).";
+  if (status === 402) return "Aylık kota doldu (402).";
+  if (status === 429) return "Çok fazla istek (429) — biraz bekleyip tekrar dene.";
+  if (status >= 500) return "Gateway hata döndürdü (" + status + ").";
+  return "HTTP " + status;
+}
+
 const authHeaders = (prov) => (prov && prov.apiKey ? { Authorization: "Bearer " + prov.apiKey } : {});
 const jsonHeaders = (prov) => ({ "Content-Type": "application/json", ...authHeaders(prov) });
 
@@ -37,7 +55,7 @@ async function result(prov, path, opts) {
       const data = r.status === 204 ? {} : await r.json().catch(() => ({}));
       return { ok: true, data };
     }
-    let error = "HTTP " + r.status;
+    let error = gatewayHttpMessage(r.status);
     try { error = (await r.json()).error || error; } catch (e) {}
     return { ok: false, error, status: r.status };
   } catch (e) {
@@ -50,10 +68,17 @@ const list = async (prov, path) => ((await jsonOrNull(prov, path)) || {}).data |
 /* ------------------------------- katalog -------------------------------- */
 
 export async function fetchModels(prov, refresh) {
+  // Anahtar hiç girilmemişse isteği yine gönderiyoruz: tek-kullanıcılı
+  // gateway'de (DATABASE_URL yok) anahtar gerekmez ve liste gelir. Ama 401
+  // dönerse mesaj ne yapılacağını söyler.
   const r = await fetch(gwBase(prov) + "/v1/models" + (refresh ? "?refresh=1" : ""), {
     headers: authHeaders(prov),
   });
-  if (!r.ok) throw new Error("HTTP " + r.status);
+  if (!r.ok) {
+    const err = new Error(gatewayHttpMessage(r.status));
+    err.status = r.status;
+    throw err;
+  }
   const d = await r.json();
   if (!d || !Array.isArray(d.data)) throw new Error("beklenmeyen yanıt");
   return d;

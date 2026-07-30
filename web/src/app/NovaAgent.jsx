@@ -280,6 +280,7 @@ export default function NovaAgent() {
             if (g.agent) setAgent(g.agent);
             if (g.agentUrl) setAgentUrl(g.agentUrl);
             if (g.accent) setAccent(normalizeThemeId(g.accent));
+            if (g.scheme && ["dark", "light", "auto"].includes(g.scheme)) setScheme(g.scheme);
             if (g.target) setTarget(g.target);
             if (g.view && ["kontrol", "isler", "sohbet", "modeller", "ses"].includes(g.view) && !imported) {
               setView(g.view);
@@ -330,7 +331,9 @@ export default function NovaAgent() {
         settings: {
           modelId, effort, reasoning, personaId, customPersona,
           agentMode, teamMode, agent, agentUrl, voiceCfg, providers,
-          accent: normalizeThemeId(accent), target, view,
+          // scheme bağımlılık listesindeydi ama kaydedilmiyordu: "Kağıt"
+          // seçimi her yenilemede "Gece"ye dönüyordu.
+          accent: normalizeThemeId(accent), scheme, target, view,
         },
         convs, activeId,
       }));
@@ -410,7 +413,10 @@ export default function NovaAgent() {
       setLiveModelsErr(d.ollama && d.ollama.ok === false ? (d.ollama.error || "Ollama listesi alınamadı") : "");
     } catch (e) {
       setLiveCatalog(null);
-      setLiveModelsErr("Model listesi alınamadı: " + ((e && e.message) || e));
+      // 401'de "anahtar yok" mesajı zaten kendini açıklıyor; başına
+      // "Model listesi alınamadı" eklemek asıl yönergeyi boğuyor.
+      const msg = (e && e.message) || String(e);
+      setLiveModelsErr(e && e.status === 401 ? msg : "Model listesi alınamadı: " + msg);
     }
   }, [gw.baseUrl, gw.apiKey]);   // eslint-disable-line react-hooks/exhaustive-deps
 
