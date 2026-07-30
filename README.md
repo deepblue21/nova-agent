@@ -156,100 +156,24 @@ Gateway for local PC/GPU inference and the Android client as the task-control su
 This section is a living delivery record: it is updated after every completed Horus task
 with both verified work and the next concrete work item.
 
-**Completed and verified**
+**Completed and verified (summary)**
 
-- Persistent authenticated mobile tasks, replayable SSE events, pause/resume/cancel, and
-  R2/R3 confirmation records in the Gateway.
-- Android **Tasks** workspace with task creation, timeline replay, controls, and risk
-  confirmation UI; unit, lint, APK, and emulator Compose checks passed.
-- Docker mobile-control-plane smoke that creates, reads, pauses, resumes, cancels, and
-  replays task events without printing the API key.
-- Debug APK: `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
-- Task 7 control-center verification delivered the fixed task-first **Tasks / Chat / Voice**
-  navigation while retaining the adaptive launcher icon. The full gate passed with 50 unit tests,
-  27 connected Android tests on Android 17 `emulator-5554`, zero lint errors (11 warnings and one
-  informational issue), and a successful debug APK install/launcher resolution. No physical ADB
-  serial was connected, so physical-phone testing was not performed. The verified APK SHA-256 is
-  `4D65812810CBC0C6D80081CC40A5FF716A3A52829A68EB049C6D7681A104E689`.
-- Final regression hardening pins each running task to its original Gateway, rejects stale or
-  foreign-task callbacks/events, canonicalizes accepted Gateway addresses to `/v1`, and fails
-  malformed saved addresses safely. TalkBack editing semantics remain available for the masked
-  token field; bottom insets, busy voice controls, and loading-state task prompts are also covered.
-- The in-app Gateway probe reached `PC ready` with a local QA identity. The fixed connectivity
-  prompt completed through the PC model with UI-tree-sampled TTFT 48.337 s, total 48.341 s, and
-  sanitized route `ollama/gemma4:latest`; no raw model body or credential is recorded here.
-- Worker preflight passed (7 Node tests and 39 Python tests), but the safe live Android-version
-  attempt was rejected before task creation by the Gateway allowlist with the sanitized message
-  `Bu gorev emulator worker'inda desteklenmiyor`; no terminal worker run is claimed.
-- The Task 7 regression pass resolved the Settings/status-bar overlap at system font scales 1.0
-  and 1.3, and kept the Tasks composer plus primary action fully above a real IME at 1.3. The best
-  warm no-dump debug-emulator sample still recorded 37/69 janky frames (53.62%), p50 34 ms and
-  p90 44 ms. Perfetto evidence points to mixed emulator graphics/buffer pressure and Compose work,
-  without one proven app-owned hotspot; release-build performance on physical hardware remains a
-  follow-up rather than a claimed benchmark.
-- Dedicated worker-goal policy and worker-only authentication are complete.
-- Gateway worker leases are persisted with token hashes only. Focused semantic store tests now
-  distinguish an unknown task (`404`) from a valid task with a missing, stale, inactive, or
-  wrong lease (`409`) for both status and report operations; events and persisted records never
-  contain the lease token.
-- Worker-only Gateway control routers are constructed from factories after the local `.env` loader,
-  then mounted after baseline middleware and before user-principal authentication. Dedicated worker
-  bearer auth gates claim, status, report, and expiry endpoints; claim alone returns the one-time
-  opaque `lease.token` needed by the worker, while status/report responses never expose it.
-- Verified Task 3 correction: worker bearer auth and its static safe `500` boundary are scoped to
-  `/v1/internal/mobile-worker`, so public `/health` and ordinary Gateway routes continue through
-  the mounted router in both worker modes without exposing unexpected store-error details.
-- Task 4: the isolated `mobile-worker` package pins `mobilerun==0.6.10` and `httpx`, accepts only
-  `emulator-5554` and local Ollama, redacts its worker token, keeps lease headers at the worker HTTP
-  boundary, and emits only bounded safe reports and logs. Fresh active-lease checks now precede
-  readiness, agent work, and every report; one monitored-task path cancels and awaits readiness or
-  execution when pause, cancel, or lease loss wins. Private Mobilerun ping is bounded and reaped,
-  screenshot streaming is forced off, Ollama HTTP timeouts map to `waiting_for_compute`, and report
-  phase/error values are checked against the Gateway allowlists locally. `uv lock --check` and the
-  standard-library worker suite pass. Live emulator, Portal, Gateway, and local Ollama integration
-  is intentionally deferred to Tasks 6-7.
-- Task 5: Gateway persists replay-safe worker reports with `status` plus only the parsed bounded
-  `summary`, `steps`, and `error_code` fields; worker tokens, hashes, and raw input never enter the
-  event payload. Android replays the Gateway event as `COMPLETED` with `Android 17` and derives the
-  visible matching-task status from the newest numeric status event, so a delayed older
-  `worker.running` event cannot regress completion. Strict worker-only task-creation rejections map
-  to the safe Turkish message only for the exact error literal; other `400` responses remain generic.
-  Focused JVM tests and full unit/lint/debug-APK verification pass; terminal Compose coverage also
-  passed on Pixel_10_Pro_XL (Android 17), rendering `COMPLETED` and `Android 17` from the sanitized
-  worker event.
-- Android adaptive launcher icon: the manifest resolves standard and round launcher icons to native
-  API 26+ foreground/background XML with graphite `#10242D`, a safe-zone turquoise and light signal,
-  and an amber core; Android 13+ overlays add the single-path themed monochrome silhouette. Resource
-  processing, lint, debug APK assembly, and installation passed; `emulator-5554` resolves
-  `com.nova.agent/.MainActivity`.
-- Task 6 status: Linux ADB is installed and loopback Gateway wiring is verified, but the
-  WSL-to-Windows ADB bridge is NOT verified. Firewall elevation was requested and the Windows UAC
-  request was canceled. No broad firewall rule, public ADB, Portal, or Mobilerun workaround was used.
-- Task 6A: focused worker tests verify validated remote ADB endpoint settings and propagation to
-  the Mobilerun readiness ping. The WSL-to-Windows bridge itself remains unverified.
-- Task 1: the Windows-native worker can derive its Ollama URL only from a validated WSL distro's
-  `ip -4 route get 1.1.1.1` output. It uses an argument-list-only `wsl.exe` invocation, accepts
-  exactly one `src` IPv4 address in `172.16.0.0/12`, and constructs `http://<ip>:11434`; invalid
-  distro values, non-Windows hosts, failed lookups, other ranges, and a nonempty raw Ollama URL in
-  WSL mode are rejected. Focused configuration tests pass.
-- Task 2: the Windows-native launcher treats the ignored worker-only `mobile-worker/.env` as the
-  complete configuration: it clears every supported worker setting inherited from the parent
-  process before importing only explicit allowlisted file values, and rejects gateway-only keys.
-  It redacts every loaded value in its prepare-only output, finds Windows `adb.exe`, forces the worker to
-  `127.0.0.1:5037`, and uses a separate `mobile-worker/.venv-windows`. It deletes any raw Ollama
-  URL before selecting the validated WSL distro, so Task 1 derives the WSL NAT address rather than
-  accepting a second endpoint. The local-only preflight does not create a venv, sync packages, or
-  change ADB, firewall, WSL, or Ollama state. ADB, Ollama, and the worker remain unpublished to the
-  LAN; Portal setup remains an explicit later action.
+- Gateway mobile-task control plane: persistent authenticated tasks, replayable SSE
+  events, pause/resume/cancel, R2/R3 confirmation records, and worker-only bearer-auth
+  lease endpoints under `/v1/internal/mobile-worker` (lease tokens are never persisted
+  or echoed back).
+- Android **Tasks** workspace with timeline replay, risk-confirmation UI, adaptive
+  launcher icon, and Gateway pinning + regression hardening; unit, lint, APK, and
+  emulator Compose gates passed. Debug APK:
+  `nova-android/app/build/outputs/apk/debug/app-debug.apk`.
+- Isolated `mobile-worker` package (pinned `mobilerun`/`httpx`) with lease-aware safe
+  reporting; the worker preflight passes (7 Node + 35 Python tests).
+- Windows-native worker launcher (`scripts/start-windows-mobile-worker.ps1
+  -PrepareOnly`) with an allowlisted worker-only `.env` and a WSL-derived Ollama
+  address; the WSL-to-Windows ADB bridge itself is **not yet verified**.
 
-  From this checkout path, `C:\Users\salih\Project_Horus`, run exactly:
-
-  ```powershell
-  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-windows-mobile-worker.ps1 -PrepareOnly
-  ```
-
-  `-PrepareOnly` does not set up Portal, assert the exact emulator device state, call Ollama, sync
-  packages, or run the worker. It is a local launcher preflight only.
+The full per-task delivery record (previously inlined here) now lives in
+[`PROGRESS.md`](./PROGRESS.md) under "Horus teslimat kaydı (arşiv)".
 
 **Next**
 
@@ -315,7 +239,8 @@ A condensed changelog; full per-session detail lives in git history and `PROGRES
   `prod-check` hard-fails wildcard/local dev origins.
   The tracked Keycloak realm no longer imports a default user/password, and the public
   web client has password grant disabled so sign-in stays on the PKCE browser flow.
-  **Verified:** gateway tests `99/99`, web tests `3/3`, `npm run security`, production
+  **Verified:** gateway tests `166/166`, web tests `3/3` (re-verified 2026-07-19; the
+  suite grew with the mobile-worker control plane), `npm run security`, production
   compose config, and a strong-env `prod-check` pass. Remaining work is a live
   WSL/Ollama/Docker smoke before Phase 8 can be closed.
 - **Next phase candidate:** Phase 9 is public release handoff + first-run reliability.
@@ -369,7 +294,7 @@ Nova_Agent_AI/
 | `gateway/gateway.mjs` | Hardened server: auth, CORS allowlist, rate limit. |
 | `gateway/lib/` | Agent loop, MCP, RAG, memory, RBAC, prodcheck and helpers. |
 | `gateway/routes/` | Knowledge, memory, scheduled tasks, workspaces, agent runs and API routes. |
-| `gateway/migrations/` | SQL migrations `001` through `008`. |
+| `gateway/migrations/` | SQL migrations `001` through `010`. |
 | `gateway/.env.example` | Copy to `.env` and fill in per machine. |
 | `web/` | Browser UI with Vite, React and PWA support. |
 | `web/src/nova-agent.jsx` | Main browser UI component. |
@@ -427,6 +352,14 @@ with `ROUTE_FAST` / `ROUTE_BALANCED` / `ROUTE_DEEP` / `ROUTE_MAX` in `.env`.
 | `GET` | `/v1/mcp/tools` | configured MCP servers + discovered tools | token |
 | `GET/POST/PATCH/DELETE` | `/v1/scheduled` | scheduled/automated agent tasks | token |
 | `GET/POST/DELETE` | `/v1/knowledge` | RAG knowledge base (upload/list/delete) | token |
+| `GET` | `/metrics` | Prometheus metrics (keep loopback-bound in production) | **public** |
+| `POST` | `/v1/media` | media upload (MIME allowlist + base64 validation) | token |
+| `GET` | `/v1/usage` | own usage/quota view | token |
+| `GET/POST/DELETE` | `/v1/conversations[...]` | persistent chat history (multi-user mode) | token |
+| `GET/POST/DELETE` | `/v1/admin/...` | admin API keys + quota (guarded by `ADMIN_USER_IDS`) | token |
+| `GET/POST` | `/v1/mobile/tasks[...]` | mobile task control plane (`/commands`, `/confirmations/:id`, SSE `/events`) | token |
+| `POST` | `/v1/internal/mobile-worker/...` | worker lease claim/status/report/expiry | worker bearer |
+| `POST/GET` | `/v1/voice/jobs[...]` | async voice jobs (opt-in `VOICE_QUEUE_ENABLED=1`) | token |
 | `POST` | `/stt` · `/tts` | speech-to-text / text-to-speech | token |
 
 ## Security
@@ -483,6 +416,9 @@ Other checks:
 | `npm run secret-scan` | Scan tracked files for leaked keys or tokens. |
 | `npm run audit` | Run npm audit for gateway and web at moderate level. |
 | `npm --prefix gateway test` | Run gateway unit and agent-loop tests. |
+| `npm test` | Gateway + web + smoke-script unit tests in one command. |
+| `npm run test:worker` | Python worker suite (stdlib runner; needs `httpx` installed). |
+| `npm run docs-check` | Verify doc-claimed counts (tests, migrations) against the code. |
 | `npm run smoke:live` | Run end-to-end smoke against a running gateway. |
 
 ## Configuration reference

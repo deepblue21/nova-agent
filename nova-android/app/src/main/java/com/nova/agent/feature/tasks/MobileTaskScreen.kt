@@ -21,6 +21,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,7 +42,6 @@ import com.nova.agent.net.GatewayConnectionStatus
 import com.nova.agent.net.GatewayConnectionUiState
 import com.nova.agent.ui.theme.Bg
 import com.nova.agent.ui.theme.Coral
-import com.nova.agent.ui.theme.Cyan
 import com.nova.agent.ui.theme.Line
 import com.nova.agent.ui.theme.Muted
 import com.nova.agent.ui.theme.Muted2
@@ -152,7 +152,7 @@ private fun TaskEmptyState(
                 lineHeight = 30.sp,
                 fontWeight = FontWeight.Bold,
             )
-            Text(connection.message, color = if (connected) Cyan else Muted, fontSize = 13.sp)
+            Text(connection.message, color = if (connected) MaterialTheme.colorScheme.primary else Muted, fontSize = 13.sp)
 
             QuickPrompt("Android sürümünü bul", actionsEnabled && !loading, onQuickPrompt)
             QuickPrompt("Ayarlar'ı aç", actionsEnabled && !loading, onQuickPrompt)
@@ -183,7 +183,7 @@ private fun TaskEmptyState(
                     minLines = 3,
                     maxLines = 5,
                     textStyle = TextStyle(color = TextMain, fontSize = 15.sp, lineHeight = 21.sp),
-                    cursorBrush = SolidColor(Cyan),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     modifier = Modifier.fillMaxWidth().testTag("task_prompt"),
                 )
             }
@@ -196,8 +196,8 @@ private fun TaskEmptyState(
                     enabled = actionsEnabled && prompt.isNotBlank() && !loading,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Cyan,
-                        contentColor = Color(0xFF04121A),
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
                     ),
                     modifier = Modifier.fillMaxWidth().height(52.dp).testTag("task_submit"),
                 ) {
@@ -296,7 +296,7 @@ private fun TaskStatusCard(
     ) {
         Text(
             "Durum: ${task.status.userLabel}",
-            color = if (terminal) Cyan else TextMain,
+            color = if (terminal) MaterialTheme.colorScheme.primary else TextMain,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
         )
@@ -313,8 +313,8 @@ private fun TaskStatusCard(
                 enabled = actionsEnabled,
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Cyan,
-                    contentColor = Color(0xFF04121A),
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
                 ),
                 modifier = Modifier.fillMaxWidth().height(48.dp),
             ) {
@@ -365,7 +365,7 @@ private fun TaskTimeline(
                     .border(1.dp, Line)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
             ) {
-                Text(event.userLabel, color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text(event.userLabel, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
                 Text(
                     event.userSummary(taskPrompt),
@@ -423,8 +423,8 @@ private fun ConfirmationPanel(
                 enabled = decisionEnabled,
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Cyan,
-                    contentColor = Color(0xFF04121A),
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
                 ),
                 modifier = Modifier.weight(1f).height(48.dp).testTag("confirmation_approve"),
             ) {

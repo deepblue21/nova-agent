@@ -21,6 +21,27 @@ cd nova-android
 .\gradlew.bat test lintDebug assembleDebug
 ```
 
+## Telefonu Gateway'e bağlama (tek komut)
+
+PowerShell'de:
+
+```powershell
+.\scripts\start-horus.ps1 -Lan              # telefon aynı Wi-Fi'de
+.\scripts\start-horus.ps1 -Tailscale        # dışarıdan, tailnet üzerinden
+.\scripts\start-horus.ps1 -Lan -Tailscale   # ikisi birden
+```
+
+Script gateway'i başlatır, bağlamayı kalıcı olarak kök `.env`'e yazar
+(`GATEWAY_BIND`), erişimi Windows Güvenlik Duvarı ile yalnız yerel alt ağ
+ve/veya tailnet (100.64.0.0/10) ile sınırlar, LAN IP'sinden `/health`
+doğrulaması yapar ve ekrana **TELEFON AYARLARI** kutusunda Base URL + tek
+seferlik API anahtarını basar. Telefonda: Ayarlar → PC bağlantısı → iki alanı
+gir → "Bağlantıyı test et" → Kaydet. Bayraksız çalıştırmak gateway'i yeniden
+yalnız loopback'e (127.0.0.1) döndürür.
+
+Uygulama artık bağlantı hatalarını katmanına göre ayırt eder (zaman aşımı /
+port kapalı / ad çözülemedi / TLS) ve nedene özel çözüm ipucu gösterir.
+
 ## Mobile Control Plane
 
 Start the local multi-user stack from WSL:

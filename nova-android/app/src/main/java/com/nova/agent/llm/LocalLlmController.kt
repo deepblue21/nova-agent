@@ -21,8 +21,12 @@ import com.nova.agent.llm.local.tools.DeviceStatusReader
 import com.nova.agent.llm.local.tools.HorusToolSet
 import com.nova.agent.llm.local.tools.NoteStore
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** Modeller ekranındaki tek satırın durumu. */
@@ -57,6 +61,7 @@ class LocalLlmController(
     private val engine = OnDeviceEngine(app)
     private val downloader = ModelDownloader()
     private val downloadHandles = mutableMapOf<String, ModelDownloader.Handle>()
+    private var activeWatchdog: kotlinx.coroutines.Job? = null
 
     /** Çevrimdışı araç seti (Faz 2 — agentic çekirdek). Ağa çıkmaz, izin istemez. */
     private val noteStore = NoteStore(File(app.filesDir, "horus_notlar.txt"))
@@ -253,6 +258,35 @@ class LocalLlmController(
             // Üretim hızı ölçümü: ilk token'dan onDone'a kadar geçen süre + karakter sayısı.
             var chars = 0
             var firstTokenMs = 0L
+            // Donma bekçisi: yanıt hiç başlamaz ya da akış ortada takılırsa
+            // sonsuza dek beklemek yerine iptal edip dürüst bir hata veririz.
+            val delivered = AtomicBoolean(false)
+            val startedAt = System.currentTimeMillis()
+            val lastTokenAt = AtomicLong(0L)
+            val watchdog = scope.launch(Dispatchers.IO) watchdog@{
+                while (isActive && !delivered.get()) {
+                    delay(WATCHDOG_TICK_MS)
+                    if (delivered.get()) return@watchdog
+                    val now = System.currentTimeMillis()
+                    val last = lastTokenAt.get()
+                    val stuck =
+                        if (last == 0L) now - startedAt > FIRST_TOKEN_TIMEOUT_MS
+                        else now - last > STALL_TIMEOUT_MS
+                    if (stuck && delivered.compareAndSet(false, true)) {
+                        this@LocalLlmController.engine.cancel()
+                        if (loadMs > 0) recordMetrics(spec.id, loadMs, 0, 0L)
+                        onMain {
+                            cb.onError(
+                                "Yerel model yanıt üretemedi (zaman aşımı). " +
+                                    "Üretim iptal edildi; lütfen tekrar deneyin. " +
+                                    "Sorun sürerse daha küçük bir model seçin.",
+                            )
+                        }
+                        return@watchdog
+                    }
+                }
+            }
+            activeWatchdog = watchdog
             engine.generate(
                 history = history,
                 prompt = prompt,
@@ -261,18 +295,25 @@ class LocalLlmController(
                 systemInstruction = persona,
                 cb = object : OnDeviceEngine.Callbacks {
                     override fun onToken(text: String) {
-                        if (firstTokenMs == 0L) firstTokenMs = System.currentTimeMillis()
+                        if (delivered.get()) return
+                        val now = System.currentTimeMillis()
+                        lastTokenAt.set(now)
+                        if (firstTokenMs == 0L) firstTokenMs = now
                         chars += text.length
                         onMain { cb.onToken(text) }
                     }
 
                     override fun onDone() {
+                        if (!delivered.compareAndSet(false, true)) return
+                        watchdog.cancel()
                         val elapsed = if (firstTokenMs > 0) System.currentTimeMillis() - firstTokenMs else 0L
                         recordMetrics(spec.id, loadMs, chars, elapsed)
                         onMain { cb.onDone() }
                     }
 
                     override fun onError(message: String) {
+                        if (!delivered.compareAndSet(false, true)) return
+                        watchdog.cancel()
                         // Yükleme ölçümü yine de değerli; üretim hızını atla.
                         if (loadMs > 0) recordMetrics(spec.id, loadMs, 0, 0L)
                         onMain { cb.onError(message) }
@@ -289,6 +330,8 @@ class LocalLlmController(
     }
 
     fun cancelGenerate() {
+        activeWatchdog?.cancel()
+        activeWatchdog = null
         engine.cancel()
     }
 
@@ -327,6 +370,11 @@ class LocalLlmController(
     }
 
     companion object {
+        /** Bekçi ayarları: E4B gibi büyük modellerde ilk prefill uzun sürebilir. */
+        const val FIRST_TOKEN_TIMEOUT_MS = 240_000L
+        const val STALL_TIMEOUT_MS = 90_000L
+        const val WATCHDOG_TICK_MS = 5_000L
+
         fun readDeviceRamGb(context: Context): Double {
             val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
                 ?: return 0.0

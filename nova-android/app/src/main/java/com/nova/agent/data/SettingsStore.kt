@@ -5,12 +5,18 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.nova.agent.ui.theme.DEFAULT_ACCENT_ID
+import com.nova.agent.ui.theme.normalizeThemeId
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "nova_settings")
+
+internal const val THEME_ALIGNMENT_VERSION_KEY = "theme_alignment_version"
+internal const val THEME_ALIGNMENT_VERSION = 1
 
 data class AppSettings(
     // Emülatör host'u 10.0.2.2 = makinenin localhost'u. Gerçek cihazda Tailscale/LAN IP'si kullan.
@@ -25,7 +31,8 @@ data class AppSettings(
     val localModelId: String = "qwen3-0.6b-int4",
     val localThinking: Boolean = false,
     val localTools: Boolean = true, // Faz 2: çevrimdışı araç seti (deneysel)
-    val themeId: String = "nova", // nova | aurora | amber
+    // Geçerli kimlikler design/nova-tokens.json > accents ile üretilir.
+    val themeId: String = DEFAULT_ACCENT_ID,
     // Faz 2 D3: kapılı (Gemma) model indirmeleri için HF erişim token'ı.
     // Cihazda kalır; yalnız huggingface.co'ya gönderilir.
     val hfToken: String = "",
@@ -47,6 +54,7 @@ class SettingsStore(private val context: Context) {
         val localThinking = booleanPreferencesKey("local_thinking")
         val localTools = booleanPreferencesKey("local_tools")
         val themeId = stringPreferencesKey("theme_id")
+        val themeAlignmentVersion = intPreferencesKey(THEME_ALIGNMENT_VERSION_KEY)
         val hfToken = stringPreferencesKey("hf_token")
         val hybridAutoFallback = booleanPreferencesKey("hybrid_auto_fallback")
         val persona = stringPreferencesKey("persona")
@@ -64,14 +72,23 @@ class SettingsStore(private val context: Context) {
             localModelId = p[Keys.localModelId] ?: def.localModelId,
             localThinking = p[Keys.localThinking] ?: def.localThinking,
             localTools = p[Keys.localTools] ?: def.localTools,
-            themeId = p[Keys.themeId] ?: def.themeId,
+            themeId = normalizeThemeId(p[Keys.themeId] ?: def.themeId),
             hfToken = p[Keys.hfToken] ?: def.hfToken,
             hybridAutoFallback = p[Keys.hybridAutoFallback] ?: def.hybridAutoFallback,
             persona = p[Keys.persona] ?: def.persona,
         )
     }
 
-    suspend fun load(): AppSettings = flow.first()
+    suspend fun load(): AppSettings {
+        context.dataStore.edit { preferences ->
+            val appliedVersion = preferences[Keys.themeAlignmentVersion] ?: 0
+            if (appliedVersion < THEME_ALIGNMENT_VERSION) {
+                preferences[Keys.themeId] = DEFAULT_ACCENT_ID
+                preferences[Keys.themeAlignmentVersion] = THEME_ALIGNMENT_VERSION
+            }
+        }
+        return flow.first()
+    }
 
     suspend fun save(s: AppSettings) {
         context.dataStore.edit { p ->
@@ -84,7 +101,7 @@ class SettingsStore(private val context: Context) {
             p[Keys.localModelId] = s.localModelId
             p[Keys.localThinking] = s.localThinking
             p[Keys.localTools] = s.localTools
-            p[Keys.themeId] = s.themeId
+            p[Keys.themeId] = normalizeThemeId(s.themeId)
             p[Keys.hfToken] = s.hfToken
             p[Keys.hybridAutoFallback] = s.hybridAutoFallback
             p[Keys.persona] = s.persona

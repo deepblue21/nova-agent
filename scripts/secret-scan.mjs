@@ -50,6 +50,10 @@ const ALLOW_SUBSTR = [
   "import.meta.env", "0123456789", "abcdef0123", "deadbeef", "xxxxxxxx",
   "0000000000", "1234567890", "sample", "fake", "test-token", "notarealkey",
   "replace-with", "replace_me", "insert-your", "<api", "<key", "******",
+  // Kendini "gerçek değil" diye etiketleyen değerler ve belgelerdeki
+  // yer tutucular. Bunlar taramada kalırsa gürültü yaratıp gerçek bulguyu
+  // gölgeliyor (uyarı körlüğü) — bilerek beyaz listeye alındı.
+  "not-real", "not_real", "notreal", "returned_once", "returned-once",
 ];
 
 // ── patterns ──────────────────────────────────────────────────────────────

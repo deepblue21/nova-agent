@@ -35,6 +35,7 @@ class AssistantScreensTest {
         }
 
         composeRule.onNodeWithText("Merhaba, ben NOVA").assertIsDisplayed()
+        composeRule.onNodeWithTag("nova_brand_mark").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Mesaj gönder").assertExists()
     }
 

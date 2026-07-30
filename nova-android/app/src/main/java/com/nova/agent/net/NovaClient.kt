@@ -1,6 +1,8 @@
 package com.nova.agent.net
 
 import com.nova.agent.data.ChatMessage
+import com.nova.agent.data.ToolSource
+import com.nova.agent.data.ToolStep
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -28,6 +30,10 @@ class NovaClient {
     interface Callbacks {
         fun onRoute(route: String) {}
         fun onToken(text: String) {}
+        /** Gerçek düşünme token'ları (gateway `reasoning_content` relay'i). */
+        fun onThought(text: String) {}
+        /** Ajan araç adımı (gateway `tool_step` deltası). */
+        fun onTool(step: ToolStep) {}
         fun onDone() {}
         fun onError(message: String) {}
     }
@@ -42,6 +48,15 @@ class NovaClient {
         reasoning: Boolean,
         history: List<ChatMessage>,
         cb: Callbacks,
+        /**
+         * Araç çağırma döngüsü. Seçili model araç destekliyorsa açılır —
+         * yoksa gateway boş araç turu döndürür ya da model uydurur.
+         */
+        agent: Boolean = false,
+        /** Görevi paralel alt-ajanlara böl (yalnız yerel modellerde anlamlı). */
+        team: Boolean = false,
+        /** Sunucu tarafı sohbet geçmişi; null ise yalnız yerelde tutulur. */
+        conversationId: String? = null,
     ): EventSource? {
         val messages = JSONArray()
         for (m in history) {
@@ -53,6 +68,9 @@ class NovaClient {
             .put("effort", effort)
             .put("think", reasoning)
             .put("messages", messages)
+        if (agent) payload.put("agent", true)
+        if (team) payload.put("team", true)
+        if (!conversationId.isNullOrBlank()) payload.put("conversation_id", conversationId)
 
         val gatewayBaseUrl = GatewayConnectionClient.canonicalBaseUrl(baseUrl)
         if (gatewayBaseUrl == null) {
@@ -75,7 +93,10 @@ class NovaClient {
             }
 
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
-                parseDelta(data)?.let { cb.onToken(it) }
+                val delta = parseStreamDelta(data) ?: return
+                delta.thought?.let { cb.onThought(it) }
+                delta.tool?.let { cb.onTool(it) }
+                delta.content?.let { cb.onToken(it) }
             }
 
             override fun onClosed(eventSource: EventSource) {
@@ -99,19 +120,58 @@ class NovaClient {
         return EventSources.createFactory(client).newEventSource(request, listener)
     }
 
+    /** Tek bir SSE deltasından çıkarılabilen parçalar. */
+    data class StreamDelta(
+        val content: String? = null,
+        val thought: String? = null,
+        val tool: ToolStep? = null,
+    )
+
     companion object {
-        /** OpenAI-uyumlu SSE 'data' satırından içerik token'ı çıkarır; yoksa null. Saf/test edilebilir. */
-        fun parseDelta(data: String): String? {
+        /** Geriye dönük yardımcı: yalnız içerik token'ı. */
+        fun parseDelta(data: String): String? = parseStreamDelta(data)?.content
+
+        /**
+         * OpenAI-uyumlu SSE 'data' satırını ayrıştırır: içerik, düşünme
+         * (`reasoning_content`) ve ajan araç adımı (`tool_step`).
+         * Saf/test edilebilir — ağ ya da Android bağımlılığı yok.
+         */
+        fun parseStreamDelta(data: String): StreamDelta? {
             if (data.isEmpty() || data == "[DONE]") return null
             return try {
                 val obj = JSONObject(data)
                 val choices = obj.optJSONArray("choices") ?: return null
                 if (choices.length() == 0) return null
-                val content = choices.getJSONObject(0).optJSONObject("delta")?.optString("content", "").orEmpty()
-                content.ifEmpty { null }
+                val delta = choices.getJSONObject(0).optJSONObject("delta") ?: return null
+
+                val content = delta.optString("content", "").ifEmpty { null }
+                val thought = delta.optString("reasoning_content", "").ifEmpty { null }
+                val tool = delta.optJSONObject("tool_step")?.let(::parseToolStep)
+
+                if (content == null && thought == null && tool == null) null
+                else StreamDelta(content = content, thought = thought, tool = tool)
             } catch (_: Exception) {
                 null
             }
+        }
+
+        private fun parseToolStep(o: JSONObject): ToolStep? {
+            val name = o.optString("name").takeIf { it.isNotBlank() } ?: return null
+            val args = o.optJSONObject("args")
+            val query = listOf("query", "location", "expression", "role")
+                .firstNotNullOfOrNull { key -> args?.optString(key)?.takeIf { it.isNotBlank() } }
+                .orEmpty()
+            val sources = o.optJSONArray("sources")?.let { arr ->
+                buildList {
+                    for (i in 0 until arr.length()) {
+                        val s = arr.optJSONObject(i) ?: continue
+                        val url = s.optString("url")
+                        val title = s.optString("title").ifBlank { url.ifBlank { "Kaynak" } }
+                        add(ToolSource(title = title, url = url, index = s.optInt("n", 0)))
+                    }
+                }
+            }.orEmpty()
+            return ToolStep(name = name, query = query, done = o.optBoolean("done", false), sources = sources)
         }
     }
 }

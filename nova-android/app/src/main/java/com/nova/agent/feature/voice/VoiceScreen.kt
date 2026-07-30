@@ -20,13 +20,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -37,8 +37,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nova.agent.data.VoiceState
 import com.nova.agent.ui.Orb
-import com.nova.agent.ui.theme.Cyan
-import com.nova.agent.ui.theme.LineBright
 import com.nova.agent.ui.theme.Muted
 import com.nova.agent.ui.theme.TextMain
 
@@ -52,6 +50,9 @@ fun VoiceScreen(
     onStop: () -> Unit,
 ) {
     val animatedLevel by animateFloatAsState(level, tween(120), label = "voice_level")
+    // Mikrofon düğmesi seçili temanın vurgu rengini kullanır (sabit turkuaz değil).
+    val accent = MaterialTheme.colorScheme.primary
+    val onAccent = MaterialTheme.colorScheme.onPrimary
     val stateLabel = when (state) {
         VoiceState.IDLE -> "Hazır"
         VoiceState.LISTENING -> "Dinliyorum"
@@ -93,12 +94,12 @@ fun VoiceScreen(
                 .size(76.dp)
                 .clip(CircleShape)
                 .background(
-                    if (state == VoiceState.LISTENING) Cyan
-                    else Cyan.copy(alpha = 0.10f),
+                    if (state == VoiceState.LISTENING) accent
+                    else accent.copy(alpha = 0.10f),
                 )
                 .then(
                     if (state == VoiceState.LISTENING) Modifier
-                    else Modifier.border(1.dp, LineBright, CircleShape),
+                    else Modifier.border(1.dp, accent.copy(alpha = 0.28f), CircleShape),
                 )
                 .clickable(enabled = controlEnabled) {
                     if (stopsCurrentAction) onStop() else onStart()
@@ -112,7 +113,7 @@ fun VoiceScreen(
             Icon(
                 if (stopsCurrentAction) Icons.Filled.Stop else Icons.Filled.Mic,
                 contentDescription = null,
-                tint = if (state == VoiceState.LISTENING) Color(0xFF04121A) else Cyan,
+                tint = if (state == VoiceState.LISTENING) onAccent else accent,
                 modifier = Modifier.size(28.dp),
             )
         }

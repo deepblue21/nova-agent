@@ -14,6 +14,7 @@ build/
 
 # logs / runtime
 *.log
+*.apk
 npm-debug.log*
 .DS_Store
 *.timestamp-*.mjs
@@ -29,3 +30,6 @@ mobile-worker/.venv-windows/
 
 # Project Horus SDD working artifacts
 .superpowers/
+
+# Local Product Design source captures and extracted Android artifacts
+docs/design/uploads/

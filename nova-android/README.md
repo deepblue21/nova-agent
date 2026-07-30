@@ -16,7 +16,7 @@ Kotlin + Jetpack Compose.
 
 | Faz | Özellik |
 |-----|---------|
-| 1 | **Yerel öncelikli çekirdek** — LiteRT-LM cihaz motoru, SHA-256 doğrulamalı/sürdürülebilir model indirme, Kontrol·İşler·Sohbet·Modeller arayüzü, kod bloğu kopyalama, 3 tema, güvenli iptal |
+| 1 | **Yerel öncelikli çekirdek** — LiteRT-LM cihaz motoru, SHA-256 doğrulamalı/sürdürülebilir model indirme, Kontrol·İşler·Sohbet·Modeller arayüzü, kod bloğu kopyalama, 4 tema (Turkuaz · Aurora · Amber · Kızıl), güvenli iptal |
 | 2 | **Çevrimdışı + agentic araçlar** — `LOCAL_ONLY` politikası (devir kapalı), çevrimdışı araç seti (saat, hesap makinesi, cihaz durumu, not defteri), kapılı Gemma modelleri |
 | 3 | **Hibrit** — uzunluk/pil/ısı/gizlilik kurallı yönlendirme, "PC ajanına devret", sor/otomatik devir anahtarı |
 | 4 | **Model otomasyonu** — cihaza göre model önerisi, uygunluk çipi, performans metrikleri (yükleme/tok-sn) |
@@ -25,8 +25,19 @@ Kotlin + Jetpack Compose.
 | 7 | **Veri yönetimi** — sohbeti Markdown olarak dışa aktar/paylaş, tüm yerel veriyi temizle |
 | 8 | **Kişiselleştirme + dayanıklılık** — yerel model personası (sistem talimatı), indirme öncesi boş alan kontrolü |
 
-Test kapsamı: **119 birim + 36 enstrümanlı test.** Son durum: `testDebugUnitTest` + `assembleDebug`
-= **BUILD SUCCESSFUL**.
+Test kapsamı: **151 birim + 101 enstrümanlı test.**
+
+> ⚠️ **Derleme durumu doğrulanmadı.** Kayıtlı `BUILD SUCCESSFUL` sonucu,
+> ajan/araç entegrasyonu (`NovaClient`, `NovaViewModel`, `NovaToolTrace`) ve
+> Pulse Aperture ikon değişikliklerinden önceye ait. Bu değişikliklerden sonra
+> derleme çalıştırılmadı. Doğrulamak için:
+>
+> ```powershell
+> cd nova-android
+> .\gradlew.bat testDebugUnitTest assembleDebug
+> ```
+>
+> (JDK 17 + Android SDK 35 gerekir.)
 
 ---
 
@@ -98,11 +109,22 @@ Tümü **Hugging Face `litert-community`** deposundan, `.litertlm` formatında; 
 depo revizyonuna kilitli ve indirildikten sonra SHA-256 ile doğrulanır. İndirme yalnız HTTPS, yarıda
 kalırsa `Range` ile sürer, özet tutmazsa dosya kurulmaz.
 
-| Model | Depo | Lisans | Kapı |
-|-------|------|--------|------|
-| Qwen3 0.6B (int4 + tam) | `litert-community/Qwen3-0.6B` | Apache-2.0 (açık kaynak) | Kapısız |
-| Gemma 3 1B (int4) | `litert-community/Gemma3-1B-IT` | Gemma Şartları (açık ağırlık) | Kapılı |
-| FunctionGemma 270M | `litert-community/functiongemma-270m-ft-mobile-actions` | Gemma Şartları | Kapılı |
+| Model | Depo | Boyut | Önerilen RAM | Lisans | Kapı |
+|-------|------|-------|--------------|--------|------|
+| Qwen3 0.6B (int4 + tam) | `litert-community/Qwen3-0.6B` | 0,5 / 0,6 GB | 3–4 GB | Apache-2.0 (açık kaynak) | Kapısız |
+| Qwen3 4B (int4) | `litert-community/Qwen3-4B` | 2,5 GB | 8 GB | Apache-2.0 | Kapısız |
+| Gemma 4 E4B (uç-cihaz) | `litert-community/gemma-4-E4B-it-litert-lm` | 3,4 GB | 8 GB | Apache-2.0 | Kapısız |
+| Qwen3 8B (int4) | `litert-community/Qwen3-8B` | 4,6 GB | 12 GB | Apache-2.0 | Kapısız |
+| Gemma 4 12B | `litert-community/gemma-4-12B-it-litert-lm` | 6,1 GB | 16 GB | Apache-2.0 | Kapısız |
+| Qwen3 14B (int4) | `litert-community/Qwen3-14B` | 8,1 GB | 24 GB | Apache-2.0 | Kapısız |
+| Gemma 3 1B (int4) | `litert-community/Gemma3-1B-IT` | 0,5 GB | 4 GB | Gemma Şartları (açık ağırlık) | Kapılı |
+| FunctionGemma 270M | `litert-community/functiongemma-270m-ft-mobile-actions` | 0,3 GB | 2 GB | Gemma Şartları | Kapılı |
+
+**Büyük modeller (4B–14B)** kataloğa 2026-07-19'da eklendi; hepsi Apache-2.0 ve kapısızdır.
+Uygunluk çipi cihaz RAM'ine göre dürüstçe **Riskli** gösterebilir ve model kartında beklenen
+RAM/indirme uyarısı yazar — desteklenmeyen bir şey "çalışıyormuş gibi" sunulmaz. 12B ve üstü
+yalnız 16–24 GB RAM'li amiral gemisi cihazlarda anlamlıdır; indirme öncesi boş alan kontrolü
+(`DownloadPreflight`) ağa çıkmadan uyarır.
 
 **Kapılı modeller** için: HF hesabında modelin sayfasında lisansı onayla → Ayarlar > Hugging Face'e
 erişim token'ı gir. Token cihazda kalır, yalnız huggingface.co'ya gönderilir (yönlendirmede CDN'e

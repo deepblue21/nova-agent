@@ -336,6 +336,10 @@ private fun LocalModelRow(
                     fontSize = 11.sp,
                 )
                 FitAndPerfLine(fit, metrics)
+                // Büyük modellerin dürüst uyarısı: taklit yok, beklenti önceden söylenir.
+                spec.note?.takeIf { !installed }?.let { note ->
+                    Text(note, color = Muted2, fontSize = 11.sp)
+                }
                 if (spec.gated && !installed) {
                     Text(
                         "Kapılı model: HF hesabında lisans onayı + Ayarlar'da HF token gerekir.",
@@ -501,17 +505,48 @@ private fun ToolsRow(enabled: Boolean, summary: String, onChange: (Boolean) -> U
 
 @Composable
 private fun GatewayModelRow(model: ModelOption, selected: Boolean, onSelect: () -> Unit) {
+    // Sağlayıcı anahtarı yoksa satır görünür ama seçilemez ve nedeni yazılır.
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 52.dp)
-            .clickable(onClick = onSelect)
+            .clickable(enabled = model.available, onClick = onSelect)
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(model.name, color = TextMain, fontSize = 14.sp)
-            Text(model.group, color = Muted2, fontSize = 11.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    model.name,
+                    color = if (model.available) TextMain else Muted2,
+                    fontSize = 14.sp,
+                )
+                // Araç desteği rozeti: ajan modu yalnız bu modellerde açılır.
+                // Ölçülen ("probe"/"provider") ile tahmin ("family") ayrı yazılır;
+                // tahmin, ölçümmüş gibi sunulmaz.
+                if (model.tools) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (model.toolsVerified) "araç destekli" else "araç destekli?",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 10.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                            .testTag("tools_badge_${model.id}"),
+                    )
+                }
+            }
+            Text(
+                when {
+                    !model.available && model.reason.isNotBlank() -> model.reason
+                    model.desc.isNotBlank() -> model.desc
+                    else -> model.group
+                },
+                color = Muted2,
+                fontSize = 11.sp,
+            )
         }
         if (selected) {
             Icon(

@@ -1,0 +1,234 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="560" viewBox="0 0 560 560" role="img" aria-labelledby="title desc">
+  <title id="title">NOVA Pulse Aperture — Solar Amber</title>
+  <desc id="desc">Solar amber and honey-gold NOVA mark with a warm-white core, sparse orbital halo, and organic center motion.</desc>
+
+  <defs>
+    <radialGradient id="background" cx="52%" cy="46%" r="70%">
+      <stop offset="0" stop-color="#2a2110"/>
+      <stop offset=".52" stop-color="#171105"/>
+      <stop offset="1" stop-color="#0e0a03"/>
+    </radialGradient>
+
+    <linearGradient id="bodyGradient" x1="128" y1="112" x2="420" y2="430" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffe18a"/>
+      <stop offset=".44" stop-color="#f6ad2f"/>
+      <stop offset="1" stop-color="#d87808"/>
+    </linearGradient>
+
+    <linearGradient id="foldGradient" x1="174" y1="132" x2="332" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff0b8" stop-opacity=".94"/>
+      <stop offset=".55" stop-color="#ffc85b" stop-opacity=".78"/>
+      <stop offset="1" stop-color="#e89016" stop-opacity=".2"/>
+    </linearGradient>
+
+    <linearGradient id="arcGradient" x1="155" y1="120" x2="416" y2="430" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff09b" stop-opacity="0"/>
+      <stop offset=".28" stop-color="#fff09b"/>
+      <stop offset=".62" stop-color="#ffc24d"/>
+      <stop offset="1" stop-color="#fff9e7" stop-opacity="0"/>
+    </linearGradient>
+
+    <radialGradient id="coreGradient">
+      <stop offset="0" stop-color="#fffef8"/>
+      <stop offset=".34" stop-color="#fff4d8"/>
+      <stop offset=".58" stop-color="#ffe7ad"/>
+      <stop offset="1" stop-color="#f5b83e" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="bodyGlow" x="-70%" y="-70%" width="240%" height="240%">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feColorMatrix in="blur" type="matrix"
+        values="1 0 0 0 0.42
+                0 0.66 0 0 0.22
+                0 0 0.18 0 0.03
+                0 0 0 .9 0"/>
+    </filter>
+
+    <filter id="softGlow" x="-120%" y="-120%" width="340%" height="340%">
+      <feGaussianBlur stdDeviation="15"/>
+    </filter>
+
+    <filter id="smallGlow" x="-150%" y="-150%" width="400%" height="400%">
+      <feGaussianBlur stdDeviation="5"/>
+    </filter>
+
+    <clipPath id="markClip">
+      <path d="M280 128
+               C319 128 319 205 354 226
+               C381 242 429 244 437 277
+               C445 311 390 323 361 342
+               C327 365 319 433 280 436
+               C241 433 233 365 199 342
+               C170 323 115 311 123 277
+               C131 244 179 242 206 226
+               C241 205 241 128 280 128Z"/>
+    </clipPath>
+
+    <path id="markPath" d="M280 128
+               C319 128 319 205 354 226
+               C381 242 429 244 437 277
+               C445 311 390 323 361 342
+               C327 365 319 433 280 436
+               C241 433 233 365 199 342
+               C170 323 115 311 123 277
+               C131 244 179 242 206 226
+               C241 205 241 128 280 128Z"/>
+  </defs>
+
+  <rect width="560" height="560" rx="72" fill="url(#background)"/>
+
+  <g id="halo" transform-origin="280px 280px">
+    <circle cx="280" cy="280" r="181" fill="none" stroke="#9a7839" stroke-opacity=".15" stroke-width="1.5"/>
+    <circle class="dot-ring dot-ring-a" cx="280" cy="280" r="181" fill="none"
+      stroke="#ffe9ae" stroke-opacity=".8" stroke-width="4.4"
+      stroke-linecap="round" stroke-dasharray="1 78"/>
+    <circle class="energy-arc" cx="280" cy="280" r="166" fill="none"
+      stroke="url(#arcGradient)" stroke-width="3" stroke-linecap="round"
+      stroke-dasharray="124 920"/>
+  </g>
+
+  <g class="mark-breathe" transform-origin="280px 280px">
+    <use href="#markPath" fill="#ed981c" opacity=".48" filter="url(#bodyGlow)"/>
+    <use href="#markPath" fill="url(#bodyGradient)" stroke="#ffe199" stroke-opacity=".5" stroke-width="1.4"/>
+
+    <g clip-path="url(#markClip)">
+      <circle class="blob blob-cyan" cx="238" cy="246" r="76" fill="#ffd561" opacity=".6" filter="url(#softGlow)"/>
+      <circle class="blob blob-violet" cx="326" cy="304" r="92" fill="#d77b08" opacity=".82" filter="url(#softGlow)"/>
+      <circle class="blob blob-warm" cx="286" cy="272" r="52" fill="#fff0c5" opacity=".52" filter="url(#softGlow)"/>
+
+      <path class="fold" d="M250 130
+               C285 178 324 198 316 239
+               C309 277 250 282 246 324
+               C243 359 286 386 294 434
+               C261 420 248 379 219 354
+               C188 327 153 319 126 297
+               C164 285 203 267 225 238
+               C249 207 242 165 250 130Z"
+        fill="url(#foldGradient)"/>
+    </g>
+
+    <circle class="core-aura" cx="280" cy="286" r="54" fill="url(#coreGradient)" opacity=".78"/>
+    <circle class="core" cx="280" cy="286" r="24" fill="#fffaf0"/>
+    <circle class="core-glint" cx="273" cy="278" r="8" fill="#ffffff" filter="url(#smallGlow)"/>
+
+  </g>
+
+  <style>
+    .mark-breathe {
+      animation: mark-breathe 2.55s cubic-bezier(.45,0,.25,1) infinite;
+    }
+
+    .fold {
+      transform-origin: 280px 280px;
+      animation: fold-drift 2.55s cubic-bezier(.45,0,.25,1) infinite;
+    }
+
+    .blob-cyan {
+      transform-origin: 238px 246px;
+      animation: cyan-orbit 2.55s cubic-bezier(.45,0,.25,1) infinite;
+    }
+
+    .blob-violet {
+      transform-origin: 326px 304px;
+      animation: violet-orbit 2.55s cubic-bezier(.45,0,.25,1) infinite;
+    }
+
+    .blob-warm {
+      transform-origin: 286px 272px;
+      animation: warm-orbit 2.55s cubic-bezier(.45,0,.25,1) infinite;
+    }
+
+    .core-aura {
+      transform-origin: 280px 286px;
+      animation: aura-pulse 2.55s cubic-bezier(.45,0,.25,1) infinite;
+    }
+
+    .core {
+      transform-origin: 280px 286px;
+      animation: core-morph 2.55s cubic-bezier(.45,0,.25,1) infinite;
+    }
+
+    .core-glint {
+      transform-origin: 273px 278px;
+      animation: core-glint 2.55s ease-in-out infinite;
+    }
+
+    .energy-arc {
+      transform-origin: 280px 280px;
+      animation: arc-orbit 3.15s linear infinite;
+    }
+
+    .dot-ring-a {
+      transform-origin: 280px 280px;
+      animation: dots-forward 4.6s linear infinite, dots-wave 2.55s ease-in-out infinite;
+    }
+
+    @keyframes mark-breathe {
+      0%,100% { transform: translate(-3px,3px) scale(.825,.85) rotate(-1.3deg); }
+      28% { transform: translate(5px,-5px) scale(.865,.82) rotate(1.1deg); }
+      58% { transform: translate(3px,6px) scale(.82,.875) rotate(1.7deg); }
+      78% { transform: translate(-5px,-1px) scale(.858,.83) rotate(-.6deg); }
+    }
+
+    @keyframes fold-drift {
+      0%,100% { transform: translate(-10px,5px) scaleX(.94) skewX(-2deg); opacity:.72; }
+      35% { transform: translate(17px,-10px) scaleX(1.12) skewX(3deg); opacity:.96; }
+      68% { transform: translate(-6px,15px) scaleX(.9) skewX(-3deg); opacity:.67; }
+    }
+
+    @keyframes cyan-orbit {
+      0%,100% { transform: translate(-28px,-10px) scale(.84,1.16); opacity:.48; }
+      32% { transform: translate(38px,17px) scale(1.16,.84); opacity:.76; }
+      66% { transform: translate(12px,48px) scale(.76,1.2); opacity:.62; }
+    }
+
+    @keyframes violet-orbit {
+      0%,100% { transform: translate(20px,12px) scale(1.12,.84); }
+      32% { transform: translate(-32px,36px) scale(.82,1.16); }
+      66% { transform: translate(-45px,-22px) scale(1.18,.8); }
+    }
+
+    @keyframes warm-orbit {
+      0%,100% { transform: translate(8px,-28px) scale(.72,1.2); opacity:.42; }
+      34% { transform: translate(-30px,20px) scale(1.18,.78); opacity:.68; }
+      68% { transform: translate(34px,10px) scale(.8,1.12); opacity:.56; }
+    }
+
+    @keyframes aura-pulse {
+      0%,100% { transform: scale(.92,.84); opacity:.66; }
+      34% { transform: scale(1.15,.92); opacity:.9; }
+      68% { transform: scale(.9,1.12); opacity:.72; }
+    }
+
+    @keyframes core-morph {
+      0%,100% { transform: translate(-9px,-5px) scale(.82,1.22) rotate(-2deg); }
+      28% { transform: translate(10px,7px) scale(1.24,.8) rotate(2deg); }
+      57% { transform: translate(4px,12px) scale(.9,1.18) rotate(1deg); }
+      78% { transform: translate(-7px,2px) scale(1.16,.86) rotate(-1deg); }
+    }
+
+    @keyframes core-glint {
+      0%,100% { opacity:.45; transform: translate(-3px,-2px) scale(.7); }
+      35% { opacity:1; transform: translate(4px,3px) scale(1.28); }
+      68% { opacity:.64; transform: translate(7px,8px) scale(.9); }
+    }
+
+    @keyframes arc-orbit {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes dots-forward {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes dots-wave {
+      0%,100% { stroke-opacity:.28; stroke-width:3.4; }
+      35% { stroke-opacity:.9; stroke-width:5.5; }
+      68% { stroke-opacity:.46; stroke-width:4.1; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; }
+    }
+  </style>
+</svg>

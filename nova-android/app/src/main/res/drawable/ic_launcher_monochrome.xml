@@ -1,16 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Android 13+ themed icon: the filled NOVA Pulse Aperture silhouette. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <group
-        android:pivotX="54"
-        android:pivotY="54"
-        android:rotation="-35">
-        <path
-            android:fillColor="?android:colorControlNormal"
-            android:fillType="evenOdd"
-            android:pathData="M54,34C70.57,34 84,42.95 84,54C84,65.05 70.57,74 54,74C37.43,74 24,65.05 24,54C24,42.95 37.43,34 54,34ZM54,39C39.64,39 28,45.72 28,54C28,62.28 39.64,69 54,69C68.36,69 80,62.28 80,54C80,45.72 68.36,39 54,39ZM54,43C60.08,43 65,47.92 65,54C65,60.08 60.08,65 54,65C47.92,65 43,60.08 43,54C43,47.92 47.92,43 54,43Z" />
-    </group>
+    android:viewportWidth="560"
+    android:viewportHeight="560">
+    <path
+        android:fillColor="?android:colorControlNormal"
+        android:pathData="M280,128 C319,128 319,205 354,226 C381,242 429,244 437,277 C445,311 390,323 361,342 C327,365 319,433 280,436 C241,433 233,365 199,342 C170,323 115,311 123,277 C131,244 179,242 206,226 C241,205 241,128 280,128Z" />
 </vector>

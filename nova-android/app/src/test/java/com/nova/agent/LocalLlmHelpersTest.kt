@@ -108,6 +108,6 @@ class LocalLlmHelpersTest {
         val settings = com.nova.agent.data.AppSettings()
         assertEquals("gateway_only", settings.executionPolicy)
         assertTrue(settings.localModelId.isNotBlank())
-        assertEquals("nova", settings.themeId)
+        assertEquals("amethyst", settings.themeId)
     }
 }

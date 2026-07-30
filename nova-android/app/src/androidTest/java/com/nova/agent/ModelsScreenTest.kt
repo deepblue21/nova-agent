@@ -5,7 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import com.nova.agent.data.MODELS
+import com.nova.agent.data.FALLBACK_MODELS
 import com.nova.agent.feature.models.ModelsScreen
 import com.nova.agent.llm.LocalModelUi
 import com.nova.agent.llm.local.LocalModelCatalog
@@ -40,7 +40,7 @@ class ModelsScreenTest {
                     offlineReady = false,
                     recommendedId = LocalModelCatalog.default.id,
                     metrics = emptyMap(),
-                    gatewayModels = MODELS,
+                    gatewayModels = FALLBACK_MODELS,
                     gatewaySelectedId = "auto",
                     onDownload = { downloaded = it.spec.id },
                     onCancelDownload = {},
@@ -75,7 +75,7 @@ class ModelsScreenTest {
                     offlineReady = false,
                     recommendedId = LocalModelCatalog.default.id,
                     metrics = emptyMap(),
-                    gatewayModels = MODELS,
+                    gatewayModels = FALLBACK_MODELS,
                     gatewaySelectedId = "auto",
                     onDownload = {},
                     onCancelDownload = {},

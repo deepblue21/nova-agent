@@ -47,6 +47,7 @@ class NovaAppShellTest {
         composeRule.onNodeWithText("Sohbet").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("Modeller").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("PC hazır").assertIsDisplayed()
+        composeRule.onNodeWithTag("nova_brand_mark").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Ayarlar").assertIsDisplayed()
         assertEquals(listOf(Mode.TASKS, Mode.CHAT, Mode.MODELLER), selected)
     }

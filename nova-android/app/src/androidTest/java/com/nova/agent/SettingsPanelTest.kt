@@ -132,6 +132,38 @@ class SettingsPanelTest {
             assertFalse(reasoning)
         }
     }
+
+    @Test
+    fun rubyAndLastMoonstoneThemeRemainReachableAndSelectable() {
+        var selected: String? = null
+        composeRule.setContent {
+            NovaTheme {
+                SettingsPanel(
+                    settings = AppSettings(themeId = "amethyst"),
+                    connection = GatewayConnectionUiState(),
+                    onTestConnection = { _, _ -> },
+                    onSaveConnection = { _, _ -> },
+                    onModelChange = {},
+                    onEffortChange = {},
+                    onReasoningChange = {},
+                    onThemeChange = { selected = it },
+                    onClose = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("theme_ruby")
+            .performScrollTo()
+            .assertIsDisplayed()
+            .performClick()
+        composeRule.runOnIdle { assertEquals("ruby", selected) }
+
+        composeRule.onNodeWithTag("theme_moonstone")
+            .performScrollTo()
+            .assertIsDisplayed()
+            .performClick()
+        composeRule.runOnIdle { assertEquals("moonstone", selected) }
+    }
 }
 
 class SettingsPanelStatusBarTest {

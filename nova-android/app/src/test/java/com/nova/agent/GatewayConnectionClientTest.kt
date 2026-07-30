@@ -58,14 +58,16 @@ class GatewayConnectionClientTest {
         exchange.close()
     }
 
-    @Test fun mapsNetworkFailureToSafeMessage() {
+    @Test fun mapsNetworkFailureToActionableRefusedMessage() {
         val closed = ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
         val port = closed.localPort
         closed.close()
-        assertEquals(
-            GatewayConnectionResult.Failure("PC Gateway'e ulaşılamadı"),
-            awaitResult("http://127.0.0.1:$port/v1", ""),
-        )
+        val result = awaitResult("http://127.0.0.1:$port/v1", "")
+        val failure = result as GatewayConnectionResult.Failure
+        // Reddedilen bağlantı artık genel değil, nedene özel mesaj taşır;
+        // gövde/İç detay sızdırılmaz, ipucu kullanıcıyı start-horus'a yönlendirir.
+        assertTrue(failure.message.contains("reddedildi"))
+        assertTrue(failure.hint.contains("start-horus"))
     }
 
     private fun awaitResult(baseUrl: String, token: String): GatewayConnectionResult {

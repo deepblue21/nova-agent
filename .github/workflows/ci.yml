@@ -35,8 +35,17 @@ jobs:
       - name: Secret scan (tracked files)
         run: node scripts/secret-scan.mjs
 
+      - name: Docs consistency check (doc-claimed counts vs code)
+        run: node scripts/docs-check.mjs
+
       - name: Unit tests (gateway)
         run: npm --prefix gateway test
+
+      - name: Unit tests (web)
+        run: npm --prefix web test
+
+      - name: Smoke-script unit tests
+        run: node --test scripts/smoke-mobile-control-plane.test.mjs scripts/smoke-mobilerun-worker.test.mjs
 
       - name: Build web
         run: npm --prefix web run build
@@ -74,15 +83,31 @@ jobs:
       - name: Build gateway image
         run: docker build -t nova-gateway ./gateway
 
-  # android:
-  #   Requires gradle/wrapper/gradle-wrapper.jar (missing from the repo).
-  #   Regenerate once with `gradle wrapper --gradle-version 8.9` (or open the
-  #   project in Android Studio), commit the jar, then enable this job:
-  #
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-java@v4
-  #       with: { distribution: temurin, java-version: "17" }
-  #     - run: ./gradlew test
-  #       working-directory: nova-android
+  # Standard-library worker suite; Python pinned to the project's
+  # requires-python (>=3.12,<3.13) so CI matches uv.lock.
+  mobile-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install worker deps (httpx only; tests are stdlib + mocks)
+        run: python -m pip install "httpx>=0.27,<1"
+      - name: Worker unit tests
+        run: python3 mobile-worker/run_tests.py
+
+  # JVM unit tests only — instrumented (emulator) tests remain a manual/
+  # roadmap item. gradle-wrapper.jar is committed, so the wrapper works.
+  android-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - name: Android JVM unit tests
+        run: ./gradlew --no-daemon testDebugUnitTest
+        working-directory: nova-android

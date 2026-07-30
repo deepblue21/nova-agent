@@ -63,7 +63,10 @@ services:
       DATABASE_URL: postgres://nova:${POSTGRES_PASSWORD:-nova}@postgres:5432/nova
       REDIS_URL: redis://redis:6379
       # Local LLM: reach the host's Ollama from inside the container.
-      OLLAMA_URL: http://host.docker.internal:11434
+      # WSL'de çalışan Ollama'ya Windows loopback'i üzerinden ulaşılamayabilir.
+      # Kök .env dosyasına OLLAMA_URL yazarak (ör. WSL IP'si ya da portproxy)
+      # bu değeri compose'u düzenlemeden değiştirebilirsin.
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
       DEFAULT_MODEL: ollama/gemma4:latest
       # effort kademesi → model (YALNIZ 'auto' / Dinamik Yönlendirme'de geçerli).
       # Kendi kurulu Ollama tag'lerine göre değiştir (ollama list).
@@ -73,12 +76,17 @@ services:
       ROUTE_MAX: ollama/qwen3.6:35b
       SCHEDULER_ENABLED: "1"        # zamanlanmış/otomatik ajan görevleri çalışsın
       SCHEDULER_TICK_MS: "30000"    # due görevleri ne sıklıkta kontrol etsin (ms)
+      # Ajan web_search aracı için self-hosted SearXNG (aşağıdaki searxng servisi).
+      SEARXNG_URL: http://searxng:8080
     extra_hosts:
       - "host.docker.internal:host-gateway"
     expose:
       - "8088"                  # internal only; not published to the host
     ports:
-      - "127.0.0.1:8088:8088"
+      # Varsayılan: yalnız loopback (güvenli). start-horus.ps1 -Lan/-Tailscale
+      # GATEWAY_BIND=0.0.0.0 vererek telefon erişimini açar; erişim Windows
+      # Güvenlik Duvarı kurallarıyla sınırlanır (yalnız yerel alt ağ / tailnet).
+      - "${GATEWAY_BIND:-127.0.0.1}:${GATEWAY_PORT:-8088}:8088"
     depends_on:
       postgres:
         condition: service_healthy
@@ -98,8 +106,9 @@ services:
     depends_on:
       - gateway
     ports:
-      - "80:80"
-      - "443:443"
+      # start-horus.ps1, 80/443 doluysa CADDY_HTTP_PORT/CADDY_HTTPS_PORT verir.
+      - "${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_HTTPS_PORT:-443}:443"
     environment:
       DOMAIN: ${DOMAIN:-localhost}
       KC_HOSTNAME_HOST: ${KC_HOSTNAME_HOST:-auth.localhost}
@@ -109,6 +118,18 @@ services:
       - ./web/dist:/srv/web:ro
       - caddy_data:/data
       - caddy_config:/config
+    restart: unless-stopped
+
+  # Self-hosted meta arama — ajan modunun web_search aracı buraya sorar.
+  searxng:
+    image: searxng/searxng:latest
+    environment:
+      SEARXNG_BASE_URL: http://localhost:8080/
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-change-me-searxng-dev-secret}
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    ports:
+      - "127.0.0.1:8080:8080"   # loopback-only (iç ağda gateway 'searxng:8080' kullanır)
     restart: unless-stopped
 
 volumes:

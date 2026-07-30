@@ -27,11 +27,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,7 +42,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -60,17 +59,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nova.agent.data.ChatMessage
-import com.nova.agent.ui.theme.Azure
 import com.nova.agent.ui.theme.Coral
-import com.nova.agent.ui.theme.Cyan
 import com.nova.agent.ui.theme.Line
 import com.nova.agent.ui.theme.Muted
 import com.nova.agent.ui.theme.Muted2
 import com.nova.agent.ui.theme.Surface1
 import com.nova.agent.ui.theme.Surface2
 import com.nova.agent.ui.theme.TextMain
+import com.nova.agent.ui.theme.accentBrush
+import com.nova.agent.ui.brand.NovaBrandMark
+import com.nova.agent.ui.brand.NovaThinkingIndicator
 
-private val chatGradient = Brush.linearGradient(listOf(Cyan, Azure))
+internal fun shouldShowNovaThinkingIndicator(message: ChatMessage): Boolean =
+    message.role == "assistant" && message.content.isEmpty() && message.streaming
 
 @Composable
 fun ChatScreen(
@@ -206,6 +207,8 @@ private fun FallbackConsentCard(
     onApprove: () -> Unit,
     onReject: () -> Unit,
 ) {
+    val gradient = accentBrush()
+    val onAccent = MaterialTheme.colorScheme.onPrimary
     Column(
         Modifier
             .fillMaxWidth()
@@ -252,7 +255,7 @@ private fun FallbackConsentCard(
                         .weight(1f)
                         .defaultMinSize(minHeight = 44.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(chatGradient)
+                        .background(gradient)
                         .clickable(onClick = onApprove)
                         .semantics {
                             contentDescription = "PC'ye gönder"
@@ -260,7 +263,7 @@ private fun FallbackConsentCard(
                         },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("PC'ye gönder", color = Color(0xFF04121A), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text("PC'ye gönder", color = onAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -274,17 +277,8 @@ private fun ChatEmptyState(modifier: Modifier = Modifier) {
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(24.dp),
         ) {
-            Box(
-                Modifier.size(56.dp).clip(RoundedCornerShape(18.dp)).background(chatGradient),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Filled.AutoAwesome,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(26.dp),
-                )
-            }
+            // Tek marka görseli: Pulse Aperture.
+            NovaBrandMark(modifier = Modifier.size(56.dp))
             Spacer(Modifier.height(16.dp))
             Text(
                 "Merhaba, ben NOVA",
@@ -311,18 +305,25 @@ private fun ChatMessageRow(
 ) {
     val isUser = message.role == "user"
     val clipboard = LocalClipboardManager.current
+    val accent = MaterialTheme.colorScheme.primary
     Column(
         Modifier.fillMaxWidth(),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
     ) {
+        // Araç izi balonun ÜSTÜNDE: yanıt gelmeden önce hangi aracın
+        // çalıştığı görünsün, sonradan açıklama gibi durmasın.
+        if (!isUser && message.tools.isNotEmpty()) {
+            NovaToolTrace(message.tools, Modifier.widthIn(max = 320.dp))
+            Spacer(Modifier.height(6.dp))
+        }
         Column(
             Modifier
                 .widthIn(max = 320.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(if (isUser) Cyan.copy(alpha = 0.14f) else Surface1)
+                .background(if (isUser) accent.copy(alpha = 0.14f) else Surface1)
                 .border(
                     1.dp,
-                    if (isUser) Cyan.copy(alpha = 0.22f) else Line,
+                    if (isUser) accent.copy(alpha = 0.22f) else Line,
                     RoundedCornerShape(16.dp),
                 )
                 .padding(horizontal = 14.dp, vertical = 11.dp),
@@ -333,8 +334,8 @@ private fun ChatMessageRow(
                 Spacer(Modifier.height(6.dp))
             }
             when {
-                message.content.isEmpty() && message.streaming ->
-                    Text("•••", color = Cyan, fontSize = 15.sp)
+                shouldShowNovaThinkingIndicator(message) ->
+                    NovaThinkingIndicator()
 
                 isUser ->
                     Text(message.content, color = TextMain, fontSize = 15.sp, lineHeight = 21.sp)
@@ -389,7 +390,7 @@ private fun AssistantBody(content: String) {
                         ) {
                             Text(
                                 block.language.ifBlank { "kod" },
-                                color = Cyan,
+                                color = MaterialTheme.colorScheme.primary,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.weight(1f),
@@ -422,6 +423,9 @@ private fun ChatComposer(
     onStop: () -> Unit,
 ) {
     var draft by rememberSaveable { mutableStateOf("") }
+    val accent = MaterialTheme.colorScheme.primary
+    val onAccent = MaterialTheme.colorScheme.onPrimary
+    val gradient = accentBrush()
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp).imePadding(),
         verticalAlignment = Alignment.Bottom,
@@ -440,8 +444,8 @@ private fun ChatComposer(
                 value = draft,
                 onValueChange = { draft = it },
                 textStyle = TextStyle(color = TextMain, fontSize = 15.sp),
-                cursorBrush = SolidColor(Cyan),
-                modifier = Modifier.fillMaxWidth(),
+                cursorBrush = SolidColor(accent),
+                modifier = Modifier.fillMaxWidth().testTag("chat_input"),
             )
         }
         Spacer(Modifier.width(10.dp))
@@ -453,7 +457,7 @@ private fun ChatComposer(
                 .clip(RoundedCornerShape(14.dp))
                 .background(if (busy) Surface2 else if (canSend) Color.Transparent else Surface2)
                 .then(
-                    if (canSend) Modifier.background(chatGradient, RoundedCornerShape(14.dp))
+                    if (canSend) Modifier.background(gradient, RoundedCornerShape(14.dp))
                     else Modifier,
                 )
                 .clickable(enabled = canSend || busy) {
@@ -473,7 +477,7 @@ private fun ChatComposer(
             Icon(
                 if (busy) Icons.Filled.Stop else Icons.AutoMirrored.Filled.Send,
                 contentDescription = null,
-                tint = if (busy) Coral else if (canSend) Color(0xFF04121A) else Muted2,
+                tint = if (busy) Coral else if (canSend) onAccent else Muted2,
                 modifier = Modifier.size(20.dp),
             )
         }
