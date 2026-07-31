@@ -228,6 +228,36 @@ test("providers: negative dispatch cases", async () => {
   );
 });
 
+test("providers: Ollama seviyeli think değerini booleana çevirmeden gönderir", async () => {
+  const prev = globalThis.fetch;
+  let sent;
+  globalThis.fetch = async (_url, init) => {
+    sent = JSON.parse(init.body);
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"message":{"content":"ok"},"done":true}\n'));
+        controller.close();
+      },
+    });
+    return { ok: true, status: 200, body };
+  };
+  try {
+    const client = createProviderClient({ ollamaUrl: "http://ollama-test:11434", maxRetries: 0 });
+    const text = await client.chat({
+      provider: "ollama",
+      model: "gpt-oss:20b",
+      messages: [{ role: "user", content: "merhaba" }],
+      stream: false,
+      ctx: { think: "high", params: {} },
+      res: null,
+    });
+    assert.equal(text, "ok");
+    assert.equal(sent.think, "high");
+  } finally {
+    globalThis.fetch = prev;
+  }
+});
+
 test("voice: validates STT and TTS payloads", () => {
   const stt = normalizeSttPayload({
     audio: "data:audio/webm;base64," + Buffer.from("abc").toString("base64"),

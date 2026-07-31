@@ -9,7 +9,11 @@ import {
   parseOllamaTags,
   CLOUD_MODELS,
   familySupportsTools,
+  familySupportsThinking,
   parseShowCapabilities,
+  parseShowCapabilitySet,
+  probeOllamaCapabilities,
+  thinkingModeForModel,
   annotateToolSupport,
 } from "../lib/model_catalog.mjs";
 
@@ -149,6 +153,11 @@ test("createCatalogCache: TTL içinde tutar, sonra düşer", () => {
 
 test("familySupportsTools: bilinen aileleri etiketten tanır", () => {
   assert.equal(familySupportsTools("qwen3.6:35b"), true);
+  assert.equal(familySupportsTools("lfm2.5:8b"), true);
+  assert.equal(familySupportsTools("deepseek-r1:8b"), true);
+  assert.equal(familySupportsTools("phi4-mini:3.8b"), true);
+  assert.equal(familySupportsTools("granite4:3b"), true);
+  assert.equal(familySupportsTools("gpt-oss:20b"), true);
   assert.equal(familySupportsTools("llama3.1:8b"), true);
   assert.equal(familySupportsTools("mistral-nemo"), true);
   assert.equal(familySupportsTools("phi3:mini"), false);
@@ -161,6 +170,39 @@ test("parseShowCapabilities: tools yeteneğini okur, alan yoksa null döner", ()
   assert.equal(parseShowCapabilities({ capabilities: ["completion"] }), false);
   assert.equal(parseShowCapabilities({}), null);
   assert.equal(parseShowCapabilities(null), null);
+});
+
+test("parseShowCapabilitySet: tools ve thinking yeteneklerini tek yanıttan okur", () => {
+  assert.deepEqual(
+    parseShowCapabilitySet({ capabilities: ["completion", "tools", "thinking"] }),
+    { tools: true, thinking: true },
+  );
+  assert.deepEqual(
+    parseShowCapabilitySet({ capabilities: ["completion"] }),
+    { tools: false, thinking: false },
+  );
+  assert.equal(parseShowCapabilitySet({}), null);
+});
+
+test("thinking aile ve mod politikası destekleneni seviyeli modelden ayırır", () => {
+  assert.equal(familySupportsThinking("qwen3.5:4b"), true);
+  assert.equal(familySupportsThinking("deepseek-r1:8b"), true);
+  assert.equal(familySupportsThinking("hermes3:8b"), false);
+  assert.equal(thinkingModeForModel("gpt-oss:20b", true), "levels");
+  assert.equal(thinkingModeForModel("qwen3:8b", true), "toggle");
+  assert.equal(thinkingModeForModel("hermes3:8b", false), "none");
+});
+
+test("probeOllamaCapabilities: tek /api/show çağrısında iki yeteneği döndürür", async () => {
+  let calls = 0;
+  const result = await probeOllamaCapabilities("http://o", "qwen3:8b", {
+    fetchImpl: async () => {
+      calls += 1;
+      return { ok: true, json: async () => ({ capabilities: ["tools", "thinking"] }) };
+    },
+  });
+  assert.equal(calls, 1);
+  assert.deepEqual(result, { tools: true, thinking: true });
 });
 
 test("annotateToolSupport: probe önceliklidir, başarısızsa aileye düşer", async () => {
@@ -182,9 +224,14 @@ test("annotateToolSupport: probe önceliklidir, başarısızsa aileye düşer", 
     ["qwen3:8b", true, "family"],
     ["phi3:mini", false, "unknown"],
   ]);
+  assert.deepEqual(out.map((m) => [m.name, m.thinking, m.thinkingSource, m.thinkingMode]), [
+    ["probed:latest", false, "probe", "none"],
+    ["qwen3:8b", true, "family", "toggle"],
+    ["phi3:mini", false, "unknown", "none"],
+  ]);
 });
 
-test("buildCatalog: yetenek alanını taşır; bulut ve ajan girdileri araç destekler", () => {
+test("buildCatalog: yetenek alanını taşır; uygulanmayan bulut kontrollerini pasif tutar", () => {
   const cat = buildCatalog({
     ollamaModels: [
       { name: "qwen3:8b", tools: true, toolsSource: "probe" },
@@ -196,8 +243,18 @@ test("buildCatalog: yetenek alanını taşır; bulut ve ajan girdileri araç des
   const by = (id) => cat.data.find((m) => m.id === id);
   assert.equal(by("ollama/qwen3:8b").tools, true);
   assert.equal(by("ollama/qwen3:8b").toolsSource, "probe");
+  assert.equal(by("ollama/qwen3:8b").thinking, true);
+  assert.equal(by("ollama/qwen3:8b").thinkingSource, "family");
+  assert.equal(by("ollama/qwen3:8b").thinkingMode, "toggle");
   assert.equal(by("ollama/phi3:mini").tools, false);
-  assert.equal(by("auto").tools, true);
-  assert.equal(by("anthropic/claude-opus-4-8").tools, true);
-  assert.equal(by("openclaw/default").tools, true);
+  assert.equal(by("auto").tools, false);
+  assert.equal(by("auto").thinking, false);
+  assert.equal(by("auto").thinkingSource, "gateway");
+  assert.equal(by("anthropic/claude-opus-4-8").tools, false);
+  assert.equal(by("anthropic/claude-opus-4-8").toolsSource, "gateway");
+  assert.equal(by("anthropic/claude-opus-4-8").thinking, false);
+  assert.equal(by("anthropic/claude-opus-4-8").thinkingSource, "gateway");
+  assert.equal(by("openclaw/default").tools, false);
+  assert.equal(by("openclaw/default").toolsSource, "agent");
+  assert.equal(by("openclaw/default").thinking, false);
 });

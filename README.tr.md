@@ -207,6 +207,17 @@ Ayrintili uygulama sirasi:
 
 Özet changelog; oturum-bazlı tam detay git history ve `PROGRESS.md`'de.
 
+- **Canlı Ollama yetenek kontrolleri (2026-08-01):** gateway, kurulu model
+  kataloğunu Ollama `/api/show` sonucundaki yerel `tools` ve `thinking`
+  yetenekleriyle zenginleştirir. Web arayüzünde Hızlı / Dengeli / Derin / Maks,
+  Düşünme, Ajan ve Takım kontrolleri görünür kalır; desteklenmeyen seçenekler
+  erişilebilir bir açıklamayla pasifleştirilir. GPT-OSS çaba seviyeleri Ollama'nın
+  `low` / `medium` / `high` düşünme değerlerine eşlenir; aç-kapat tipi modeller
+  boolean değer alır. Katalog destek vermiyorsa modele araç, ajan, takım veya web
+  araması çalıştırma isteği gönderilmez. Sohbet içindeki NOVA işareti 40 px'e
+  çıkarıldı; cevap beklerken aktif düşünme hareketi, cevap tamamlanınca daha sakin
+  bir ortam hareketi kullanır.
+
 - **Faz 1 — Yerel öncelikli cihaz-üstü LLM (2026-07-16, `codex/phase1-local-first`):**
   Android uygulamasına LiteRT-LM (0.13.1) tabanlı `OnDeviceEngine`, sabit sürüm +
   SHA-256 doğrulamalı model indirme merkezi (Qwen3-0.6B, Apache-2.0) ve
@@ -259,12 +270,25 @@ modeli CPU+GPU böler — bu yüzden cevaplar daha yavaştır; bu bir donanım s
 sorunu değil. Tam-GPU hız için 8B sınıfı bir model seç; daha fazla yetenek için bölünmeyi
 kabul et. Yerleşimi `ollama ps` ile doğrula (`PROCESSOR` sütunu: `100% GPU` vs bölünmüş).
 
-| Model | Boyut | Yerleşim | Hız |
-|---|---|---|---|
-| `qwen3:8b` | ~5.2 GB | **%100 GPU** | hızlı |
-| `qwen3.6:35b` | ~24 GB | yüksek VRAM/RAM veya bölünme gerekir | en güçlü yerel tool-calling |
-| `qwen3:14b` | ~10 GB | bölünmüş CPU/GPU | orta, dengeli tool-calling |
-| `gemma4:e2b` | ~7.2 GB | **%100 GPU** | en hızlı native tools |
+Bu 8 GB GPU profili için önerilen ek indirmeler (2026-08-01'de kontrol edildi):
+
+| Model | İndirme komutu | Yaklaşık boyut | En uygun kullanım |
+|---|---|---:|---|
+| [LFM2.5 8B](https://ollama.com/library/lfm2.5) | `ollama pull lfm2.5:8b` | 5.2 GB | araçlar + düşünme için en güçlü yeni yerel uyum |
+| [Qwen3.5 4B](https://ollama.com/library/qwen3.5) | `ollama pull qwen3.5:4b` | 3.4 GB | kompakt görüntü + araçlar + düşünme |
+| [Qwen3 4B](https://ollama.com/library/qwen3) | `ollama pull qwen3:4b` | 2.5 GB | en fazla VRAM payı; Ollama'nın arama-ajanı örneği |
+| [Qwen3 8B](https://ollama.com/library/qwen3) | `ollama pull qwen3:8b` | 5.2 GB | dengeli yerel ajan ve arama-aracı kullanımı |
+| [DeepSeek-R1 8B](https://ollama.com/library/deepseek-r1) | `ollama pull deepseek-r1:8b` | 5.2 GB | araçlı, muhakeme ağırlıklı işler |
+| [Phi-4 Mini](https://ollama.com/library/phi4-mini) | `ollama pull phi4-mini:3.8b` | 2.5 GB | yerel düşünme izi olmadan hızlı araç kullanımı |
+| [Granite 4 3B](https://ollama.com/library/granite4) | `ollama pull granite4:3b` | 2.1 GB | hafif RAG ve iş görevleri |
+
+Modelin araç desteği tek başına internet erişimi vermez: NOVA web araması için ajan/araç
+kontrolü açık ve arama backend'i yapılandırılmış olmalıdır. İlan edilen büyük bağlam
+pencereleri ek bellek ister; Ollama'nın varsayılan bağlamı daha küçüktür. Resmî
+[bağlam uzunluğu](https://docs.ollama.com/context-length),
+[araç çağırma](https://docs.ollama.com/capabilities/tool-calling),
+[düşünme](https://docs.ollama.com/capabilities/thinking) ve
+[web araması](https://docs.ollama.com/capabilities/web-search) belgelerine bakın.
 
 ## Depo yapısı
 

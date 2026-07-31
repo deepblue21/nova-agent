@@ -208,6 +208,17 @@ The detailed implementation sequence is in
 
 A condensed changelog; full per-session detail lives in git history and `PROGRESS.md`.
 
+- **Live Ollama capability controls (2026-08-01):** the gateway now enriches the
+  installed-model catalog with Ollama `/api/show` results for native `tools` and
+  `thinking` support. The web UI keeps Fast / Balanced / Deep / Max, Reasoning,
+  Agent and Team controls visible, but disables unsupported choices with an
+  accessible explanation. GPT-OSS effort levels are mapped to Ollama's
+  `low` / `medium` / `high` thinking values; boolean-thinking models receive a
+  simple on/off value. Tool, agent, team and web-search execution is never sent
+  to a model that the catalog reports as unsupported. The assistant brand mark is
+  now 40 px and uses an active thinking motion while waiting, then continues with
+  a quieter ambient brand motion after the answer completes.
+
 - **Phase 1 — Local-first on-device LLM (2026-07-16, `codex/phase1-local-first`):**
   Added a LiteRT-LM (0.13.1) based `OnDeviceEngine` to the Android app, a pinned-revision +
   SHA-256-verified model download center (Qwen3-0.6B, Apache-2.0), and an `ExecutionPolicy`
@@ -258,12 +269,25 @@ fit and Ollama splits it across CPU+GPU, so answers are slower — this is a har
 not a NOVA issue. For full-GPU speed pick an 8B-class model; for more capability accept the
 split. Verify placement with `ollama ps` (the `PROCESSOR` column: `100% GPU` vs split).
 
-| Model | Footprint | Placement | Speed |
-|---|---|---|---|
-| `qwen3:8b` | ~5.2 GB | **100% GPU** | fast |
-| `qwen3.6:35b` | ~24 GB | needs high VRAM/RAM or split | strongest local tool-calling |
-| `qwen3:14b` | ~10 GB | split CPU/GPU | medium, balanced tool-calling |
-| `gemma4:e2b` | ~7.2 GB | **100% GPU** | fastest native tools |
+Recommended additional downloads for this 8 GB GPU profile (checked 2026-08-01):
+
+| Model | Pull command | Approx. size | Best use |
+|---|---|---:|---|
+| [LFM2.5 8B](https://ollama.com/library/lfm2.5) | `ollama pull lfm2.5:8b` | 5.2 GB | strongest new local fit for tools + thinking |
+| [Qwen3.5 4B](https://ollama.com/library/qwen3.5) | `ollama pull qwen3.5:4b` | 3.4 GB | compact vision + tools + thinking |
+| [Qwen3 4B](https://ollama.com/library/qwen3) | `ollama pull qwen3:4b` | 2.5 GB | most VRAM headroom; Ollama's search-agent example |
+| [Qwen3 8B](https://ollama.com/library/qwen3) | `ollama pull qwen3:8b` | 5.2 GB | balanced local agent and search-tool use |
+| [DeepSeek-R1 8B](https://ollama.com/library/deepseek-r1) | `ollama pull deepseek-r1:8b` | 5.2 GB | reasoning-heavy work with tools |
+| [Phi-4 Mini](https://ollama.com/library/phi4-mini) | `ollama pull phi4-mini:3.8b` | 2.5 GB | fast tool use without a native thinking trace |
+| [Granite 4 3B](https://ollama.com/library/granite4) | `ollama pull granite4:3b` | 2.1 GB | lightweight RAG and business tasks |
+
+Model tool support does not itself grant internet access: NOVA web search also needs
+the agent/tool control enabled and a configured search backend. Large advertised
+contexts need additional memory; Ollama's default context is intentionally smaller.
+See the official [context-length](https://docs.ollama.com/context-length),
+[tool-calling](https://docs.ollama.com/capabilities/tool-calling),
+[thinking](https://docs.ollama.com/capabilities/thinking), and
+[web-search](https://docs.ollama.com/capabilities/web-search) documentation.
 
 ## Repository layout
 

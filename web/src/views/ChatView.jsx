@@ -46,7 +46,13 @@ function Message({ m, isLast, busy, onArtifact, onRegenerate }) {
 
       <div className={"msg " + (m.role === "user" ? "user" : "")}>
         <div className={"avatar " + (m.role === "user" ? "me" : "ai nova-avatar")}>
-          {m.role === "user" ? "S" : <NovaMark size={34} animated={pending} />}
+          {m.role === "user" ? "S" : (
+            <NovaMark
+              size={40}
+              animated
+              motion={pending ? "thinking" : "brand"}
+            />
+          )}
         </div>
         <div className={"bubble " + (m.role === "user" ? "me" : "ai")}>
           {m.images && m.images.length > 0 && (

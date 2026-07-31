@@ -93,7 +93,7 @@ async function ollamaChat(ollamaBase, model, messages, tools, { signal, think = 
           messages: toOllama(messages),
           tools,
           stream: false,
-          think: !!wantThink,
+          think: wantThink,
           ...(Object.keys(options).length ? { options } : {}),
         }),
         signal,

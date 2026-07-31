@@ -33,6 +33,17 @@ function ModelCard({ item, selected, onPick }) {
               {item.toolsVerified ? "araç destekli" : "araç destekli?"}
             </span>
           )}
+          {item.thinking && (
+            <span
+              className="tools-badge thinking-badge"
+              style={{ marginLeft: 7 }}
+              title={item.thinkingVerified
+                ? "Düşünme çıktısını destekliyor (Ollama'ya soruldu)."
+                : "Aile bilgisine göre düşünme destekliyor — Ollama'ya sorulamadı."}
+            >
+              {item.thinkingVerified ? "düşünme" : "düşünme?"}
+            </span>
+          )}
         </span>
         <span className="pk-d">{off ? (item.reason || "kullanılamıyor") : item.desc}</span>
       </span>

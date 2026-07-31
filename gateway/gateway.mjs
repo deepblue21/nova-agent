@@ -528,15 +528,33 @@ app.post("/v1/chat/completions", async (req, res) => {
   const ctx = { signal: up.signal, think, params: pickParams(req.body), retries: MAX_RETRIES, usage, notices };
   try {
     let assistantText;
+    const hasImages = hasImageContent(messages);
+    const lastPromptNeedsLiveData = provider === "ollama" && !hasImages
+      && needsLiveData(messageText(messages[messages.length - 1]));
+    const toolsRequested = !hasImages
+      && (Boolean(agent) || Boolean(team) || (AUTO_AGENT && lastPromptNeedsLiveData));
+    const needsCapabilityCheck = provider === "ollama" && (Boolean(think) || toolsRequested);
+    if (needsCapabilityCheck) {
+      const [modelCapabilities] = await annotateToolSupport(OLLAMA, [{ name: model }]);
+
+      if (think && !modelCapabilities.thinking) {
+        think = false;
+        ctx.think = false;
+        noteCapability(UP.THINK_UNSUPPORTED);
+      }
+
+      if (toolsRequested && !modelCapabilities.tools) {
+        agent = false;
+        team = false;
+        if (!res.headersSent) res.setHeader("x-nova-agent-fallback", "1");
+        noteCapability(UP.TOOLS_UNSUPPORTED);
+      } else if (AUTO_AGENT && !agent && !team && lastPromptNeedsLiveData) {
+        agent = true;
+        if (!res.headersSent) res.setHeader("x-nova-auto-agent", "1");
+      }
+    }
     // kişisel uzun-dönem hafızayı sistem prompt'una otomatik kat (multi-user; hata-toleranslı)
     if (req.principal) messages = await withMemory(messages, req.principal.userId);
-    // canlı/güncel veri sorgularında (hava durumu, haber, fiyat…) araçlar çalışsın diye
-    // ajan modunu otomatik aç — yoksa model uydurur. AUTO_AGENT_ENABLED=0 ile kapatılır.
-    if (AUTO_AGENT && !agent && !team && provider === "ollama" && !hasImageContent(messages)
-        && needsLiveData(messageText(messages[messages.length - 1]))) {
-      agent = true;
-      res.setHeader("x-nova-auto-agent", "1");
-    }
     // --- AJAN MODU: yerel modelle araç çağırma döngüsü (web arama, hesap, saat) ---
     // --- ÇOKLU AJAN (TEAM): planla → paralel alt-ajanlar → sentez ---
     if (team && provider === "ollama" && !hasImageContent(messages)) {

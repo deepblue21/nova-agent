@@ -96,7 +96,7 @@ export async function streamChat({
     const res = await fetch(trim(prov.baseUrl) + "/api/chat", {
       method: "POST", headers: H, signal,
       body: JSON.stringify({
-        model, stream: true, think: !!think,
+        model, stream: true, think: think ?? false,
         messages: [{ role: "system", content: system }, ...history.map(ollamaMsg)],
       }),
     });

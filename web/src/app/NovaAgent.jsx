@@ -29,6 +29,7 @@ import * as api from "../lib/gateway.mjs";
 import {
   FALLBACK_MODELS, liveGroupsFrom, EFFORTS, PERSONAS, AGENTS,
 } from "../lib/constants.mjs";
+import { resolveExecutionCapabilities } from "../lib/model-capabilities.mjs";
 
 import { useReducedMotion } from "../hooks/useReducedMotion.js";
 import { useMobileTasks } from "../hooks/useMobileTasks.js";
@@ -234,6 +235,10 @@ export default function NovaAgent() {
   const curProv = providers[curItem.provider];
   const curApiModel = curItem.model;
   const curEffort = EFFORTS.find((e) => e.id === effort) || EFFORTS[1];
+  const selectedCapabilities = resolveExecutionCapabilities(curItem, {
+    reasoning, effort, agentMode, teamMode,
+  });
+  const effectiveReasoning = selectedCapabilities.reasoningActive;
   const activePersona = PERSONAS.find((p) => p.id === personaId) || PERSONAS[0];
 
   const provReady = useCallback((id) => {
@@ -674,7 +679,7 @@ export default function NovaAgent() {
         ? "Dinamik yönlendirme aktif: göreve en uygun modeli seç."
         : ("Etkin model: " + curItem.name + "."),
       personaLine, agentLine, curEffort.sys,
-      reasoning ? "Yanıttan önce kısa bir muhakeme yapabilirsin ama nihai yanıtı açık ver." : "",
+      effectiveReasoning ? "Yanıttan önce kısa bir muhakeme yapabilirsin ama nihai yanıtı açık ver." : "",
     ].filter(Boolean).join(" ");
   }
 
@@ -701,28 +706,35 @@ export default function NovaAgent() {
   /** Gateway araçları gerekiyorsa yerel modeli gateway üzerinden çağır. */
   function routeFor(lastText) {
     const liveTool = needsLiveTool(lastText);
-    const forceGatewayTools = curItem.provider === "ollama" && !!gw.baseUrl && (agentMode || teamMode || liveTool);
+    const capabilities = resolveExecutionCapabilities(curItem, {
+      reasoning, effort, agentMode, teamMode, liveTool,
+    });
+    const forceGatewayTools = curItem.provider === "ollama" && !!gw.baseUrl
+      && capabilities.toolsActive && (capabilities.agent || capabilities.team);
     const sendProv = forceGatewayTools ? gw : curProv;
     const sendModel = forceGatewayTools ? ("ollama/" + curApiModel) : curApiModel;
     const viaGateway = curItem.provider === "gateway" || forceGatewayTools;
-    // Araç çağıramayan bir modele ajan modu göndermek boşuna bir tur: Ollama
-    // 400 döner. Katalog yeteneği ÖLÇTÜYSE (probe/provider) burada eliyoruz.
-    // Yalnızca tahmin varsa denemeye devam ederiz; gateway zaten desteklemeyen
-    // modelde düz sohbete düşüp nedenini yazıyor.
-    const toolsBlocked = curItem.toolsVerified && !curItem.tools;
-    const wantAgent = (agentMode || (forceGatewayTools && liveTool)) && !toolsBlocked;
     const sendExtra = viaGateway
       ? {
-        effort, think: reasoning,
-        ...(wantAgent ? { agent: true } : {}),
-        ...(teamMode && !toolsBlocked ? { team: true } : {}),
+        ...(capabilities.reasoningActive ? { effort } : {}),
+        think: capabilities.think,
+        ...(capabilities.agent ? { agent: true } : {}),
+        ...(capabilities.team ? { team: true } : {}),
       }
       : {};
-    return { sendProv, sendModel, sendExtra, viaGateway };
+    return { sendProv, sendModel, sendExtra, viaGateway, capabilities };
   }
 
   async function complete(historyMsgs) {
-    setMessages((prev) => [...prev, { role: "assistant", content: "", thinking: reasoning, thoughts: "", at: Date.now() }]);
+    const lastText = (historyMsgs[historyMsgs.length - 1] || {}).content || "";
+    const routeConfig = routeFor(lastText);
+    setMessages((prev) => [...prev, {
+      role: "assistant",
+      content: "",
+      thinking: routeConfig.capabilities.reasoningActive,
+      thoughts: "",
+      at: Date.now(),
+    }]);
     setBusy(true);
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -734,8 +746,7 @@ export default function NovaAgent() {
     const t0 = performance.now();
     let firstAt = 0;
 
-    const lastText = (historyMsgs[historyMsgs.length - 1] || {}).content || "";
-    const { sendProv, sendModel, sendExtra, viaGateway } = routeFor(lastText);
+    const { sendProv, sendModel, sendExtra, viaGateway, capabilities } = routeConfig;
     const convId = await ensureServerConv();
     if (convId && viaGateway) sendExtra.conversation_id = convId;
 
@@ -743,7 +754,7 @@ export default function NovaAgent() {
       await streamChat({
         prov: sendProv, model: sendModel, system: buildSystem(),
         history: historyMsgs.map((m) => ({ role: m.role, content: m.content, images: m.images })),
-        think: reasoning, signal: ctrl.signal, extra: sendExtra,
+        think: capabilities.think, signal: ctrl.signal, extra: sendExtra,
         onRoute: (r) => { route = r; },
         onThought: (t) => { thoughts += t; updateLast({ thoughts }); },
         onTool: (s) => {
@@ -985,7 +996,7 @@ export default function NovaAgent() {
     setMessages(hist);
 
     let full = "";
-    const { sendProv, sendModel, sendExtra, viaGateway } = routeFor(text);
+    const { sendProv, sendModel, sendExtra, viaGateway, capabilities } = routeFor(text);
     const vConvId = await ensureServerConv();
     if (vConvId && viaGateway) sendExtra.conversation_id = vConvId;
 
@@ -993,7 +1004,7 @@ export default function NovaAgent() {
       await streamChat({
         prov: sendProv, model: sendModel, system: buildSystem(),
         history: hist.map((m) => ({ role: m.role, content: m.content, images: m.images })),
-        think: reasoning, extra: sendExtra,
+        think: capabilities.think, extra: sendExtra,
         onToken: (t) => { full += t; },
       });
     } catch (e) {
@@ -1130,7 +1141,7 @@ export default function NovaAgent() {
   );
 
   const statusTone = gatewayInfo ? "ok" : (healthErr ? "err" : "warn");
-  const subtitle = `${curItem.name} · ${activePersona.short} · ${curEffort.name}${reasoning ? " · düşünme" : ""}`;
+  const subtitle = `${curItem.name} · ${activePersona.short} · ${curEffort.name}${effectiveReasoning ? " · düşünme" : ""}`;
 
   const openConv = (id) => { setActiveId(id); setView("sohbet"); setShowDrawer(false); };
   const navView = (v) => { setView(v); setOpenDD(null); };
@@ -1214,8 +1225,8 @@ export default function NovaAgent() {
             signedIn={signedIn} email={auth && auth.email}
             target={target} onTarget={setTarget}
             modelName={curItem.name} modelId={curApiModel}
-            effortName={curEffort.name} personaName={activePersona.name} reasoning={reasoning}
-            agentMode={agentMode} teamMode={teamMode}
+            effortName={curEffort.name} personaName={activePersona.name} reasoning={effectiveReasoning}
+            agentMode={selectedCapabilities.agent} teamMode={selectedCapabilities.team}
             chatBusy={busy} activeTask={tasks.active} taskCount={tasks.tasks.length}
             onRetry={() => { loadHealth(); loadLiveModels(true); }}
             onOpenSettings={() => setShowSettings(true)}

@@ -252,19 +252,19 @@ test("runAgent: araç çağrısı olmadan doğrudan cevap döner", async () => {
   } finally { fx.restore(); }
 });
 
-test("runAgent: think ve effort parametrelerini Ollama'ya geçirir", async () => {
+test("runAgent: seviyeli think ve effort parametrelerini Ollama'ya geçirir", async () => {
   const fx = mockFetch({ ollama: [{ content: "ok" }] });
   try {
     const out = await runAgent({
       ollamaBase: "http://ollama-test:11434",
       model: "test-model",
       messages: [{ role: "user", content: "merhaba" }],
-      think: true,
+      think: "high",
       params: { max_tokens: 321, temperature: 0.25, top_p: 0.8 },
     });
     assert.equal(out.content, "ok");
     assert.equal(fx.calls.length, 1);
-    assert.equal(fx.calls[0].body.think, true);
+    assert.equal(fx.calls[0].body.think, "high");
     assert.deepEqual(fx.calls[0].body.options, { temperature: 0.25, top_p: 0.8, num_predict: 321 });
   } finally { fx.restore(); }
 });

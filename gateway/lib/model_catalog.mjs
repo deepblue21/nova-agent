@@ -93,8 +93,14 @@ export const TOOL_CAPABLE_FAMILIES = [
   "llama3.3", "llama3.2", "llama3.1",
   "mistral-nemo", "mistral-large", "mistral-small", "mixtral",
   "firefunction", "command-r", "hermes3",
-  "granite3", "nemotron", "athene",
-  "gemma4",
+  "granite3", "granite4", "nemotron", "athene",
+  "gemma4", "lfm2.5", "deepseek-r1", "phi4-mini", "gpt-oss",
+];
+
+/** Düşünme izi ürettiği bilinen Ollama aileleri; yalnız probe yoksa kullanılır. */
+export const THINKING_CAPABLE_FAMILIES = [
+  "qwen3", "qwq", "deepseek-r1", "gpt-oss",
+  "nemotron", "lfm2.5", "gemma4",
 ];
 
 /** Model etiketinden ("qwen3.6:35b") aile tahmini yapar. Saf. */
@@ -105,6 +111,20 @@ export function familySupportsTools(modelName, families = TOOL_CAPABLE_FAMILIES)
   return families.some((f) => bare === f || bare.startsWith(f));
 }
 
+/** Model etiketinden düşünme desteği için muhafazakâr aile tahmini yapar. */
+export function familySupportsThinking(modelName, families = THINKING_CAPABLE_FAMILIES) {
+  const name = String(modelName || "").toLowerCase();
+  if (!name) return false;
+  const bare = name.split(":")[0];
+  return families.some((f) => bare === f || bare.startsWith(f));
+}
+
+/** Ollama'nın seviyeli düşünme kullanan modellerini aç-kapat modellerinden ayırır. */
+export function thinkingModeForModel(modelName, thinking) {
+  if (!thinking) return "none";
+  return String(modelName || "").toLowerCase().startsWith("gpt-oss") ? "levels" : "toggle";
+}
+
 /** `/api/show` yanıtındaki capabilities dizisinde araç desteği var mı. Saf. */
 export function parseShowCapabilities(payload) {
   const caps = payload && Array.isArray(payload.capabilities) ? payload.capabilities : null;
@@ -112,11 +132,20 @@ export function parseShowCapabilities(payload) {
   return caps.some((c) => String(c).toLowerCase() === "tools");
 }
 
-/**
- * Tek bir model için araç yeteneğini Ollama'ya sorar.
- * @returns {Promise<boolean|null>} null = sorulamadı (çağıran aileye düşer)
- */
-export async function probeOllamaTools(baseUrl, modelName, { timeoutMs = 2000, fetchImpl = fetch } = {}) {
+/** `/api/show` capability dizisini tek seferde web kataloğunun iki alanına çevirir. */
+export function parseShowCapabilitySet(payload) {
+  const caps = payload && Array.isArray(payload.capabilities) ? payload.capabilities : null;
+  if (!caps) return null;
+  const names = new Set(caps.map((c) => String(c).toLowerCase()));
+  return { tools: names.has("tools"), thinking: names.has("thinking") };
+}
+
+/** Tek model için araç ve düşünme yeteneklerini aynı `/api/show` çağrısıyla ölçer. */
+export async function probeOllamaCapabilities(
+  baseUrl,
+  modelName,
+  { timeoutMs = 2000, fetchImpl = fetch } = {},
+) {
   const base = String(baseUrl || "").replace(/\/$/, "");
   if (!base || !modelName) return null;
   const ac = new AbortController();
@@ -129,12 +158,21 @@ export async function probeOllamaTools(baseUrl, modelName, { timeoutMs = 2000, f
       signal: ac.signal,
     });
     if (!r.ok) return null;
-    return parseShowCapabilities(await r.json());
+    return parseShowCapabilitySet(await r.json());
   } catch {
     return null;
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Tek bir model için araç yeteneğini Ollama'ya sorar.
+ * @returns {Promise<boolean|null>} null = sorulamadı (çağıran aileye düşer)
+ */
+export async function probeOllamaTools(baseUrl, modelName, { timeoutMs = 2000, fetchImpl = fetch } = {}) {
+  const result = await probeOllamaCapabilities(baseUrl, modelName, { timeoutMs, fetchImpl });
+  return result ? result.tools : null;
 }
 
 /**
@@ -144,10 +182,27 @@ export async function probeOllamaTools(baseUrl, modelName, { timeoutMs = 2000, f
 export async function annotateToolSupport(baseUrl, models, opts = {}) {
   return Promise.all(
     models.map(async (m) => {
-      const probed = await probeOllamaTools(baseUrl, m.name, opts);
-      if (probed !== null) return { ...m, tools: probed, toolsSource: "probe" };
-      const guess = familySupportsTools(m.name, opts.families);
-      return { ...m, tools: guess, toolsSource: guess ? "family" : "unknown" };
+      const probed = await probeOllamaCapabilities(baseUrl, m.name, opts);
+      if (probed !== null) {
+        return {
+          ...m,
+          tools: probed.tools,
+          toolsSource: "probe",
+          thinking: probed.thinking,
+          thinkingSource: "probe",
+          thinkingMode: thinkingModeForModel(m.name, probed.thinking),
+        };
+      }
+      const tools = familySupportsTools(m.name, opts.families);
+      const thinking = familySupportsThinking(m.name, opts.thinkingFamilies);
+      return {
+        ...m,
+        tools,
+        toolsSource: tools ? "family" : "unknown",
+        thinking,
+        thinkingSource: thinking ? "family" : "unknown",
+        thinkingMode: thinkingModeForModel(m.name, thinking),
+      };
     }),
   );
 }
@@ -186,9 +241,13 @@ export function buildCatalog({
     provider: "gateway",
     group: GROUPS.auto,
     available: true,
-    // Yönlendirici araç destekleyen bir modele düşürebilir.
-    tools: true,
+    // Dinamik rota buluta da düşebilir; seçilmeden önce ortak bir yetenek
+    // garantisi yoktur. Çalışmayabilecek kontrolleri iyimser biçimde açmayız.
+    tools: false,
     toolsSource: "gateway",
+    thinking: false,
+    thinkingSource: "gateway",
+    thinkingMode: "none",
   });
 
   for (const m of ollamaModels) {
@@ -196,6 +255,7 @@ export function buildCatalog({
     const parts = [m.parameterSize, m.quantization, humanSize(m.sizeBytes)].filter(Boolean);
     // annotateToolSupport çalıştıysa m.tools doludur; çalışmadıysa aileye bak.
     const tools = typeof m.tools === "boolean" ? m.tools : familySupportsTools(m.name);
+    const thinking = typeof m.thinking === "boolean" ? m.thinking : familySupportsThinking(m.name);
     data.push({
       id,
       name: m.name,
@@ -207,6 +267,9 @@ export function buildCatalog({
       family: m.family,
       tools,
       toolsSource: m.toolsSource || (tools ? "family" : "unknown"),
+      thinking,
+      thinkingSource: m.thinkingSource || (thinking ? "family" : "unknown"),
+      thinkingMode: m.thinkingMode || thinkingModeForModel(m.name, thinking),
     });
   }
 
@@ -221,9 +284,13 @@ export function buildCatalog({
         group: GROUPS.cloud,
         available: hasKey,
         reason: hasKey ? undefined : `${PROVIDER_ENV[provider]} tanımlı değil`,
-        // Üç bulut sağlayıcının da güncel modelleri araç çağırmayı destekler.
-        tools: true,
-        toolsSource: "provider",
+        // Sağlayıcı teorik olarak desteklese bile NOVA'nın mevcut gateway yolu
+        // bu kontrolleri uygulamıyor. UI'da çalışmayan bir düğmeyi etkin göstermeyiz.
+        tools: false,
+        toolsSource: "gateway",
+        thinking: false,
+        thinkingSource: "gateway",
+        thinkingMode: "none",
       });
     }
   }
@@ -236,8 +303,13 @@ export function buildCatalog({
       provider: "openclaw",
       group: GROUPS.agent,
       available: true,
-      tools: true,
+      // OpenClaw zaten ayrı bir ajan hedefidir; NOVA'nın Ollama araç/takım
+      // katmanını bu hedefin üzerine yeniden bindirmeyiz.
+      tools: false,
       toolsSource: "agent",
+      thinking: false,
+      thinkingSource: "agent",
+      thinkingMode: "none",
     });
   }
 

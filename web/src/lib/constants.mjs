@@ -3,6 +3,7 @@
 import { Icons } from "./icons.mjs";
 import { NovaMark } from "../ui/NovaMark.jsx";
 import { Zap, Activity, Cloud, Cpu, Link2, Flame, Code2, GitBranch, Brain, CircleDot, Waves } from "lucide-react";
+import { normalizeCapabilityFields } from "./model-capabilities.mjs";
 
 /**
  * Gateway'e bağlıyken model listesi CANLI gelir (GET /v1/models → Ollama'da
@@ -13,23 +14,31 @@ export const FALLBACK_MODELS = [
   {
     group: "Otomatik · Gateway",
     items: [
-      { id: "auto", name: "Dinamik Yönlendirme", desc: "gateway göreve göre model seçer", icon: NovaMark, provider: "gateway", model: "auto" },
+      {
+        id: "auto", name: "Dinamik Yönlendirme", desc: "gateway göreve göre model seçer",
+        icon: NovaMark, provider: "gateway", model: "auto",
+        tools: false, toolsSource: "gateway", thinking: false, thinkingSource: "gateway", thinkingMode: "none",
+      },
     ],
   },
   {
     group: "Bulut · API Key",
     items: [
-      { id: "opus", name: "Claude Opus 4.8", desc: "anthropic", icon: Cloud, provider: "anthropic", model: "claude-opus-4-8" },
-      { id: "sonnet", name: "Claude Sonnet 5", desc: "anthropic", icon: Cloud, provider: "anthropic", model: "claude-sonnet-5" },
-      { id: "gem-flash", name: "Gemini 3.5 Flash", desc: "google", icon: Cloud, provider: "gemini", model: "gemini-3.5-flash" },
-      { id: "gem-pro", name: "Gemini 3.1 Pro", desc: "google · önizleme", icon: Cloud, provider: "gemini", model: "gemini-3.1-pro-preview" },
-      { id: "gpt", name: "GPT-5.6 Sol", desc: "openai uyumlu", icon: Cloud, provider: "openai", model: "gpt-5.6" },
+      { id: "opus", name: "Claude Opus 4.8", desc: "anthropic", icon: Cloud, provider: "anthropic", model: "claude-opus-4-8", tools: false, toolsSource: "gateway", thinking: false, thinkingSource: "gateway", thinkingMode: "none" },
+      { id: "sonnet", name: "Claude Sonnet 5", desc: "anthropic", icon: Cloud, provider: "anthropic", model: "claude-sonnet-5", tools: false, toolsSource: "gateway", thinking: false, thinkingSource: "gateway", thinkingMode: "none" },
+      { id: "gem-flash", name: "Gemini 3.5 Flash", desc: "google", icon: Cloud, provider: "gemini", model: "gemini-3.5-flash", tools: false, toolsSource: "gateway", thinking: false, thinkingSource: "gateway", thinkingMode: "none" },
+      { id: "gem-pro", name: "Gemini 3.1 Pro", desc: "google · önizleme", icon: Cloud, provider: "gemini", model: "gemini-3.1-pro-preview", tools: false, toolsSource: "gateway", thinking: false, thinkingSource: "gateway", thinkingMode: "none" },
+      { id: "gpt", name: "GPT-5.6 Sol", desc: "openai uyumlu", icon: Cloud, provider: "openai", model: "gpt-5.6", tools: false, toolsSource: "gateway", thinking: false, thinkingSource: "gateway", thinkingMode: "none" },
     ],
   },
   {
     group: "Ajan · Gateway",
     items: [
-      { id: "openclaw", name: "OpenClaw Ajanı", desc: "openclaw/default", icon: Link2, provider: "gateway", model: "openclaw/default" },
+      {
+        id: "openclaw", name: "OpenClaw Ajanı", desc: "openclaw/default",
+        icon: Link2, provider: "gateway", model: "openclaw/default",
+        tools: false, toolsSource: "agent", thinking: false, thinkingSource: "agent", thinkingMode: "none",
+      },
     ],
   },
 ];
@@ -52,11 +61,7 @@ export function liveGroupsFrom(catalog) {
       available: m.available !== false,
       reason: m.reason || "",
       srcProvider: m.provider,
-      // Araç (agentic) yeteneği — gateway kataloğundan gelir.
-      // toolsSource: "probe"/"provider" = ölçüldü · "family" = aile tahmini.
-      tools: m.tools === true,
-      toolsSource: m.toolsSource || "",
-      toolsVerified: m.toolsSource === "probe" || m.toolsSource === "provider",
+      ...normalizeCapabilityFields(m),
     };
     const g = m.group || "Diğer";
     if (!byGroup.has(g)) byGroup.set(g, []);

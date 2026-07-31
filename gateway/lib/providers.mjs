@@ -202,7 +202,7 @@ export function createProviderClient({
 
     let r;
     try {
-      r = await call(!!ctx.think);
+      r = await call(ctx.think ?? false);
     } catch (e) {
       const code = classifyUpstream(e);
       if (code === UP.THINK_UNSUPPORTED && ctx.think) {

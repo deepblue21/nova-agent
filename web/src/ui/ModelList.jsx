@@ -49,6 +49,16 @@ export function ModelList({ groups, modelId, onPick, live, err, onRefresh }) {
                         {it.toolsVerified ? "araç" : "araç?"}
                       </span>
                     )}
+                    {it.thinking && (
+                      <span
+                        className="tools-badge thinking-badge"
+                        title={it.thinkingVerified
+                          ? "Model düşünme çıktısını destekliyor (Ollama'ya soruldu)."
+                          : "Aile bilgisine göre düşünme destekliyor — Ollama'ya sorulamadı."}
+                      >
+                        {it.thinkingVerified ? "düşünme" : "düşünme?"}
+                      </span>
+                    )}
                   </div>
                   <div className="d">{off ? (it.reason || "kullanılamıyor") : it.desc}</div>
                 </div>

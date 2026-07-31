@@ -105,7 +105,7 @@ export const CHAT_CSS = `
 
 .msg { display: flex; gap: 14px; max-width: 100%; animation: fadeUp var(--dur-slow) var(--ease-standard); }
 .msg.user { flex-direction: row-reverse; }
-.avatar { width: 34px; height: 34px; border-radius: var(--radius-md); flex-shrink: 0; display: grid; place-items: center; }
+.avatar { width: 40px; height: 40px; border-radius: var(--radius-md); flex-shrink: 0; display: grid; place-items: center; }
 .avatar.ai { position: relative; overflow: hidden; color: var(--on-accent); box-shadow: var(--glow);
   background: radial-gradient(circle at 30% 30%, var(--accent), var(--accent-2)); }
 .avatar.ai::before {
@@ -299,6 +299,11 @@ a.tt-source:hover { color: var(--accent); border-color: var(--line-bright); tran
 }
 .eff-opt:hover { color: var(--text); }
 .eff-opt.on { color: var(--on-accent); background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+.eff-opt:disabled, .toggle-btn:disabled {
+  opacity: .38; cursor: not-allowed; filter: saturate(.55);
+}
+.eff-opt:disabled:hover, .toggle-btn:disabled:hover { color: var(--muted); }
+.eff-opt.on:disabled { color: var(--muted); background: rgba(var(--accent-rgb), .08); }
 .toggle-btn {
   display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: var(--radius-sm);
   cursor: pointer; font-size: 12px; color: var(--muted); border: 1px solid transparent;
@@ -311,6 +316,27 @@ a.tt-source:hover { color: var(--accent); border-color: var(--line-bright); tran
   color: var(--ember); background: linear-gradient(135deg, rgba(255,138,91,.18), rgba(var(--accent-2-rgb), .14));
   border-color: rgba(255,138,91,.4);
 }
+.capability-dock-group { position: relative; }
+.cap-info {
+  width: 24px; height: 24px; display: grid; place-items: center; position: relative;
+  color: var(--muted2); border-radius: var(--radius-pill); outline: none; cursor: help;
+  transition: color var(--dur-fast), background var(--dur-fast), transform var(--dur-fast);
+}
+.cap-info:hover, .cap-info:focus-visible {
+  color: var(--accent); background: rgba(var(--accent-rgb), .12); transform: translateY(-1px);
+}
+.cap-tip {
+  position: absolute; z-index: 80; left: 50%; bottom: calc(100% + 9px); width: max-content;
+  max-width: min(320px, 78vw); padding: 8px 10px; border-radius: var(--radius-sm);
+  color: var(--text); background: var(--bg2); border: 1px solid var(--line);
+  box-shadow: 0 10px 30px var(--glass-shadow); font-size: 11px; line-height: 1.4;
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transform: translate(-50%, 4px); transition: opacity var(--dur-fast), transform var(--dur-fast), visibility var(--dur-fast);
+}
+.cap-info:hover .cap-tip, .cap-info:focus-visible .cap-tip {
+  opacity: 1; visibility: visible; transform: translate(-50%, 0);
+}
+.thinking-badge { color: var(--accent-2); background: rgba(var(--accent-2-rgb), .12); }
 
 @media (max-width: 720px) {
   .dock { gap: 8px; padding: 0 12px 14px; }
