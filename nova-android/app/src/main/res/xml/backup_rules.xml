@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 11 ve altı (Auto Backup) kuralları.
+
+  Varsayılan davranış "her şeyi yedekle"ydi ve bu iki ayrı soruna yol açıyordu:
+
+  1. GİZLİLİK: `nova_settings` DataStore'u Hugging Face erişim belirtecini ve
+     gateway anahtarını tutuyor. Auto Backup bunları kullanıcının Drive'ına
+     kopyalıyordu — cihazda kalması gereken sırlar için istenmeyen bir yol.
+  2. YEDEKLEME BÜSBÜTÜN BAŞARISIZ OLUYORDU: indirilen modeller GB'larca yer
+     tutuyor, Auto Backup kotası ise 25 MB. Kota aşılınca uygulamanın yedeği
+     tümüyle atlanıyor; yani not ve sohbet gibi yedeklenmesi ANLAMLI olan veri
+     de yedeklenmiyordu.
+
+  Model dosyaları zaten yeniden indirilebilir; yedeklenmeleri gereksiz.
+-->
+<full-backup-content>
+    <exclude domain="file" path="models" />
+    <exclude domain="sharedpref" path="nova_settings.xml" />
+    <exclude domain="file" path="datastore/nova_settings.preferences_pb" />
+</full-backup-content>

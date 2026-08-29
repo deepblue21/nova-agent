@@ -4,6 +4,7 @@ import com.nova.agent.llm.local.tools.Calculator
 import com.nova.agent.llm.local.tools.NoteStore
 import java.io.File
 import java.nio.file.Files
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -104,5 +105,55 @@ class LocalToolsTest {
         assertEquals("", settings.hfToken)
         // Hibrit oto-devir varsayılan KAPALI: izin sorulmadan devir yok.
         assertEquals(false, settings.hybridAutoFallback)
+    }
+
+    // ---------- Hesap Makinesi: tasma ve derin ic ice ----------
+
+    @Test
+    fun `tasma sifira bolme diye gosterilmez`() {
+        val outcome = Calculator.evaluate("9^999")
+
+        assertTrue(outcome is Calculator.Outcome.Error)
+        val message = (outcome as Calculator.Outcome.Error).message
+        assertFalse(
+            "sifira bolme AYRICA yakalaniyor; buraya asla ulasamaz, o yuzden " +
+                "bu aciklama hicbir kosulda dogru olamazdi: $message",
+            message.contains("sıfıra bölme", ignoreCase = true),
+        )
+        assertTrue("tasma oldugu soylenmeli: $message", message.contains("taşma"))
+    }
+
+    @Test
+    fun `sifira bolme kendi mesajini korur`() {
+        val outcome = Calculator.evaluate("1/0")
+
+        assertTrue(outcome is Calculator.Outcome.Error)
+        assertTrue((outcome as Calculator.Outcome.Error).message.contains("Sıfıra bölme"))
+    }
+
+    @Test
+    fun `derin ic ice parantez uygulamayi dusurmez`() {
+        // StackOverflowError bir Exception DEGIL, Error'dur: catch(CalcException)
+        // onu yakalamaz ve uygulama coker. Test cokerse zaten kirmizi yanar.
+        val expression = "(".repeat(5_000) + "1" + ")".repeat(5_000)
+
+        val outcome = Calculator.evaluate(expression)
+
+        assertTrue("hata olarak donmeli, cokmemeli", outcome is Calculator.Outcome.Error)
+    }
+
+    @Test
+    fun `derin tekli eksi zinciri uygulamayi dusurmez`() {
+        val outcome = Calculator.evaluate("-".repeat(5_000) + "1")
+
+        assertTrue(outcome is Calculator.Outcome.Error)
+    }
+
+    @Test
+    fun `makul ic ice ifade hala hesaplanir`() {
+        val outcome = Calculator.evaluate("((((2+3))))*2")
+
+        assertTrue(outcome is Calculator.Outcome.Ok)
+        assertEquals(10.0, (outcome as Calculator.Outcome.Ok).value, 0.0001)
     }
 }

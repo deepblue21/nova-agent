@@ -87,17 +87,60 @@ class SpeechManager(private val context: Context) {
         recognizer = null
     }
 
+    /**
+     * Yanıtı seslendirir — S1'de parçalı hâle getirildi.
+     *
+     * Eskiden metin tek seferde `speak`'e veriliyordu. Cihazın
+     * `getMaxSpeechInputLength()` sınırını (çoğu cihazda 4000) aşan yanıtta
+     * `speak` ERROR döner ve **hiçbir geri çağrı gelmez**: `onDone` hiç
+     * çağrılmadığı için orb sonsuza dek "Konuşuyorum"da kalır, ses de çıkmaz.
+     * Dönüş değeri de kontrol edilmiyordu, yani hata tümüyle sessizdi.
+     *
+     * Artık metin [TtsChunker] ile sınırın altına bölünüp kuyruğa veriliyor;
+     * `onDone` yalnızca SON parça bitince, `onStart` yalnızca İLK parça
+     * başlayınca bir kez çağrılıyor. Her çıkış yolu `onDone`'a bağlanır —
+     * çağrı arayüzü "bir gün mutlaka biter" sözünü tutmak zorunda.
+     */
     fun speak(text: String, onStart: () -> Unit, onDone: () -> Unit) {
         val engine = tts ?: run { onDone(); return }
         if (!ttsReady) { onDone(); return }
+
+        val limit = (runCatching { TextToSpeech.getMaxSpeechInputLength() }.getOrNull() ?: 0)
+            .let { if (it > 200) it - 100 else TtsChunker.FALLBACK_LIMIT }
+        val chunks = TtsChunker.chunk(text, limit)
+        if (chunks.isEmpty()) { onDone(); return }
+
+        val lastId = utteranceId(chunks.lastIndex)
+        var started = false
+        var finished = false
+        fun finishOnce() {
+            if (finished) return
+            finished = true
+            onDone()
+        }
+
         engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) { onStart() }
-            override fun onDone(utteranceId: String?) { onDone() }
-            @Deprecated("deprecated") override fun onError(utteranceId: String?) { onDone() }
-            override fun onError(utteranceId: String?, errorCode: Int) { onDone() }
+            override fun onStart(utteranceId: String?) {
+                if (!started) { started = true; onStart() }
+            }
+            override fun onDone(utteranceId: String?) {
+                if (utteranceId == lastId) finishOnce()
+            }
+            @Deprecated("deprecated") override fun onError(utteranceId: String?) { finishOnce() }
+            override fun onError(utteranceId: String?, errorCode: Int) { finishOnce() }
         })
-        engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "nova-utt")
+
+        chunks.forEachIndexed { index, chunk ->
+            if (finished) return
+            val mode = if (index == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
+            if (engine.speak(chunk, mode, null, utteranceId(index)) == TextToSpeech.ERROR) {
+                finishOnce()
+                return
+            }
+        }
     }
+
+    private fun utteranceId(index: Int) = "nova-utt-$index"
 
     fun stopSpeaking() { try { tts?.stop() } catch (_: Exception) {} }
 

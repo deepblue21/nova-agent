@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.nova.agent.data.AppSettings
+import com.nova.agent.data.UiMode
 import com.nova.agent.data.FALLBACK_MODELS
 import com.nova.agent.data.ModelOption
 import com.nova.agent.feature.settings.SettingsPanel
@@ -57,7 +58,7 @@ class GatewayModelCatalogUiTest {
         composeRule.setContent {
             NovaTheme {
                 SettingsPanel(
-                    settings = AppSettings(),
+                    settings = AppSettings(uiMode = UiMode.ADVANCED.id),
                     connection = connection,
                     onTestConnection = { _, _ -> },
                     onSaveConnection = { _, _ -> },

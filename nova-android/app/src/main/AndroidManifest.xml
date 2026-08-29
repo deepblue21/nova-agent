@@ -1,17 +1,76 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!--
+      K2 — model indirmesi (0,5-8,6 GB) icin on plan bildirimi.
+      Eskiden indirme viewModelScope'ta kosuyordu: kullanici uygulamayi
+      kapatinca sessizce iptal oluyordu. Artik WorkManager isi olarak kosuyor
+      ve ilerlemesi bildirimde gorunuyor.
+
+      POST_NOTIFICATIONS calisma zamani izni: REDDEDILSE BILE indirme surer,
+      yalnizca bildirim gorunmez (Android 13+ davranisi).
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Yerel ağda PC'yi kendiliğinden bulmak için (NsdManager / mDNS). -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!--
+      usesCleartextTraffic: yerel ağdaki gateway kendi TLS'i olmadan http
+      konuşur, bu yüzden cleartext açık kalmak zorunda. Android'in
+      network_security_config'i alan adı eşleştirir; "192.168.0.0/16" gibi bir
+      CIDR ARALIĞI İFADE EDEMEZ — her evde LAN IP'si farklı olduğundan manifest
+      ile daraltmak mümkün değil.
+      Gerçek kontrol kodda: com.nova.agent.net.NetworkPolicy şifresiz bağlantıya
+      YALNIZ özel/yerel adreslerde (RFC1918, loopback, link-local, CGNAT,
+      *.local) izin verir; genel bir IP'ye http engellenir. Birim testleriyle
+      kilitli: NetworkPolicyTest.
+    -->
+    <!--
+      enableOnBackInvokedCallback: targetSdk 36'da öngörülü geri (predictive
+      back) zaten varsayılan olarak açık ve eski onBackPressed/KEYCODE_BACK
+      yolu yok sayılıyor. Bayrağı açıkça yazmak, davranışın hedef sürüme
+      bağlı olarak sessizce değişmesini engeller.
+    -->
     <application
         android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:enableOnBackInvokedCallback="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.NOVA">
+
+        <!--
+          K2 — WorkManager'in on plan servisine tur bildirimi. API 34+'ta
+          foregroundServiceType ZORUNLU; yoksa setForeground() calisma
+          zamaninda patlar (ForegroundServiceStartNotAllowedException).
+
+          BILINEN SINIR (arastirildi, 2026-08-27): Android 15+ hedefleyen
+          uygulamalarda "dataSync" turu 24 saatte toplam 6 saatle sinirli
+          (developer.android.com/develop/background-work/services/fgs/timeout).
+          8,6 GB'lik bir indirme icin ~4 Mbit/s surekli hiz yeterli; ev
+          Wi-Fi'sinde sorun degil, cok yavas mobil veride sinira takilabilir.
+          Sayac kullanici uygulamayi one getirdiginde sifirlanir ve .part
+          dosyasi korundugu icin indirme kaldigi yerden surer.
+
+          Zaman siniri OLMAYAN dogru API "user-initiated data transfer" (UIDT,
+          API 34+) ama Jetpack'te destegi YOK: setUserInitiated() WorkManager'da
+          bulunmuyor, ham JobScheduler JobService yazmak gerekiyor. Bu yuzden
+          bilincli olarak dataSync secildi.
+        -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
 
         <!-- LiteRT-LM GPU backend'i ileride açılırsa gerekli; yokluğu sorun değil. -->
         <uses-native-library android:name="libvndksupport.so" android:required="false" />

@@ -1,7 +1,6 @@
+// Sürümler gradle/libs.versions.toml içinde. Buraya çıplak sürüm yazma.
 plugins {
-    id("com.android.application") version "9.2.1" apply false
-    // 2.2.21: litertlm-android 0.13.1, Kotlin 2.3 metadata'sıyla derlendi;
-    // Kotlin 2.2.x bunu okuyabilir ve kütüphanenin stdlib pini de 2.2.21.
-    id("org.jetbrains.kotlin.android") version "2.2.21" apply false
-    id("org.jetbrains.kotlin.plugin.compose") version "2.2.21" apply false
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.kotlin.android) apply false
+    alias(libs.plugins.kotlin.compose) apply false
 }

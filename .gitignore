@@ -33,3 +33,6 @@ mobile-worker/.venv-windows/
 
 # Local Product Design source captures and extracted Android artifacts
 docs/design/uploads/
+
+# Derleme dogrulama ciktisi (yerel)
+build-log.txt

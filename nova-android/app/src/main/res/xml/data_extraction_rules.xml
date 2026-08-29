@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ (API 31) kuralları. Bulut yedeği ve cihazdan cihaza aktarım
+  ayrı ayrı tanımlanır; bu dosya yoksa ikisi de "her şeyi al" varsayılanında
+  kalıyordu (bkz. backup_rules.xml'deki gerekçe).
+
+  Cihazdan cihaza aktarımda sırlar KALIR: kullanıcı telefonunu yenilediğinde
+  yeniden eşleme yapmak zorunda olmasın. Buluta ise gitmezler.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="models" />
+        <exclude domain="file" path="datastore/nova_settings.preferences_pb" />
+        <exclude domain="sharedpref" path="nova_settings.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <!-- Modeller yeniden indirilebilir; aktarımı gereksiz yere yavaşlatır. -->
+        <exclude domain="file" path="models" />
+    </device-transfer>
+</data-extraction-rules>

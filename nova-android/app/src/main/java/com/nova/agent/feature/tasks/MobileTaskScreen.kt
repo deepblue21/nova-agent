@@ -60,6 +60,7 @@ fun MobileTaskScreen(
     onNewTask: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onRetryConnection: () -> Unit = {},
+    onRetryStream: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val connected = connection.status == GatewayConnectionStatus.READY
@@ -90,6 +91,7 @@ fun MobileTaskScreen(
                     actionsEnabled = !confirmationPending,
                     onCommand = onCommand,
                     onNewTask = onNewTask,
+                    onRetryStream = onRetryStream,
                 )
             }
         }
@@ -154,9 +156,24 @@ private fun TaskEmptyState(
             )
             Text(connection.message, color = if (connected) MaterialTheme.colorScheme.primary else Muted, fontSize = 13.sp)
 
-            QuickPrompt("Android sürümünü bul", actionsEnabled && !loading, onQuickPrompt)
-            QuickPrompt("Ayarlar'ı aç", actionsEnabled && !loading, onQuickPrompt)
-            QuickPrompt("Bir uygulamayı aç", actionsEnabled && !loading, onQuickPrompt)
+            // Hızlı komutlar YALNIZ bağlıyken. Eskiden bağlantı olmadan da
+            // etkindiler: kullanıcı komutu seçiyor, metin alanına yazılıyor,
+            // sonra tek düğme onu Ayarlar'a götürüyordu. Görevi PC'deki çalışan
+            // yürüttüğü için bağlantısız bu ekranda yapılabilecek tek anlamlı iş
+            // bağlantıyı kurmaktır; gerisi çalışıyormuş gibi görünen ölü alandır.
+            if (connected) {
+                QuickPrompt("Android sürümünü bul", actionsEnabled && !loading, onQuickPrompt)
+                QuickPrompt("Ayarlar'ı aç", actionsEnabled && !loading, onQuickPrompt)
+                QuickPrompt("Bir uygulamayı aç", actionsEnabled && !loading, onQuickPrompt)
+            } else {
+                Text(
+                    "Görevleri PC'deki çalışan yürütür, bu yüzden bu ekran PC " +
+                        "bağlantısı ister. Bağlantıyı kurduğunda görev yazma alanı açılır.",
+                    color = Muted,
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp,
+                )
+            }
         }
 
         Column(
@@ -165,27 +182,29 @@ private fun TaskEmptyState(
                 .imePadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Box(
-                Modifier.fillMaxWidth()
-                    .defaultMinSize(minHeight = 120.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Surface1)
-                    .border(1.dp, Line, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-            ) {
-                if (prompt.isEmpty()) {
-                    Text("Görevi ayrıntılarıyla yaz", color = Muted2, fontSize = 15.sp)
+            if (connected) {
+                Box(
+                    Modifier.fillMaxWidth()
+                        .defaultMinSize(minHeight = 120.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Surface1)
+                        .border(1.dp, Line, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                ) {
+                    if (prompt.isEmpty()) {
+                        Text("Görevi ayrıntılarıyla yaz", color = Muted2, fontSize = 15.sp)
+                    }
+                    BasicTextField(
+                        value = prompt,
+                        onValueChange = onPromptChange,
+                        enabled = actionsEnabled && !loading,
+                        minLines = 3,
+                        maxLines = 5,
+                        textStyle = TextStyle(color = TextMain, fontSize = 15.sp, lineHeight = 21.sp),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.fillMaxWidth().testTag("task_prompt"),
+                    )
                 }
-                BasicTextField(
-                    value = prompt,
-                    onValueChange = onPromptChange,
-                    enabled = actionsEnabled && !loading,
-                    minLines = 3,
-                    maxLines = 5,
-                    textStyle = TextStyle(color = TextMain, fontSize = 15.sp, lineHeight = 21.sp),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.fillMaxWidth().testTag("task_prompt"),
-                )
             }
 
             error?.let { ErrorText(it) }
@@ -256,6 +275,7 @@ private fun ActiveTaskContent(
     actionsEnabled: Boolean,
     onCommand: (String) -> Unit,
     onNewTask: () -> Unit,
+    onRetryStream: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
         state.task?.let { task ->
@@ -268,7 +288,25 @@ private fun ActiveTaskContent(
             )
         }
         state.error?.let { error ->
-            ErrorText(error, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            Column(
+                Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ErrorText(error)
+                // Görev bitmediyse akış geri getirilebilir. Bu düğme olmadan
+                // yeniden deneme sayacı dolduğunda ekranda çıkışsız bir hata
+                // kalıyordu (`clearError()` yazılmış ama hiç çağrılmamıştı).
+                if (state.task?.status?.isTerminal() == false) {
+                    OutlinedButton(
+                        onClick = onRetryStream,
+                        enabled = actionsEnabled && !state.loading,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.height(44.dp),
+                    ) {
+                        Text("Yeniden bağlan")
+                    }
+                }
+            }
         }
         TaskTimeline(
             events = state.events,
@@ -438,12 +476,6 @@ private fun ConfirmationPanel(
 private fun ErrorText(message: String, modifier: Modifier = Modifier) {
     Text(message, color = Coral, fontSize = 13.sp, modifier = modifier.fillMaxWidth())
 }
-
-private fun MobileTaskStatus.isTerminal(): Boolean = this in setOf(
-    MobileTaskStatus.COMPLETED,
-    MobileTaskStatus.FAILED,
-    MobileTaskStatus.CANCELLED,
-)
 
 private val SETTINGS_CONNECTION_STATUSES = setOf(
     GatewayConnectionStatus.UNKNOWN,

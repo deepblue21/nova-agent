@@ -1,6 +1,7 @@
 package com.nova.agent.ui.app
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,8 +49,10 @@ import com.nova.agent.ui.theme.Amber
 import com.nova.agent.ui.theme.Bg
 import com.nova.agent.ui.theme.Bg2
 import com.nova.agent.ui.theme.Coral
+import com.nova.agent.ui.theme.Line
 import com.nova.agent.ui.theme.Muted
 import com.nova.agent.ui.theme.Success
+import com.nova.agent.ui.theme.Surface2
 import com.nova.agent.ui.theme.TextMain
 
 private data class Destination(
@@ -58,10 +61,31 @@ private data class Destination(
     val icon: ImageVector,
 )
 
+/**
+ * "İşler" (telefon kontrolü) sekmesi görünsün mü — TEK ANAHTAR.
+ *
+ * Kapalı, çünkü özellik DONDURULDU ve üç ayrı gerekçe aynı yeri gösteriyor:
+ *
+ * 1. Ürün kararı: telefon kontrolü (AccessibilityService / mobilerun) ilk
+ *    sürüme girmiyor.
+ * 2. Play politikası (28 Ocak 2026): AccessibilityService ile özerk eylem
+ *    yasak. Sekmenin hızlı komutları ("Ayarlar'ı aç", "Bir uygulamayı aç")
+ *    tam olarak bu davranışı tarif ediyor; mağaza incelemesinde doğrudan
+ *    ret gerekçesi.
+ * 3. Kullanılabilirlik: görevi PC'deki çalışan yürütüyor. Mağazadan indiren
+ *    kullanıcının PC'si yok, dolayısıyla dört ana sekmeden biri onun için
+ *    hiçbir koşulda çalışmıyor.
+ *
+ * Kod SİLİNMEDİ, yalnız gezinmeden çıkarıldı: bu satırı `true` yapmak sekmeyi
+ * olduğu gibi geri getirir.
+ */
+const val PHONE_TASKS_TAB_ENABLED = false
+
 /** Ses sekmesi kaldırılmadı: Sohbet üst çubuğundaki mikrofonla açılır. */
-private val destinations = listOf(
+private val destinations = listOfNotNull(
     Destination(Mode.KONTROL, "Kontrol", Icons.Filled.Dashboard),
-    Destination(Mode.TASKS, "İşler", Icons.Filled.Checklist),
+    Destination(Mode.TASKS, "İşler", Icons.Filled.Checklist)
+        .takeIf { PHONE_TASKS_TAB_ENABLED },
     Destination(Mode.CHAT, "Sohbet", Icons.Filled.ChatBubbleOutline),
     Destination(Mode.MODELLER, "Modeller", Icons.Filled.ViewInAr),
 )
@@ -75,6 +99,8 @@ fun NovaAppShell(
     onNewChat: () -> Unit,
     localSubtitle: String? = null,
     onToggleVoice: () -> Unit = {},
+    /** Kısa onay mesajı (bildirim kaydedildi vb.). Null ise gösterilmez. */
+    notice: String? = null,
     content: @Composable () -> Unit,
 ) {
     Scaffold(
@@ -106,7 +132,25 @@ fun NovaAppShell(
             }
         },
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) { content() }
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            content()
+            notice?.let { message ->
+                Text(
+                    message,
+                    color = TextMain,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Surface2)
+                        .border(1.dp, Line, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                        .testTag("app_notice"),
+                )
+            }
+        }
     }
 }
 

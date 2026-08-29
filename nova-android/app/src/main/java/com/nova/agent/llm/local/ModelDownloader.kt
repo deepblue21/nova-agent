@@ -64,10 +64,42 @@ class ModelDownloader(
         val part = store.partFile(spec)
         val target = store.modelFile(spec)
 
-        // Bozuk kalıntıları temizle.
+        // Bozuk kalıntıları temizle: BEKLENENDEN BÜYÜK parça hiçbir işe yaramaz.
         if (part.exists() && part.length() > spec.sizeBytes) part.delete()
         if (target.exists() && target.length() != spec.sizeBytes) target.delete()
-        if (target.exists()) return Result.Success
+
+        // Y4 — hedef zaten duruyorsa SHA-256 ATLANMAZ.
+        // Eskiden `if (target.exists()) return Result.Success` vardı: boyut
+        // doğruysa içerik hiç kontrol edilmiyor, işaret dosyası da
+        // yazılmıyordu. Sonuç: arayüz "başarılı" diyor ama satır sonsuza dek
+        // "Doğrulanmadı" kalıyordu ve bozuk bir dosya kurulu sayılabiliyordu.
+        if (target.exists()) {
+            return if (verifyAndMark(target, spec, store)) {
+                Result.Success
+            } else {
+                target.delete()
+                Result.Failure(
+                    "Kurulu dosyanın SHA-256'sı tutmadı; dosya silindi. Yeniden indirin.",
+                )
+            }
+        }
+
+        // Y3 — TAM BOYUTLU .part kalıcı çıkmaz üretiyordu.
+        // Eski kod bu dosyayı silmiyor, `Range: bytes=<boyut>-` gönderiyordu;
+        // sunucu 416 dönüyor, `else` dalı "İndirme hatası (HTTP 416)" veriyordu
+        // ve her "Sürdür" aynı sonucu veriyordu. Tek çıkış 8,6 GB'ı baştan
+        // indirmekti. Oysa dosya TAMAMLANMIŞ olabilir (yazma bitti, rename
+        // olmadı): önce doğrula, tutuyorsa kur.
+        if (part.exists() && part.length() == spec.sizeBytes) {
+            return if (verifyAndMark(part, spec, store, installFrom = part, target = target)) {
+                Result.Success
+            } else {
+                part.delete()
+                Result.Failure(
+                    "Yarım kalan dosya bozuk çıktı; silindi. İndirme baştan alınmalı.",
+                )
+            }
+        }
 
         var resumeFrom = if (part.exists()) part.length() else 0L
 
@@ -147,17 +179,62 @@ class ModelDownloader(
                 return Result.Success
             }
         } catch (e: IOException) {
-            return if (handle.cancelled) {
-                Result.Cancelled
-            } else {
-                Result.Failure("Bağlantı hatası: ${e.message ?: "bilinmiyor"}. Kaldığı yerden sürdürülebilir.")
+            return when {
+                handle.cancelled -> Result.Cancelled
+                // Y5 — disk dolarken "Bağlantı hatası ... sürdürülebilir" demek
+                // hem yanlış etiket hem yanlış öneriydi: yer yokken sürdürülemez.
+                isOutOfSpace(e, store) -> Result.Failure(
+                    "Depolama doldu; indirme durdu. Yer açıp tekrar deneyin — " +
+                        "indirilen kısım korunuyor, kaldığı yerden sürer.",
+                )
+                else -> Result.Failure(
+                    "Bağlantı hatası: ${e.message ?: "bilinmiyor"}. Kaldığı yerden sürdürülebilir.",
+                )
             }
         } finally {
             handle.call = null
         }
     }
 
+    /**
+     * Dosyayı SHA-256 ile doğrular; tutuyorsa (gerekirse hedefe taşıyıp)
+     * işaret dosyasını yazar. Y3 ve Y4 bunu paylaşır.
+     */
+    private fun verifyAndMark(
+        file: File,
+        spec: LocalModelSpec,
+        store: LocalModelStore,
+        installFrom: File? = null,
+        target: File? = null,
+    ): Boolean {
+        val hex = runCatching { file.inputStream().use { LocalModelStore.sha256Hex(it) } }
+            .getOrNull() ?: return false
+        if (!hex.equals(spec.sha256, ignoreCase = true)) return false
+        if (installFrom != null && target != null) {
+            if (target.exists()) target.delete()
+            if (!installFrom.renameTo(target)) return false
+        }
+        store.writeMarker(spec)
+        return true
+    }
+
+    /**
+     * Yazma hatası yer yokluğundan mı — Y5.
+     *
+     * İki bağımsız işaret: istisna metni (Android'de "ENOSPC (No space left on
+     * device)") ve o anki gerçek boş alan. Metne tek başına güvenmiyoruz çünkü
+     * sürüme ve dile göre değişebiliyor.
+     */
+    private fun isOutOfSpace(e: IOException, store: LocalModelStore): Boolean {
+        val text = (e.message ?: "") + " " + (e.cause?.message ?: "")
+        if (text.contains("ENOSPC", ignoreCase = true)) return true
+        if (text.contains("No space left", ignoreCase = true)) return true
+        return runCatching { store.modelsDir.usableSpace < LOW_SPACE_BYTES }.getOrDefault(false)
+    }
+
     companion object {
+        /** Bu eşiğin altında kalan boş alan "disk doldu" sayılır. */
+        const val LOW_SPACE_BYTES = 16L * 1024 * 1024
         /** Range başlığı değeri; saf ve test edilebilir. */
         fun rangeHeader(existingBytes: Long): String = "bytes=$existingBytes-"
 

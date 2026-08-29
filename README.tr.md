@@ -295,7 +295,7 @@ Nova_Agent_AI/
 | `gateway/gateway.mjs` | Sertleştirilmiş sunucu: auth, CORS allowlist, rate limit. |
 | `gateway/lib/` | Ajan döngüsü, MCP, RAG, memory, RBAC, prodcheck ve yardımcılar. |
 | `gateway/routes/` | Knowledge, memory, scheduled tasks, workspaces, agent runs ve API route'ları. |
-| `gateway/migrations/` | SQL migration'lar `001` ile `010` arası. |
+| `gateway/migrations/` | SQL migration'lar `001` ile `011` arası. |
 | `gateway/.env.example` | `.env` olarak kopyalanır ve makineye göre doldurulur. |
 | `web/` | Vite, React ve PWA destekli tarayıcı arayüzü. |
 | `web/src/nova-agent.jsx` | Ana tarayıcı UI bileşeni. |

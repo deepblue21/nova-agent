@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import com.nova.agent.data.AppSettings
+import com.nova.agent.data.UiMode
 import com.nova.agent.net.GatewayConnectionUiState
 import com.nova.agent.ui.app.NovaSettingsPanel
 import com.nova.agent.ui.theme.NovaTheme
@@ -28,7 +29,7 @@ class NovaAppSettingsSyncTest {
         composeRule.setContent {
             NovaTheme {
                 NovaSettingsPanel(
-                    settings = AppSettings(),
+                    settings = AppSettings(uiMode = UiMode.ADVANCED.id),
                     connection = GatewayConnectionUiState(),
                     onTestConnection = { _, _ -> },
                     onUpdateTaskConnection = { baseUrl, token ->
@@ -73,6 +74,7 @@ class NovaAppSettingsSyncTest {
                     settings = AppSettings(
                         baseUrl = "https://applied.example/v1",
                         token = "applied-token",
+                        uiMode = UiMode.ADVANCED.id,
                     ),
                     connection = GatewayConnectionUiState(),
                     onTestConnection = { baseUrl, token ->
@@ -117,7 +119,7 @@ class NovaAppSettingsSyncTest {
         composeRule.setContent {
             NovaTheme {
                 NovaSettingsPanel(
-                    settings = AppSettings(),
+                    settings = AppSettings(uiMode = UiMode.ADVANCED.id),
                     connection = GatewayConnectionUiState(),
                     onTestConnection = { baseUrl, token ->
                         testedConnections += baseUrl to token

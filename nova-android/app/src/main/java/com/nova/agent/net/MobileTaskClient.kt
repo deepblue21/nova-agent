@@ -4,6 +4,7 @@ import com.nova.agent.feature.tasks.MobileConfirmation
 import com.nova.agent.feature.tasks.MobileTask
 import com.nova.agent.feature.tasks.MobileTaskEvent
 import com.nova.agent.feature.tasks.MobileTaskStatus
+import com.nova.agent.util.str
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import okhttp3.Call
@@ -160,11 +161,11 @@ class MobileTaskClient(
         fun parseTask(data: String): MobileTask? {
             return try {
                 val objectValue = JSONObject(data)
-                val id = objectValue.optString("id").trim()
+                val id = objectValue.str("id").trim()
                 if (id.isEmpty()) null else MobileTask(
                     id = id,
-                    prompt = objectValue.optString("prompt"),
-                    status = MobileTaskStatus.fromWire(objectValue.optString("status")),
+                    prompt = objectValue.str("prompt"),
+                    status = MobileTaskStatus.fromWire(objectValue.str("status")),
                 )
             } catch (_: Exception) {
                 null
@@ -176,20 +177,20 @@ class MobileTaskClient(
             return try {
                 val objectValue = JSONObject(data)
                 val id = objectValue.opt("id")?.toString()?.takeIf { it.isNotBlank() } ?: sseId.orEmpty()
-                val taskId = objectValue.optString("task_id").trim()
-                val type = objectValue.optString("type").trim()
+                val taskId = objectValue.str("task_id").trim()
+                val type = objectValue.str("type").trim()
                 if (id.isBlank() || taskId.isEmpty() || type.isEmpty()) return null
 
                 val payload = objectValue.optJSONObject("payload") ?: JSONObject()
-                val status = payload.optString("status").trim()
+                val status = payload.str("status").trim()
                     .takeIf { it.isNotEmpty() }
                     ?.let(MobileTaskStatus::fromWireOrNull)
                 val confirmation = if (type == "confirmation.requested") {
-                    val confirmationId = payload.optString("confirmation_id").trim()
+                    val confirmationId = payload.str("confirmation_id").trim()
                     confirmationId.takeIf { it.isNotEmpty() }?.let {
                         MobileConfirmation(
                             id = it,
-                            riskLevel = payload.optString("risk_level"),
+                            riskLevel = payload.str("risk_level"),
                             actionSummary = payloadSummary(payload, type),
                         )
                     }
@@ -226,7 +227,7 @@ class MobileTaskClient(
         }
 
         private fun hasStrictWorkerUnsupportedError(responseBody: String): Boolean = try {
-            JSONObject(responseBody).optString("error") == STRICT_WORKER_UNSUPPORTED_ERROR
+            JSONObject(responseBody).str("error") == STRICT_WORKER_UNSUPPORTED_ERROR
         } catch (_: Exception) {
             false
         }
@@ -234,20 +235,20 @@ class MobileTaskClient(
         private const val STRICT_WORKER_UNSUPPORTED_ERROR = "task is not supported by this emulator worker"
 
         private fun payloadSummary(payload: JSONObject, fallback: String): String {
-            val explicit = payload.optString("summary").ifBlank {
-                payload.optString("action_summary")
+            val explicit = payload.str("summary").ifBlank {
+                payload.str("action_summary")
             }
             if (explicit.isNotBlank()) return explicit
 
             when (val action = payload.opt("action")) {
                 is String -> if (action.isNotBlank()) return action
-                is JSONObject -> action.optString("summary")
-                    .ifBlank { action.optString("target") }
+                is JSONObject -> action.str("summary")
+                    .ifBlank { action.str("target") }
                     .takeIf { it.isNotBlank() }
                     ?.let { return it }
             }
 
-            return payload.optString("status").ifBlank { fallback }
+            return payload.str("status").ifBlank { fallback }
         }
     }
 }

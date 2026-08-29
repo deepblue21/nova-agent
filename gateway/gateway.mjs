@@ -55,6 +55,8 @@ import { workspaces } from "./routes/workspaces.mjs";
 import { agentRuns as agentRunsRoute } from "./routes/agent_runs.mjs";
 import { createMobileTasksRouter } from "./routes/mobile_tasks.mjs";
 import { createMobileWorkerRouter } from "./routes/mobile_worker.mjs";
+import { createPairingRouter, createFailureLimiter, PAIR_CLAIM_PATH } from "./routes/pairing.mjs";
+import { createPairingStore } from "./lib/pairing_store.mjs";
 import * as agentRunStore from "./lib/agent_runs_store.mjs";
 import * as schedStore from "./lib/scheduled_store.mjs";
 import { nextRunAt as schedNextRunAt } from "./lib/scheduler.mjs";
@@ -220,7 +222,13 @@ const clientErr = (msg, meta = {}) => {
   return PROD ? message : message + " — " + String(msg && msg.message ? msg.message : msg);
 };
 
+// Eşleme takası kimlik doğrulaması OLAMAZ — telefonun henüz anahtarı yok.
+// Kendi koruması var: 40 bit entropi + 5 dk ömür + tek kullanım + IP başına
+// başarısız deneme sınırı (routes/pairing.mjs).
+const PAIRING_ENABLED = MULTI_USER && process.env.PAIRING_ENABLED !== "0";
+
 function isPublicPath(req) {
+  if (PAIRING_ENABLED && req.path === PAIR_CLAIM_PATH) return true;
   return req.path === "/health" || req.path === "/metrics";
 }
 
@@ -334,6 +342,18 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// Eşleme takası — auth katmanından ÖNCE (telefonun henüz anahtarı yok).
+if (PAIRING_ENABLED) {
+  const pairingLimiter = createFailureLimiter();
+  const sweepTimer = setInterval(() => pairingLimiter.sweep(), 10 * 60 * 1000);
+  if (sweepTimer.unref) sweepTimer.unref();
+  app.use(createPairingRouter({
+    store: createPairingStore(),
+    limiter: pairingLimiter,
+    logger,
+  }));
+}
 
 app.use(mobileWorker);
 
@@ -850,7 +870,8 @@ app.listen(PORT, () => {
     "timeout=" + TIMEOUT_MS + "ms",
     "retries=" + MAX_RETRIES,
     "allowlist=" + (ALLOW.length ? ALLOW.join(",") : "all"),
-    "multiUser=" + (MULTI_USER ? "on" : "off"));
+    "multiUser=" + (MULTI_USER ? "on" : "off"),
+    "pairing=" + (PAIRING_ENABLED ? "on" : "off"));
   if (!MULTI_USER && !GATEWAY_TOKEN) console.warn("⚠️  GATEWAY_TOKEN is empty — the gateway is UNAUTHENTICATED. Set it before exposing beyond localhost.");
   if (ANY_ORIGIN)     console.warn("⚠️  ALLOW_ORIGINS='*' — any website can call this gateway. Use a fixed allowlist outside local dev.");
 });

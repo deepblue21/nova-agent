@@ -9,19 +9,28 @@ import androidx.compose.runtime.setValue
 import com.nova.agent.NovaViewModel
 import com.nova.agent.data.AppSettings
 import com.nova.agent.data.FALLBACK_MODELS
+import com.nova.agent.data.FallbackKind
 import com.nova.agent.data.ModelOption
 import com.nova.agent.data.Mode
+import com.nova.agent.data.UiMode
 import com.nova.agent.feature.chat.ChatScreen
 import com.nova.agent.feature.control.ControlScreen
 import com.nova.agent.feature.history.ChatHistoryPanel
 import com.nova.agent.feature.models.ModelsScreen
+import com.nova.agent.feature.pairing.PairingUiState
 import com.nova.agent.feature.settings.SettingsPanel
 import com.nova.agent.feature.tasks.MobileTaskScreen
 import com.nova.agent.feature.tasks.MobileTaskViewModel
 import com.nova.agent.feature.voice.VoiceScreen
 import com.nova.agent.llm.ExecutionPolicy
+import com.nova.agent.net.GatewayConnectionStatus
+import com.nova.agent.llm.local.ActiveBackend
+import com.nova.agent.llm.local.BackendPreference
 import com.nova.agent.llm.local.LocalModelDiskState
+import com.nova.agent.llm.local.SamplerPreset
+import com.nova.agent.llm.local.SamplerSettings
 import com.nova.agent.llm.local.tools.HorusToolSet
+import com.nova.agent.net.DiscoveredGateway
 import com.nova.agent.net.GatewayConnectionClient
 import com.nova.agent.net.GatewayConnectionUiState
 
@@ -37,9 +46,41 @@ fun NovaApp(
     // Kontrol/Modeller açılınca disk durumunu tazele (indirme dışı değişiklikler için).
     // Modeller ekranında ayrıca PC kataloğu da tazelenir: bağlandıktan sonra
     // `ollama pull` edilen bir model, yeniden bağlantı testi beklemeden listeye düşsün.
-    LaunchedEffect(vm.mode) {
+    // `baseUrl` gövdede OKUNUYOR ama key'de yoktu: Modeller ekranı açıkken
+    // eşleme tamamlanıp adres dolduğunda katalog tazelenmiyordu.
+    LaunchedEffect(vm.mode, vm.settings.baseUrl) {
+        // "İşler" sekmesi kapalıyken oraya düşen bir durum (eski oturum, derin
+        // bağlantı) erişilemeyen bir ekranda kilitlenirdi: gezinme çubuğunda o
+        // sekme yok, geri dönecek düğme de yok. Sohbet'e alınır.
+        if (!PHONE_TASKS_TAB_ENABLED && vm.mode == Mode.TASKS) {
+            vm.mode = Mode.CHAT
+            return@LaunchedEffect
+        }
         if (vm.mode == Mode.KONTROL || vm.mode == Mode.MODELLER) vm.local.refresh()
         if (vm.mode == Mode.MODELLER && vm.settings.baseUrl.isNotBlank()) vm.refreshGatewayModels()
+    }
+
+    // Ayarlar'daki bildirim sayacı diskteki gerçeği göstersin.
+    LaunchedEffect(showSettings) { if (showSettings) vm.refreshContentReports() }
+
+    // Gorevler ekraninin baglantisi ayarlari TAKIP EDER; kimse elle itmez.
+    // Eskiden yalniz Ayarlar'daki elle "Kaydet" yolu onUpdateTaskConnection'i
+    // cagiriyordu; ESLEME yolu (PairingController -> saveConnection) cagirmiyordu.
+    // Sonuc: QR/kod ile eslenen kullanicida baglanti karti "PC hazir" derken
+    // taskVm eski (temiz kurulumda BOS) adresle kaliyor ve "Gorevi baslat"
+    // gecersiz adrese gidiyordu. Tek kaynak olarak ayarlari izlemek, ayni
+    // hatanin ileride acilacak her yeni baglanti yolunda tekrarlanmasini onler.
+    LaunchedEffect(vm.settings.baseUrl, vm.settings.token) {
+        taskVm.updateConnectionSettings(vm.settings.baseUrl, vm.settings.token)
+    }
+
+    // Bildirim kaydedildiğinde kısa onay. Kullanıcı bildirdiğini GÖRMELİ;
+    // yoksa aynı yanıtı tekrar bildirir ya da işe yaramadığını sanır.
+    vm.notice?.let { message ->
+        LaunchedEffect(message) {
+            kotlinx.coroutines.delay(3_500)
+            vm.clearNotice()
+        }
     }
 
     val activeSpec = vm.activeLocalSpec()
@@ -63,6 +104,7 @@ fun NovaApp(
         onToggleVoice = {
             if (vm.mode == Mode.VOICE) vm.mode = Mode.CHAT else vm.mode = Mode.VOICE
         },
+        notice = vm.notice,
     ) {
         when (vm.mode) {
             Mode.KONTROL -> ControlScreen(
@@ -80,6 +122,12 @@ fun NovaApp(
                 onNewTask = { vm.mode = Mode.TASKS },
                 onOpenChat = { vm.mode = Mode.CHAT },
                 onOpenModels = { vm.mode = Mode.MODELLER },
+                // "Herhangi bir model kurulu mu" — aktif modelin durumu değil.
+                anyModelInstalled = vm.local.anyInstalled(),
+                firstRunGuideDismissed = vm.settings.firstRunGuideDismissed,
+                recommendedName = vm.local.recommended.displayName,
+                recommendedSize = vm.local.recommended.sizeLabel,
+                onDismissFirstRunGuide = vm::dismissFirstRunGuide,
             )
 
             Mode.TASKS -> MobileTaskScreen(
@@ -98,6 +146,7 @@ fun NovaApp(
                 onNewTask = taskVm::newTask,
                 onOpenSettings = { showSettings = true },
                 onRetryConnection = vm::testConnection,
+                onRetryStream = taskVm::retryStream,
             )
 
             Mode.CHAT -> ChatScreen(
@@ -107,6 +156,8 @@ fun NovaApp(
                 modelLabel = vm.currentModelName(),
                 pendingFallback = vm.pendingFallback?.reason,
                 fallbackAllowsGateway = vm.pendingFallback?.allowGateway ?: true,
+                fallbackKind = vm.pendingFallback?.kind ?: FallbackKind.LOCAL_ERROR,
+                gatewayReady = vm.connectionState.status == GatewayConnectionStatus.READY,
                 showAgentHandoff = vm.executionPolicy != ExecutionPolicy.LOCAL_ONLY,
                 onSend = vm::send,
                 onStop = vm::stop,
@@ -117,6 +168,7 @@ fun NovaApp(
                 onOpenModels = { vm.mode = Mode.MODELLER },
                 onHandoffToAgent = vm::handoffToPcAgent,
                 onOpenHistory = { showHistory = true },
+                onReport = vm::reportContent,
             )
 
             Mode.MODELLER -> ModelsScreen(
@@ -133,6 +185,7 @@ fun NovaApp(
                 metrics = vm.local.metrics,
                 gatewayModels = vm.modelOptions(),
                 gatewaySelectedId = vm.settings.modelId,
+                uiMode = vm.settings.uiModeValue,
                 onDownload = { vm.local.startDownload(it.spec, vm.settings.hfToken) },
                 onCancelDownload = { vm.local.cancelDownload(it.spec) },
                 onDelete = { vm.local.deleteModel(it.spec) },
@@ -191,8 +244,26 @@ fun NovaApp(
             onHfTokenChange = vm::setHfToken,
             onPersonaChange = vm::setPersona,
             onWipeData = vm::wipeAllLocalData,
-            onRestoreAppliedConnection = { vm.testConnection() },
-            onClose = { showSettings = false },
+            activeBackend = vm.local.activeBackend,
+            pairing = vm.pairing.state,
+            reportCount = vm.contentReports.size,
+            onShareReports = vm::shareContentReports,
+            onClearReports = vm::clearContentReports,
+            onStartDiscovery = vm.pairing::rescan,
+            onSelectGateway = vm.pairing::select,
+            onPairCodeChange = vm.pairing::updateCode,
+            onSubmitPairing = vm.pairing::submit,
+            onDismissPairingMessage = vm.pairing::clearPhase,
+            onUiModeChange = vm::setUiMode,
+            onBackendChange = vm::setBackendPreference,
+            onSamplerPresetChange = vm::setSamplerPreset,
+            onCustomSamplerChange = vm::setCustomSampler,
+            onRestoreAppliedConnection = { vm.refreshConnectionState() },
+            onClose = {
+                // Panel kapanınca mDNS taraması arka planda sürmemeli.
+                vm.pairing.stopDiscovery()
+                showSettings = false
+            },
         )
     }
 }
@@ -215,6 +286,21 @@ internal fun NovaSettingsPanel(
     onHfTokenChange: (String) -> Unit = {},
     onPersonaChange: (String) -> Unit = {},
     onWipeData: (Boolean) -> Unit = {},
+    activeBackend: ActiveBackend = ActiveBackend.NONE,
+    pairing: PairingUiState = PairingUiState(),
+    /** Play B6 — cihazda kayıtlı yapay zekâ içerik bildirimi sayısı. */
+    reportCount: Int = 0,
+    onShareReports: () -> Unit = {},
+    onClearReports: () -> Unit = {},
+    onStartDiscovery: () -> Unit = {},
+    onSelectGateway: (DiscoveredGateway) -> Unit = {},
+    onPairCodeChange: (String) -> Unit = {},
+    onSubmitPairing: () -> Unit = {},
+    onDismissPairingMessage: () -> Unit = {},
+    onUiModeChange: (UiMode) -> Unit = {},
+    onBackendChange: (BackendPreference) -> Unit = {},
+    onSamplerPresetChange: (SamplerPreset) -> Unit = {},
+    onCustomSamplerChange: (SamplerSettings) -> Unit = {},
     onRestoreAppliedConnection: () -> Unit = {
         onTestConnection(settings.baseUrl, settings.token)
     },
@@ -248,6 +334,20 @@ internal fun NovaSettingsPanel(
         onHfTokenChange = onHfTokenChange,
         onPersonaChange = onPersonaChange,
         onWipeData = onWipeData,
+        activeBackend = activeBackend,
+        pairing = pairing,
+        reportCount = reportCount,
+        onShareReports = onShareReports,
+        onClearReports = onClearReports,
+        onStartDiscovery = onStartDiscovery,
+        onSelectGateway = onSelectGateway,
+        onPairCodeChange = onPairCodeChange,
+        onSubmitPairing = onSubmitPairing,
+        onDismissPairingMessage = onDismissPairingMessage,
+        onUiModeChange = onUiModeChange,
+        onBackendChange = onBackendChange,
+        onSamplerPresetChange = onSamplerPresetChange,
+        onCustomSamplerChange = onCustomSamplerChange,
         onClose = {
             onRestoreAppliedConnection()
             onClose()

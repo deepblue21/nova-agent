@@ -36,10 +36,16 @@ class OnDeviceEngineSessionTest {
         assertEquals("(boş yanıt)", OnDeviceEngine.normalizeAssistantText("   "))
     }
 
+    /**
+     * SÖZLEŞME DEĞİŞTİ (E1). Kapanmamış blok artık içerikte bırakılmıyor:
+     * akış düşünmenin ortasında kesilmişse ortada cevap yoktur, "(boş yanıt)"
+     * doğru kayıttır. Metin kaybolmuyor — düşünme paneline yazılıyor.
+     * Eskiden ham `<think>` etiketi geçmişe, dışa aktarmaya ve panoya sızıyordu.
+     */
     @Test
-    fun `kapanmamis dusunce blogu oldugu gibi kalir`() {
-        val raw = "<think>açık kaldı"
-        assertEquals(raw, OnDeviceEngine.normalizeAssistantText(raw))
+    fun `kapanmamis dusunce blogu icerige yazilmaz`() {
+        assertEquals("(boş yanıt)", OnDeviceEngine.normalizeAssistantText("<think>açık kaldı"))
+        assertEquals("Yanıt.", OnDeviceEngine.normalizeAssistantText("Yanıt. <think>açık kaldı"))
     }
 
     @Test

@@ -61,7 +61,9 @@ class HorusToolSet(
             0,
         ) == 1
         return mapOf(
-            "pil_yuzdesi" to battery.first,
+            // -1 "bilinmiyor" demek, bir yüzde DEĞİL. Ham verilince model onu
+            // gerçek bir ölçüm sanıp "pilin %-1" diyordu. Bilinmiyorsa öyle denir.
+            "pil_yuzdesi" to if (battery.first < 0) "bilinmiyor" else battery.first,
             "sarj_oluyor" to battery.second,
             "bos_ram_mb" to memory.first,
             "toplam_ram_mb" to memory.second,

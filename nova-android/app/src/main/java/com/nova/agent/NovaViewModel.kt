@@ -22,10 +22,16 @@ import com.nova.agent.data.FALLBACK_MODELS
 import com.nova.agent.data.GatewayCatalog
 import com.nova.agent.data.ModelOption
 import com.nova.agent.data.Mode
+import com.nova.agent.data.ContentReport
+import com.nova.agent.data.ContentReportReason
+import com.nova.agent.data.ContentReportStore
+import com.nova.agent.data.FallbackKind
 import com.nova.agent.data.PendingFallback
 import com.nova.agent.data.SettingsStore
 import com.nova.agent.data.ToolStep
+import com.nova.agent.data.UiMode
 import com.nova.agent.data.VoiceState
+import com.nova.agent.feature.pairing.PairingController
 import com.nova.agent.llm.EngineRouter
 import com.nova.agent.llm.ExecutionPolicy
 import com.nova.agent.llm.HybridInputs
@@ -33,9 +39,12 @@ import com.nova.agent.llm.LocalLlmController
 import com.nova.agent.llm.PrivacyClassifier
 import com.nova.agent.llm.RouteDecision
 import com.nova.agent.llm.ThinkingText
+import com.nova.agent.llm.local.BackendPreference
 import com.nova.agent.llm.local.LocalModelCatalog
 import com.nova.agent.llm.local.LocalModelSpec
 import com.nova.agent.llm.local.OnDeviceEngine
+import com.nova.agent.llm.local.SamplerPreset
+import com.nova.agent.llm.local.SamplerSettings
 import com.nova.agent.net.GatewayConnectionClient
 import com.nova.agent.net.GatewayConnectionResult
 import com.nova.agent.net.GatewayConnectionStatus
@@ -80,10 +89,47 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     private fun onMain(block: () -> Unit) { main.post(block) }
 
     /** Cihaz-üstü LLM yaşam döngüsü (Faz 1 — yerel öncelikli). */
-    val local = LocalLlmController(app, viewModelScope, ::onMain)
+    val local = LocalLlmController(
+        app,
+        viewModelScope,
+        ::onMain,
+        onModelInstalled = ::activateIfNothingUsable,
+    )
+
+    /**
+     * K1 — yeni kurulan modeli, ortada kullanılabilir bir model YOKSA aktif yapar.
+     *
+     * Kural bilinçli olarak "her indirmede geç" değil: kullanıcının hâlihazırda
+     * çalışan bir seçimi varsa onu elinden almak sürpriz olurdu. Ama seçili
+     * model kurulu değilse ortada çalışan bir şey yok demektir; o durumda yeni
+     * modeli aktif etmemek kullanıcıyı "model indirdim ama hâlâ model yok
+     * diyor" çıkmazında bırakıyordu.
+     */
+    private fun activateIfNothingUsable(modelId: String) {
+        if (local.isInstalled(settings.localModelId)) return
+        setLocalModel(modelId)
+    }
+
+    /**
+     * mDNS keşfi + kod takası (Faz A). Takastan dönen anahtar burada
+     * saklanmaz: doğrudan mevcut `saveConnection` yoluna verilir, yani
+     * kaydetme/doğrulama davranışı elle girişle birebir aynı kalır.
+     */
+    val pairing = PairingController(
+        app = app,
+        scope = viewModelScope,
+        onMain = ::onMain,
+        onPaired = { baseUrl, apiKey -> saveConnection(baseUrl, apiKey) },
+    )
 
     /** Kalıcı sohbet geçmişi (Faz 5). Cihazda JSON. */
     private val convoStore = ConversationStore(File(app.filesDir, "conversations.json"))
+
+    /**
+     * Play B6 — yapay zekâ içerik bildirimleri. Cihazda kalır; gönderim
+     * kullanıcının açık eylemidir (bkz. [shareContentReports]).
+     */
+    private val reportStore = ContentReportStore(File(app.filesDir, "content_reports.json"))
     private var currentConversationId: String? = null
     private var currentCreatedAt: Long = 0L
     var history by mutableStateOf<List<ConversationSummary>>(emptyList()); private set
@@ -114,19 +160,32 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         speech.initTts()
         viewModelScope.launch {
             settings = store.load()
-            if (settings.baseUrl.isNotBlank()) testConnection(settings.baseUrl, settings.token)
+            refreshConnectionState()
         }
         reloadHistory()
     }
 
     // ---------- sohbet geçmişi (Faz 5) ----------
 
+    /**
+     * Arama yarışı sayacı.
+     *
+     * Her tuş vuruşu ayrı bir arama başlatıyordu ve sonuçlar BİTİŞ SIRASINA göre
+     * yazılıyordu. "abc" hızlı yazıldığında "a" araması en son bitip "abc"nin
+     * sonucunu ezebiliyordu: kullanıcı yazdığı sorguyla ilgisiz bir liste
+     * görüyordu. Bağlantı sondaları için `LatestConnectionProbe` deseni zaten
+     * vardı; geçmiş aramasının karşılığı yoktu.
+     */
+    private var historyGeneration = 0L
+
     private fun reloadHistory() {
         val q = historyQuery
+        val generation = ++historyGeneration
         viewModelScope.launch {
             val list = withContext(Dispatchers.IO) {
                 if (q.isBlank()) convoStore.list() else convoStore.search(q)
             }
+            if (generation != historyGeneration) return@launch
             history = list
         }
     }
@@ -137,7 +196,15 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Aktif sohbeti (en az bir kullanıcı mesajı varsa) diske yazar. */
-    private fun saveCurrent() {
+    /**
+     * Sohbeti diske yazar — V2.
+     *
+     * [blocking] YALNIZ `onCleared` için: AndroidX, ViewModel'in closeable'larını
+     * (yani viewModelScope'u) `onCleared()`'dan ÖNCE kapatıyor, dolayısıyla
+     * oradan `viewModelScope.launch` ile kaydetmek HİÇ çalışmaz. Yıkım anında
+     * senkron yazmak, kaydetmemekten iyidir.
+     */
+    private fun saveCurrent(blocking: Boolean = false) {
         val snapshot = messages.map { it.copy(streaming = false) }
         if (snapshot.none { it.role == "user" }) return
         val id = currentConversationId ?: UUID.randomUUID().toString()
@@ -150,6 +217,10 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
             updatedAt = System.currentTimeMillis(),
             messages = snapshot,
         )
+        if (blocking) {
+            runCatching { convoStore.save(convo) }
+            return
+        }
         viewModelScope.launch {
             withContext(Dispatchers.IO) { convoStore.save(convo) }
             reloadHistory()
@@ -184,6 +255,69 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Sohbeti Markdown olarak sistem paylaşım sayfasına gönderir. */
+    /** Ayarlar'daki sayaç için. */
+    var contentReports by mutableStateOf<List<ContentReport>>(emptyList()); private set
+
+    /**
+     * Kısa onay mesajı. Bildirim akışının "kaydedildi" geri bildirimi için:
+     * kullanıcı bildirdiğini gördüğünden emin olmalı, yoksa aynı yanıtı
+     * tekrar tekrar bildirir ya da işe yaramadığını sanır.
+     */
+    var notice by mutableStateOf<String?>(null); private set
+
+    fun clearNotice() { notice = null }
+
+    /**
+     * Sakıncalı yanıtı bildirir — Play B6.
+     *
+     * Akış BURADA kapanır: kayıt cihaza yazılır ve kullanıcı onay görür.
+     * Politika bildirimin uygulamadan çıkmadan yapılabilmesini şart koşuyor;
+     * paylaşım ayrı ve isteğe bağlı bir adım.
+     */
+    fun reportContent(message: ChatMessage, reason: ContentReportReason, note: String) {
+        val report = ContentReport(
+            id = java.util.UUID.randomUUID().toString(),
+            createdAt = System.currentTimeMillis(),
+            reason = reason,
+            note = note,
+            excerpt = ContentReport.excerptOf(message.content),
+            route = message.route.orEmpty(),
+        )
+        viewModelScope.launch {
+            val next = withContext(Dispatchers.IO) { reportStore.add(report) }
+            contentReports = next
+            notice = "Bildirimin kaydedildi. Ayarlar > Bildirimler'den gönderebilirsin."
+        }
+    }
+
+    fun refreshContentReports() {
+        viewModelScope.launch {
+            contentReports = withContext(Dispatchers.IO) { reportStore.list() }
+        }
+    }
+
+    fun clearContentReports() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { reportStore.clear() }
+            contentReports = emptyList()
+        }
+    }
+
+    /** Bildirimleri kullanıcının seçtiği kanaldan paylaşır. İçeriği görerek gönderir. */
+    fun shareContentReports() {
+        viewModelScope.launch {
+            val text = withContext(Dispatchers.IO) { reportStore.exportText() }
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_SUBJECT, "NOVA — içerik bildirimleri")
+                putExtra(Intent.EXTRA_TEXT, text)
+            }
+            val chooser = Intent.createChooser(send, "Bildirimleri gönder")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            runCatching { getApplication<Application>().startActivity(chooser) }
+        }
+    }
+
     fun shareConversation(id: String) {
         viewModelScope.launch {
             val convo = withContext(Dispatchers.IO) { convoStore.load(id) } ?: return@launch
@@ -245,6 +379,37 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     fun setHybridAutoFallback(enabled: Boolean) = persist(settings.copy(hybridAutoFallback = enabled))
     fun setPersona(text: String) = persist(settings.copy(persona = text.trim()))
 
+    // --- Faz 9: arayüz yoğunluğu + cihaz motoru ---
+
+    /** Yalnız görünürlük değişir; hiçbir ayarın değeri sıfırlanmaz. */
+    fun setUiMode(mode: UiMode) = persist(settings.copy(uiMode = mode.id))
+
+    /**
+     * Hızlandırma tercihi. Motor bir sonraki üretimde yeni tercihle yeniden
+     * yüklenir; şimdiden boşaltmak, sürmekte olan bir yanıtı kesip
+     * kullanıcının istemediği bir iptale yol açardı.
+     */
+    fun setBackendPreference(preference: BackendPreference) =
+        persist(settings.copy(backendPreference = preference.id))
+
+    /** İlk açılış model kartını kalıcı olarak kapatır ("şimdilik atla"). */
+    fun dismissFirstRunGuide() = persist(settings.copy(firstRunGuideDismissed = true))
+
+    fun setSamplerPreset(preset: SamplerPreset) =
+        persist(settings.copy(samplerPreset = preset.id))
+
+    /** Elle örnekleme değerleri; diske yazılırken de kırpılır. */
+    fun setCustomSampler(sampler: SamplerSettings) {
+        val safe = sampler.clamped()
+        persist(
+            settings.copy(
+                samplerTopK = safe.topK,
+                samplerTopP = safe.topP,
+                samplerTemperature = safe.temperature,
+            ),
+        )
+    }
+
     fun activeLocalSpec(): LocalModelSpec =
         LocalModelCatalog.byId(settings.localModelId) ?: LocalModelCatalog.default
 
@@ -259,6 +424,29 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         val updated = settings.copy(baseUrl = canonicalBaseUrl, token = trimmedToken)
         persist(updated)
         testConnection(updated.baseUrl, updated.token)
+    }
+
+    /**
+     * Bağlantı durumunu mevcut ayarlara göre tazeler — **kendiliğinden** çağrılan
+     * her yerde bu kullanılmalı, `testConnection()` değil.
+     *
+     * Kural açılıştakiyle aynı: belirteç yoksa bağlantı hiç kurulmamıştır, sonda
+     * atmanın anlamı yoktur. Ayarlar paneli kapanışı eskiden koşulsuz
+     * `testConnection()` çağırıyordu; temiz kurulumda (adres boş) paneli sırf
+     * tema için açıp kapatan kullanıcı, hiç kurmadığı bir bağlantı için kalıcı
+     * "Gateway adresi geçersiz" hatası görüyordu ve Basit modda düzeltebileceği
+     * bir alan ekranda yoktu.
+     *
+     * Kullanıcının kendi bastığı "Bağlantıyı test et" bunun dışındadır: orada
+     * geçersiz adresi söylemek doğru davranıştır.
+     */
+    fun refreshConnectionState() {
+        if (GatewayConnectionUiState.shouldProbeOnStart(settings.baseUrl, settings.token)) {
+            testConnection(settings.baseUrl, settings.token)
+        } else {
+            connectionCall?.cancel()
+            connectionState = GatewayConnectionUiState.notConfigured()
+        }
     }
 
     fun testConnection(baseUrl: String = settings.baseUrl, token: String = settings.token) {
@@ -285,7 +473,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
                         GatewayConnectionResult.InvalidUrl -> GatewayConnectionUiState(
                             GatewayConnectionStatus.INVALID_URL,
                             "Gateway adresi geçersiz",
-                            "Biçim: http://<PC-IP>:8088/v1 — örn. http://192.168.1.20:8088/v1",
+                            "Biçim: http://<PC-IP>:18088/v1 — örn. http://192.168.1.20:18088/v1",
                         )
                         is GatewayConnectionResult.Failure -> GatewayConnectionUiState(
                             GatewayConnectionStatus.UNREACHABLE,
@@ -357,7 +545,8 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun stop() {
-        es?.cancel(); es = null
+        // M1: iptali istemci işaretler, yoksa "Gateway hatası (200)" yazılıyordu.
+        client.cancelStream(es); es = null
         if (activeLocal) {
             activeLocal = false
             local.cancelGenerate()
@@ -365,6 +554,9 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         busy = false
         updateLast { it.copy(streaming = false) }
         if (voiceState != VoiceState.IDLE) { voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB }
+        // V2: "Durdur" da bir bitiş. Kısmi yanıt kullanıcı için değerli olabilir;
+        // eskiden bu yolda hiç kaydedilmediği için soru da yanıt da kayboluyordu.
+        saveCurrent()
     }
 
     fun newChat() {
@@ -395,6 +587,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
                 pendingFallback = PendingFallback(
                     decision.reason,
                     allowGateway = executionPolicy.allowsGatewayFallback,
+                    kind = FallbackKind.NO_LOCAL_MODEL,
                 )
                 if (speakWhenDone) {
                     voiceState = VoiceState.IDLE
@@ -412,7 +605,6 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     private fun hybridDecision(spec: LocalModelSpec): RouteDecision {
         val (batteryPercent, charging) = local.batteryNow()
         val promptChars = messages.lastOrNull { it.role == "user" }?.content?.length ?: 0
-        val lastPrompt = messages.lastOrNull { it.role == "user" }?.content ?: ""
         return EngineRouter.decideHybrid(
             HybridInputs(
                 localModelInstalled = local.isInstalled(spec.id),
@@ -421,11 +613,24 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
                 charging = charging,
                 gatewayReady = connectionState.status == GatewayConnectionStatus.READY,
                 thermalSevere = local.thermalSevereNow(),
-                privacySensitive = PrivacyClassifier.isSensitive(lastPrompt),
+                privacySensitive = conversationSensitive(),
             ),
             localModelId = spec.id,
         )
     }
+
+    /**
+     * Dışarı gidecek konuşma hassas mı — gizlilik kararının TEK kaynağı (G2).
+     *
+     * Gönderilen şey `messages` listesinin tamamıdır, o yüzden karar da
+     * tamamına bakar. Yalnız KULLANICI mesajları taranır: sır oraya yazılır,
+     * asistan yanıtı ondan türer. Asistanın sırrı yankılaması bu kontrole
+     * takılmaz — bilinen ve kabul edilen sınır.
+     */
+    private fun conversationSensitive(): Boolean =
+        PrivacyClassifier.isAnySensitive(
+            messages.filter { it.role == "user" }.map { it.content },
+        )
 
     /**
      * Hibritte yerel hata sonrası kalıcı kurala göre otomatik PC devri.
@@ -434,6 +639,16 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     private fun autoHandoffAfterLocalError(): Boolean {
         if (executionPolicy != ExecutionPolicy.HYBRID || !settings.hybridAutoFallback) return false
         if (connectionState.status != GatewayConnectionStatus.READY) return false
+        // GİZLİLİK KAPISI (G1). decideHybrid bu konuşmayı BİLEREK cihazda
+        // tutmuştu; yerel motor hata verdi diye aynı içerik sessizce dışarı
+        // çıkamaz. Eskiden bu satır yoktu: hassas istem, izin kartı hiç
+        // gösterilmeden gateway'e — oradan da seçili model bir bulut
+        // sağlayıcısıysa buluta — gidiyordu.
+        //
+        // Kullanıcı yine de göndermek isterse izin kartından kendi eliyle
+        // onaylar (approveFallback). Sınıf yorumundaki "gizlilik override'ı
+        // yalnız OTOMATİK devri engeller" sözü ancak böyle tutar.
+        if (conversationSensitive()) return false
         while (messages.isNotEmpty() && messages.last().role == "assistant") {
             messages.removeAt(messages.lastIndex)
         }
@@ -498,11 +713,14 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
             thinking = settings.localThinking,
             toolsEnabled = settings.localTools,
             persona = settings.persona,
+            backend = settings.backendPreferenceValue,
+            sampler = settings.effectiveSampler,
             cb = object : OnDeviceEngine.Callbacks {
                 override fun onToken(text: String) {
                     if (!activeLocal) return
                     sb.append(text)
-                    updateLast { it.copy(content = sb.toString()) }
+                    val (thoughts, content) = renderStreamed()
+                    updateLast { it.copy(content = content, thoughts = thoughts) }
                 }
 
                 override fun onDone() {
@@ -518,16 +736,27 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
                     if (speakWhenDone) { voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB; level = 0.08f }
                     // Hibrit + kalıcı izin: kullanıcı kuralıyla otomatik PC devri.
                     if (autoHandoffAfterLocalError()) return
-                    val partial = sb.toString()
+                    val (thoughts, partial) = renderStreamed()
                     updateLast {
                         it.copy(
                             content = if (partial.isBlank()) "⚠️ $message" else "$partial\n\n⚠️ $message",
+                            thoughts = thoughts,
                             streaming = false,
                         )
                     }
+                    // V2: yerel hata yolunda da kaydet.
+                    saveCurrent()
                     // Sessiz devir yok: yalnız bildirim/izin kartı.
+                    // Otomatik devir gizlilik yüzünden durduysa bunu SÖYLE —
+                    // aksi halde kullanıcı kuralının neden işlemediğini bilemez.
                     pendingFallback = PendingFallback(
-                        message,
+                        if (conversationSensitive()) {
+                            message + "\n\nBu sohbette hassas görünen bir bilgi var " +
+                                "(kart/IBAN/kimlik/parola gibi), bu yüzden otomatik devir " +
+                                "yapılmadı. Yine de PC'ye göndermek istersen onayla."
+                        } else {
+                            message
+                        },
                         allowGateway = executionPolicy.allowsGatewayFallback,
                     )
                 }
@@ -536,7 +765,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun finishLocal(speak: Boolean) {
-        val (thoughts, content) = ThinkingText.split(sb.toString())
+        val (thoughts, content) = renderStreamed()
         val text = content.ifBlank { "(boş yanıt)" }
         updateLast { it.copy(content = text, thoughts = thoughts, streaming = false) }
         busy = false
@@ -580,26 +809,39 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
             agent = agenticForModel(model),
             cb = object : NovaClient.Callbacks {
                 override fun onRoute(route: String) = onMain { updateLast { it.copy(route = route) } }
-                override fun onToken(text: String) = onMain { sb.append(text); updateLast { it.copy(content = sb.toString()) } }
+                override fun onToken(text: String) = onMain {
+                    sb.append(text)
+                    val (thoughts, content) = renderStreamed()
+                    updateLast { it.copy(content = content, thoughts = thoughts) }
+                }
                 override fun onThought(text: String) = onMain {
                     thoughtBuf.append(text)
-                    updateLast { it.copy(thoughts = thoughtBuf.toString()) }
+                    val (thoughts, _) = renderStreamed()
+                    updateLast { it.copy(thoughts = thoughts) }
                 }
                 override fun onTool(step: ToolStep) = onMain { mergeToolStep(step) }
                 override fun onDone() = onMain { finish(speakWhenDone) }
                 override fun onError(message: String) = onMain {
-                    sb.append(if (sb.isEmpty()) "⚠️ $message" else "\n\n⚠️ $message")
-                    updateLast { it.copy(content = sb.toString(), streaming = false) }
+                    val (thoughts, partial) = renderStreamed()
+                    val body = if (partial.isBlank()) "⚠️ $message" else "$partial\n\n⚠️ $message"
+                    updateLast { it.copy(content = body, thoughts = thoughts, streaming = false) }
                     busy = false
                     if (speakWhenDone) { voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB }
+                    // V2: hata da bir bitiş; akış ortasında ağ düşerse soru ve
+                    // kısmi yanıt diske yazılmadan kaybolmasın.
+                    saveCurrent()
                 }
             }
         )
     }
 
     private fun finish(speak: Boolean) {
-        val text = sb.toString().ifBlank { "(boş yanıt)" }
-        updateLast { it.copy(content = text, streaming = false) }
+        // E1: gateway yolu da düşünmeyi ayıklar. Eskiden yalnızca `finishLocal`
+        // ayıklıyordu; buradaki eksiklik "düşünme paylaşımdan çıkarılır" vaadini
+        // gateway yolunda tümden geçersiz kılıyordu.
+        val (thoughts, content) = renderStreamed()
+        val text = content.ifBlank { "(boş yanıt)" }
+        updateLast { it.copy(content = text, thoughts = thoughts, streaming = false) }
         busy = false
         es = null
         saveCurrent()
@@ -609,6 +851,31 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
             level = 0.5f
             speech.speak(text, onStart = {}, onDone = { onMain { voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB; level = 0.08f } })
         }
+    }
+
+    /**
+     * Akıştaki ham metni balon içeriği + düşünme paneline böler — E1.
+     *
+     * İki ayrı sızıntıyı birlikte kapatır:
+     * 1. **Gateway yolu düşünmeyi hiç ayıklamıyordu.** `finishLocal` ayıklıyor,
+     *    `finish` ayıklamıyordu. Aynı model Ollama üzerinden gateway'e bağlanınca
+     *    (gateway `reasoning_content` alanını ayırmayan sağlayıcıda) ham
+     *    `<think>` balonda görünüyor, dışa aktarmaya ve panoya da gidiyordu.
+     * 2. **Akış sırasında ham metin gösteriliyordu.** Her iki yolda da `onToken`
+     *    doğrudan `sb.toString()` yazıyordu; düşünme canlı canlı balonda akıyor,
+     *    ancak bitişte kayboluyordu. Kullanıcı bu arada kopyalarsa düşünme
+     *    metnini kopyalıyordu.
+     *
+     * Gateway'in ayrı kanaldan gönderdiği düşünme (`onThought` → [thoughtBuf]) ile
+     * metnin içinden ayıklanan blok birleştirilir; iki kaynak birbirini ezmez.
+     */
+    private fun renderStreamed(): Pair<String, String> {
+        val (inline, content) = ThinkingText.split(sb.toString())
+        val streamed = thoughtBuf.toString().trim()
+        val thoughts = listOf(streamed, inline)
+            .filter { it.isNotEmpty() }
+            .joinToString("\n\n")
+        return thoughts to content
     }
 
     private fun updateLast(f: (ChatMessage) -> ChatMessage) {
@@ -686,10 +953,19 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        // V2: yıkım anında son hâli yaz. Hiçbir yaşam döngüsü kancası
+        // kaydetmiyordu; kullanıcı uygulamayı kapatınca kaydedilmemiş sohbet
+        // yok oluyordu.
+        saveCurrent(blocking = true)
         connectionProbes.invalidate()
         connectionCall?.cancel()
-        es?.cancel()
+        // Model kataloğu çağrısı da iptal edilmeli; edilmediği için ViewModel
+        // yıkıldıktan sonra da yanıt bekleyip onu canlı tutuyordu.
+        modelsCall?.cancel()
+        client.cancelStream(es)
         local.shutdown()
+        // mDNS taraması ve süren takas çağrısı ViewModel'den uzun yaşamamalı.
+        pairing.dispose()
         speech.destroy()
         super.onCleared()
     }

@@ -66,7 +66,13 @@ class LocalModelStore(context: Context) {
         if (ok) {
             runCatching { markerFile(spec).writeText(digest) }
         } else {
+            // Y2 — bozuk dosya DİSKTE BIRAKILMAZ.
+            // Eskiden yalnız işaret dosyası siliniyor, model dosyası duruyordu;
+            // `isInstalled` doğrulamaya bakmadığı için hâlâ "kurulu" görünüyor
+            // ve bozuk .litertlm native motora veriliyordu. Oradaki SIGSEGV'yi
+            // `catch (Throwable)` yakalayamaz — süreç düşer.
             markerFile(spec).delete()
+            model.delete()
         }
         return ok
     }

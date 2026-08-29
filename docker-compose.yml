@@ -86,7 +86,10 @@ services:
       # Varsayılan: yalnız loopback (güvenli). start-horus.ps1 -Lan/-Tailscale
       # GATEWAY_BIND=0.0.0.0 vererek telefon erişimini açar; erişim Windows
       # Güvenlik Duvarı kurallarıyla sınırlanır (yalnız yerel alt ağ / tailnet).
-      - "${GATEWAY_BIND:-127.0.0.1}:${GATEWAY_PORT:-8088}:8088"
+      # Kap ICI port 8088 olarak kalir (izole, catisma yok); HOST tarafi
+      # Horus'a ayrilmis 18088'dir. Paylasilan 8088'i sahiplenmeyiz -
+      # baska bir servis (ornegin OpenClaw) onu kullaniyor olabilir.
+      - "${GATEWAY_BIND:-127.0.0.1}:${GATEWAY_PORT:-18088}:8088"
     depends_on:
       postgres:
         condition: service_healthy

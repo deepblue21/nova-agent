@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Button
@@ -34,13 +35,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nova.agent.data.ModelOption
+import com.nova.agent.data.UiMode
 import com.nova.agent.llm.LocalModelUi
 import com.nova.agent.llm.local.LocalModelDiskState
+import com.nova.agent.llm.local.LocalModelSpec
+import com.nova.agent.llm.local.LocalThinkingSupport
 import com.nova.agent.llm.local.ModelMetrics
 import com.nova.agent.llm.local.ModelRecommender
 import com.nova.agent.ui.theme.Amber
@@ -71,6 +76,12 @@ fun ModelsScreen(
     metrics: Map<String, ModelMetrics>,
     gatewayModels: List<ModelOption>,
     gatewaySelectedId: String,
+    /**
+     * Basit modda kapılı (lisans onaylı) modeller listelenmez: indirmeleri
+     * yalnız Gelişmiş modda görünen HF belirtecine bağlıdır, dolayısıyla
+     * gösterilseler kaçınılmaz bir çıkmaz sokak olurlardı.
+     */
+    uiMode: UiMode = UiMode.ADVANCED,
     onDownload: (LocalModelUi) -> Unit,
     onCancelDownload: (LocalModelUi) -> Unit,
     onDelete: (LocalModelUi) -> Unit,
@@ -96,7 +107,25 @@ fun ModelsScreen(
             onStartLocalChat = onStartLocalChat,
         )
 
-        val recommended = models.firstOrNull { it.spec.id == recommendedId }
+        // Basit modda kapılı modeller gizlenir; ancak kullanıcı zaten birini
+        // indirmiş ya da seçmişse satırı SAKLAMAYIZ — sahip olduğu modeli
+        // yönetemez duruma düşürmek sadeleştirme değil, veri kaybı hissi olur.
+        val visibleModels = models.filter { ui ->
+            !ui.spec.gated ||
+                uiMode.isAdvanced ||
+                ui.spec.id == activeLocalId ||
+                ui.disk !is LocalModelDiskState.NotInstalled
+        }
+        val hiddenGatedCount = models.size - visibleModels.size
+
+        // Öneri afişi YALNIZ model henüz cihazda değilken. Afiş bir çağrıdır
+        // ("şunu indir"); model indikten sonra aynı model hem afişte hem listede
+        // görünüyordu — ekranda arka arkaya iki özdeş kart. Afiş gösterilirken o
+        // modelin satırı listeden çıkarılır: afiş zaten o satırın işini görür ve
+        // daha fazla bağlam taşır. Model kurulduğunda afiş kapanır, satır
+        // listeye döner ve silme/doğrulama yönetimi orada yapılır.
+        val recommended = visibleModels
+            .firstOrNull { it.spec.id == recommendedId && it.disk is LocalModelDiskState.NotInstalled }
         if (recommended != null) {
             RecommendationBanner(
                 recommended = recommended,
@@ -106,8 +135,11 @@ fun ModelsScreen(
             )
         }
 
-        SectionLabel("CİHAZDAKİ MODELLER")
-        models.forEach { ui ->
+        // "CİHAZDAKİ MODELLER" YANLIŞTI: liste kataloğun tamamını gösteriyor,
+        // yani henüz indirilmemiş modelleri de. Başlık, hiçbir şey indirmemiş
+        // kullanıcıya "bunlar cihazında" diyordu.
+        SectionLabel("TELEFON MODELLERİ")
+        visibleModels.filter { it.spec.id != recommended?.spec?.id }.forEach { ui ->
             LocalModelRow(
                 ui = ui,
                 active = ui.spec.id == activeLocalId,
@@ -121,8 +153,21 @@ fun ModelsScreen(
                 onSelect = { onSelectLocal(ui.spec.id) },
             )
         }
+        if (hiddenGatedCount > 0) {
+            Text(
+                "$hiddenGatedCount model lisans onayı ve Hugging Face belirteci gerektirdiği " +
+                    "için Basit modda listelenmiyor. Ayarlar > Arayüz > Gelişmiş ile açılır.",
+                color = Muted2,
+                fontSize = 11.sp,
+                modifier = Modifier.testTag("hidden_gated_note"),
+            )
+        }
 
-        ThinkingRow(localThinking, onLocalThinking)
+        ThinkingRow(
+            activeSpec = models.firstOrNull { it.spec.id == activeLocalId }?.spec,
+            enabled = localThinking,
+            onChange = onLocalThinking,
+        )
         ToolsRow(localTools, toolSummary, onLocalTools)
 
         SectionLabel("PC GATEWAY MODELLERİ")
@@ -159,7 +204,15 @@ fun ModelsScreen(
 
 @Composable
 private fun SectionLabel(text: String) {
-    Text(text, color = Muted2, fontSize = 11.sp, letterSpacing = 1.2.sp)
+    // heading(): TalkBack kullanıcısı bölümler arasında tek hareketle
+    // gezinebilsin. Görsel olarak hiçbir şey değişmez.
+    Text(
+        text,
+        color = Muted2,
+        fontSize = 11.sp,
+        letterSpacing = 1.2.sp,
+        modifier = Modifier.semantics { heading() },
+    )
 }
 
 @Composable
@@ -181,8 +234,11 @@ private fun OfflineReadinessCard(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // Hazır DEĞİLKEN onay işareti kullanılmaz: ✓ "tamamlandı" demektir ve
+            // "model gerekli" cümlesiyle taban tabana zıttır. Yalnız renkle
+            // ayırmak da yetmez — renk körlüğünde iki durum aynı görünür.
             Icon(
-                Icons.Filled.CheckCircle,
+                if (offlineReady) Icons.Filled.CheckCircle else Icons.Filled.Download,
                 contentDescription = null,
                 tint = if (offlineReady) Success else Muted2,
                 modifier = Modifier.size(22.dp),
@@ -267,7 +323,7 @@ private fun RecommendationBanner(
         if (!installed) {
             Button(
                 onClick = onDownload,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp).testTag("recommend_download"),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("recommend_download"),
             ) {
                 Text(if (spec.gated) "İndir (HF token gerekli)" else "Önerileni indir (${spec.sizeLabel})")
             }
@@ -337,7 +393,10 @@ private fun LocalModelRow(
                 )
                 FitAndPerfLine(fit, metrics)
                 // Büyük modellerin dürüst uyarısı: taklit yok, beklenti önceden söylenir.
-                spec.note?.takeIf { !installed }?.let { note ->
+                // Açıklama kurulduktan SONRA da görünür. Önceden `!installed`
+                // koşuluna bağlıydı; kullanıcı indirdiği modelin ne işe
+                // yaradığını unuttuğunda tam da o an kayboluyordu.
+                spec.note?.let { note ->
                     Text(note, color = Muted2, fontSize = 11.sp)
                 }
                 if (spec.gated && !installed) {
@@ -386,14 +445,14 @@ private fun LocalModelRow(
                 }
 
                 ui.disk is LocalModelDiskState.Partial -> {
-                    Button(onClick = onDownload, modifier = Modifier.heightIn(min = 40.dp)) {
+                    Button(onClick = onDownload, modifier = Modifier.heightIn(min = 48.dp)) {
                         Text("Sürdür")
                     }
                     TextButton(onClick = onDelete) { Text("Sil", color = Coral) }
                 }
 
                 else -> {
-                    Button(onClick = onDownload, modifier = Modifier.heightIn(min = 40.dp)) {
+                    Button(onClick = onDownload, modifier = Modifier.heightIn(min = 48.dp)) {
                         Text("İndir (${spec.sizeLabel})")
                     }
                 }
@@ -449,28 +508,40 @@ private fun StatusChip(ui: LocalModelUi) {
 }
 
 @Composable
-private fun ThinkingRow(enabled: Boolean, onChange: (Boolean) -> Unit) {
+private fun ThinkingRow(
+    activeSpec: LocalModelSpec?,
+    enabled: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    // Anahtar artık seçili modele bağlı. Desteklemeyen modellerde GİZLENMEZ,
+    // pasif çizilir ve nedeni yazar — projenin "desteklenmeyeni taklit etme,
+    // pasif göster ve açıkla" değişmezi.
+    val support = LocalThinkingSupport.forModel(activeSpec)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(Surface1)
             .border(1.dp, Line, RoundedCornerShape(16.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+            .testTag("thinking_row"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text("Yerel düşünme (Qwen3)", color = TextMain, fontSize = 14.sp)
             Text(
-                "Modelin gerçek enable_thinking anahtarı: Açık/Kapalı. Kademeli seviye bu motorda yok.",
-                color = Muted,
-                fontSize = 11.sp,
+                support.title,
+                color = if (support.interactive) TextMain else Muted,
+                fontSize = 14.sp,
             )
+            Text(support.explanation, color = Muted, fontSize = 11.sp)
         }
         Switch(
-            checked = enabled,
+            checked = enabled && support.interactive,
             onCheckedChange = onChange,
-            modifier = Modifier.semantics { contentDescription = "Yerel düşünme" },
+            enabled = support.interactive,
+            modifier = Modifier
+                .testTag("thinking_switch")
+                .semantics { contentDescription = "Yerel düşünme" },
         )
     }
 }

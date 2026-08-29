@@ -7,6 +7,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.google.ai.edge.litertlm.tool
+import com.nova.agent.llm.local.ActiveBackend
+import com.nova.agent.llm.local.BackendPreference
 import com.nova.agent.llm.local.DownloadPreflight
 import com.nova.agent.llm.local.LocalModelCatalog
 import com.nova.agent.llm.local.LocalModelDiskState
@@ -17,9 +19,18 @@ import com.nova.agent.llm.local.ModelMetrics
 import com.nova.agent.llm.local.ModelMetricsStore
 import com.nova.agent.llm.local.ModelRecommender
 import com.nova.agent.llm.local.OnDeviceEngine
+import com.nova.agent.llm.local.SamplerSettings
 import com.nova.agent.llm.local.tools.DeviceStatusReader
 import com.nova.agent.llm.local.tools.HorusToolSet
 import com.nova.agent.llm.local.tools.NoteStore
+import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import androidx.work.workDataOf
+import com.nova.agent.llm.local.ModelDownloadWorker
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
@@ -56,12 +67,42 @@ class LocalLlmController(
     private val app: Application,
     private val scope: CoroutineScope,
     private val onMain: (block: () -> Unit) -> Unit,
+    /**
+     * Bir model indirilip KURULDUĞUNDA çağrılır (K1).
+     *
+     * Neden gerekli: `recommended` cihaz RAM'ine göre model seçiyor ama
+     * `settings.localModelId` sabit kalıyordu ve indirme bitince onu
+     * ayarlayan hiçbir yer yoktu. Sonuç: 3,4 GB model iniyor, doğrulanıyor,
+     * kullanıcı sohbete yazıyor ve "Telefonda kurulu model yok" görüyordu —
+     * üstelik o anda ilk açılış kartı da kaybolduğu için yönlendirme de
+     * ortadan kalkıyordu. Tam bir çıkmaz.
+     *
+     * Aktifleştirme kararını çağıran verir (bkz. NovaViewModel): kullanıcının
+     * zaten çalışan bir seçimi varsa onu ELİNDEN ALMAMAK gerekir.
+     */
+    private val onModelInstalled: (modelId: String) -> Unit = {},
 ) {
     private val store = LocalModelStore(app)
     private val engine = OnDeviceEngine(app)
-    private val downloader = ModelDownloader()
-    private val downloadHandles = mutableMapOf<String, ModelDownloader.Handle>()
+    private val workManager = WorkManager.getInstance(app)
     private var activeWatchdog: kotlinx.coroutines.Job? = null
+
+    /**
+     * Üretim jetonu — Y6.
+     *
+     * Her `generate()` çağrısı bunu artırır; `cancelGenerate()` de artırır.
+     * `ensureLoaded` saniyeler-dakikalar sürebildiği için dönüşünde "bu istek
+     * hâlâ güncel mi" diye SORULMASI gerekir.
+     *
+     * Eskiden sorulmuyordu: kullanıcı model yüklenirken "Dur"a basıp yeni bir
+     * istem gönderdiğinde eski coroutine `ensureLoaded`'dan dönüp koşulsuz
+     * `engine.generate()` çağırıyordu. İki üretim aynı Engine/Conversation
+     * üzerinde çakışıyor, `cancelled` bayrağı ortak oluyor ve tercih
+     * değiştiyse `ensureLoaded` üretim sürerken `unload()` çağırıyordu —
+     * native çökme sınıfı.
+     */
+    @Volatile
+    private var generationToken: Long = 0L
 
     /** Çevrimdışı araç seti (Faz 2 — agentic çekirdek). Ağa çıkmaz, izin istemez. */
     private val noteStore = NoteStore(File(app.filesDir, "horus_notlar.txt"))
@@ -73,6 +114,13 @@ class LocalLlmController(
     var models by mutableStateOf(snapshot(emptyList()))
         private set
     var engineState by mutableStateOf<LocalEngineUi>(LocalEngineUi.Idle)
+        private set
+
+    /**
+     * Motorun gerçekten yüklendiği hızlandırma. "Otomatik" seçiliyken kullanıcı
+     * GPU mu CPU mu çalıştığını buradan görür; arayüz tahmin yürütmez.
+     */
+    var activeBackend by mutableStateOf(ActiveBackend.NONE)
         private set
 
     /** Model klasörünün kapladığı alan (bayt) ve boş depolama (bayt). */
@@ -87,6 +135,11 @@ class LocalLlmController(
 
     /** Cihaza göre önerilen model (Faz 4). */
     val recommended: LocalModelSpec get() = ModelRecommender.recommend(deviceRamGb = deviceRamGb)
+
+    init {
+        // K2: uygulamaya donuldugunde SUREN indirmeye yeniden baglan.
+        observeDownloads()
+    }
 
     /** Cihazın toplam RAM'i (GB, bir ondalık). Modeller ekranında gösterilir. */
     val deviceRamGb: Double = readDeviceRamGb(app)
@@ -127,7 +180,9 @@ class LocalLlmController(
     // ---------- indirme ----------
 
     fun startDownload(spec: LocalModelSpec, hfToken: String = "") {
-        if (downloadHandles.containsKey(spec.id)) return
+        // Ikinci is acilmasini ExistingWorkPolicy.KEEP zaten engelliyor; burada
+        // yalniz arayuzden gelen cift dokunusu susturuyoruz.
+        if (models.firstOrNull { it.spec.id == spec.id }?.downloading == true) return
         if (spec.gated && hfToken.isBlank()) {
             // Ağ isteği atmadan dürüst yönlendirme: kapılı model için token şart.
             update(spec.id) {
@@ -147,41 +202,109 @@ class LocalLlmController(
             }
             return
         }
-        val handle = downloader.newHandle()
-        downloadHandles[spec.id] = handle
         update(spec.id) {
             it.copy(downloading = true, downloadedBytes = startBytes, error = null)
         }
-        scope.launch(Dispatchers.IO) {
-            val result = downloader.download(spec, store, handle, hfToken) { bytes, _ ->
-                onMain { update(spec.id) { ui -> ui.copy(downloadedBytes = bytes) } }
-            }
-            onMain {
-                downloadHandles.remove(spec.id)
-                when (result) {
-                    is ModelDownloader.Result.Success ->
-                        update(spec.id) {
-                            it.copy(downloading = false, disk = store.diskState(spec), error = null)
-                        }
-                    is ModelDownloader.Result.Cancelled ->
-                        update(spec.id) {
-                            it.copy(downloading = false, disk = store.diskState(spec))
-                        }
-                    is ModelDownloader.Result.Failure ->
-                        update(spec.id) {
-                            it.copy(
-                                downloading = false,
-                                disk = store.diskState(spec),
-                                error = result.message,
-                            )
-                        }
-                }
+        // K2: indirme artık burada koşmuyor. WorkManager işi olarak kuyruğa
+        // giriyor; uygulama kapansa da sürer, ilerlemesi aşağıdaki gözlemciyle
+        // arayüze döner. KEEP: aynı model için ikinci bir iş açılmaz.
+        val request = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
+            .setInputData(
+                workDataOf(
+                    ModelDownloadWorker.KEY_MODEL_ID to spec.id,
+                    ModelDownloadWorker.KEY_HF_TOKEN to hfToken,
+                ),
+            )
+            .addTag(ModelDownloadWorker.TAG)
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    // Yer kontrolü yukarıda zaten yapıldı; bu sistem tarafı ek güvence.
+                    .setRequiresStorageNotLow(true)
+                    .build(),
+            )
+            .build()
+        workManager.enqueueUniqueWork(
+            ModelDownloadWorker.uniqueName(spec.id),
+            ExistingWorkPolicy.KEEP,
+            request,
+        )
+    }
+
+    fun cancelDownload(spec: LocalModelSpec) {
+        workManager.cancelUniqueWork(ModelDownloadWorker.uniqueName(spec.id))
+    }
+
+    /**
+     * İndirme işlerini izler ve arayüzü tazeler (K2).
+     *
+     * Gözlemci `scope`a (viewModelScope) bağlı, İŞ değil: ViewModel ölünce
+     * yalnız izleme durur, indirme sürer. Uygulamaya dönüldüğünde yeni
+     * ViewModel yeniden bağlanır ve süren indirmenin ilerlemesini görür.
+     */
+    private fun observeDownloads() {
+        scope.launch {
+            workManager.getWorkInfosByTagFlow(ModelDownloadWorker.TAG).collect { infos ->
+                infos.forEach { applyWorkInfo(it) }
             }
         }
     }
 
-    fun cancelDownload(spec: LocalModelSpec) {
-        downloadHandles[spec.id]?.cancel()
+    private fun applyWorkInfo(info: WorkInfo) {
+        val modelId = info.progress.getString(ModelDownloadWorker.KEY_MODEL_ID)
+            ?: info.outputData.getString(ModelDownloadWorker.KEY_MODEL_ID)
+            ?: return
+        val spec = LocalModelCatalog.byId(modelId) ?: return
+        when (info.state) {
+            WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED ->
+                onMain { update(modelId) { it.copy(downloading = true, error = null) } }
+
+            WorkInfo.State.RUNNING -> {
+                val bytes = info.progress.getLong(ModelDownloadWorker.KEY_BYTES, -1L)
+                onMain {
+                    update(modelId) {
+                        it.copy(
+                            downloading = true,
+                            downloadedBytes = if (bytes >= 0) bytes else it.downloadedBytes,
+                            error = null,
+                        )
+                    }
+                }
+            }
+
+            WorkInfo.State.SUCCEEDED -> {
+                val cancelled = info.outputData.getBoolean(ModelDownloadWorker.KEY_CANCELLED, false)
+                onMain {
+                    update(modelId) {
+                        it.copy(downloading = false, disk = store.diskState(spec), error = null)
+                    }
+                    // K1: yalnız gerçekten kurulduysa aktifleştirme önerilir;
+                    // iptal edilen indirme "kuruldu" sayılmaz.
+                    if (!cancelled && store.isInstalled(spec)) onModelInstalled(modelId)
+                }
+            }
+
+            WorkInfo.State.FAILED -> {
+                val message = info.outputData.getString(ModelDownloadWorker.KEY_ERROR)
+                    ?: "İndirme başarısız oldu."
+                onMain {
+                    update(modelId) {
+                        it.copy(
+                            downloading = false,
+                            disk = store.diskState(spec),
+                            error = message,
+                        )
+                    }
+                }
+            }
+
+            WorkInfo.State.CANCELLED ->
+                onMain {
+                    update(modelId) {
+                        it.copy(downloading = false, disk = store.diskState(spec))
+                    }
+                }
+        }
     }
 
     fun deleteModel(spec: LocalModelSpec) {
@@ -194,6 +317,7 @@ class LocalLlmController(
                     it.copy(disk = store.diskState(spec), downloading = false, error = null)
                 }
                 if (engineState !is LocalEngineUi.Idle) engineState = LocalEngineUi.Idle
+                activeBackend = ActiveBackend.NONE
             }
         }
     }
@@ -229,20 +353,43 @@ class LocalLlmController(
         thinking: Boolean,
         toolsEnabled: Boolean,
         persona: String = "",
+        backend: BackendPreference = BackendPreference.AUTO,
+        /** null = motora samplerConfig verilme (model varsayılanı). */
+        sampler: SamplerSettings? = null,
         cb: OnDeviceEngine.Callbacks,
     ) {
+        val myToken = synchronized(this) { ++generationToken }
         scope.launch(Dispatchers.IO) {
             val file = store.modelFile(spec)
             if (!file.exists() || file.length() != spec.sizeBytes) {
                 onMain { cb.onError("Model dosyası eksik. Modeller sekmesinden indirin.") }
                 return@launch
             }
-            val alreadyLoaded = engine.loadedModelPath == file.absolutePath
+            // Y2 — DOĞRULANMAMIŞ dosya native motora VERİLMEZ.
+            // `exists() + length()` yetmiyordu: doğrulaması başarısız kalmış ya
+            // da hiç doğrulanmamış bir dosya da bu iki koşulu geçiyor ve bozuk
+            // .litertlm `Engine.initialize()`'a gidiyordu. Oradaki native çökme
+            // Kotlin tarafından yakalanamaz.
+            val diskState = store.diskState(spec)
+            if (diskState !is LocalModelDiskState.Installed || !diskState.verified) {
+                onMain {
+                    cb.onError(
+                        "Model dosyası doğrulanmadı; bozuk olabilir ve bu hâliyle " +
+                            "çalıştırılmaz. Modeller sekmesinden \"Doğrula\", " +
+                            "başarısız olursa yeniden indir.",
+                    )
+                }
+                return@launch
+            }
+            // Yol AYNI ama backend tercihi değiştiyse motor yeniden kurulur;
+            // "zaten yüklü" kararı ikisine birden bakmalı, yoksa gerçek bir
+            // yeniden yükleme metriklere 0 ms olarak yazılırdı.
+            val alreadyLoaded = engine.isLoadedWith(file.absolutePath, backend)
             if (!alreadyLoaded) {
                 onMain { engineState = LocalEngineUi.Loading(spec.displayName) }
             }
             val loadStart = System.currentTimeMillis()
-            val loaded = engine.ensureLoaded(file.absolutePath)
+            val loaded = engine.ensureLoaded(file.absolutePath, backend)
             val loadMs = if (alreadyLoaded) 0L else System.currentTimeMillis() - loadStart
             if (loaded.isFailure) {
                 val message = OnDeviceEngine.describeError(
@@ -254,7 +401,18 @@ class LocalLlmController(
                 }
                 return@launch
             }
-            onMain { engineState = LocalEngineUi.Ready(spec.displayName) }
+            // Y6 — model yüklenirken iptal edilmiş ya da yerine yeni bir istem
+            // gönderilmiş olabilir. Bu noktada SESSİZCE çekiliyoruz: kullanıcı
+            // zaten yeni bir yanıt bekliyor, eski isteği motora sokmak iki
+            // eşzamanlı üretim demek olurdu.
+            if (generationToken != myToken) return@launch
+
+            // Gerçekten hangi backend yüklendi — tahmin değil, ölçülen sonuç.
+            val loadedBackend = loaded.getOrDefault(ActiveBackend.NONE)
+            onMain {
+                activeBackend = loadedBackend
+                engineState = LocalEngineUi.Ready(spec.displayName)
+            }
             // Üretim hızı ölçümü: ilk token'dan onDone'a kadar geçen süre + karakter sayısı.
             var chars = 0
             var firstTokenMs = 0L
@@ -293,6 +451,7 @@ class LocalLlmController(
                 thinking = thinking,
                 tools = if (toolsEnabled) listOf(tool(toolBelt)) else emptyList(),
                 systemInstruction = persona,
+                sampler = sampler,
                 cb = object : OnDeviceEngine.Callbacks {
                     override fun onToken(text: String) {
                         if (delivered.get()) return
@@ -330,6 +489,9 @@ class LocalLlmController(
     }
 
     fun cancelGenerate() {
+        // Y6: jetonu artır — yükleme aşamasında bekleyen bir istek varsa
+        // `ensureLoaded`'dan döndüğünde kendini güncel olmayan bulup çekilir.
+        synchronized(this) { ++generationToken }
         activeWatchdog?.cancel()
         activeWatchdog = null
         engine.cancel()
@@ -341,10 +503,20 @@ class LocalLlmController(
     /** Hibrit yönlendirici için ısı durumu (SEVERE+). */
     fun thermalSevereNow(): Boolean = DeviceStatusReader.thermalSevere(app)
 
+    /**
+     * ViewModel temizlenirken çağrılır.
+     *
+     * K2: indirmeyi ARTIK İPTAL ETMİYOR — bütün mesele buydu. Eskiden burada
+     * `downloadHandles.values.forEach { it.cancel() }` vardı ve kullanıcı
+     * uygulamayı kapattığında 8,6 GB'lık indirme sessizce ölüyordu.
+     *
+     * Motor boşaltması bilinçli olarak `scope` DIŞINDA: AndroidX, ViewModel'in
+     * closeable'larını (yani viewModelScope'u) `onCleared()`'dan ÖNCE kapatıyor,
+     * dolayısıyla buradaki `scope.launch` hiç çalışmıyordu ve LiteRT motoru +
+     * GB'larca mmap'li model süreç ölene kadar bellekte kalıyordu (denetim L1).
+     */
     fun shutdown() {
-        downloadHandles.values.forEach { it.cancel() }
-        downloadHandles.clear()
-        scope.launch(Dispatchers.IO) { engine.unload() }
+        Thread { engine.unload() }.apply { isDaemon = true }.start()
     }
 
     /**
@@ -352,8 +524,8 @@ class LocalLlmController(
      * indirilen modeller. Modeller silinirse motor da boşaltılır.
      */
     fun wipeLocalData(includeModels: Boolean) {
-        downloadHandles.values.forEach { it.cancel() }
-        downloadHandles.clear()
+        // Burada iptal DOĞRU: kullanıcı açıkça yerel veriyi silmek istiyor.
+        LocalModelCatalog.entries.forEach { cancelDownload(it) }
         scope.launch(Dispatchers.IO) {
             noteStore.clear()
             metricsStore.clear()

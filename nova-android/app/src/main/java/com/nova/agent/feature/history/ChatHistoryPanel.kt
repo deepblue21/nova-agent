@@ -27,7 +27,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -120,6 +125,14 @@ private fun HistoryRow(
     onShare: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    /**
+     * Silme ONAYSIZ ve GERİ ALINAMAZDI, üstelik çöp kutusu ikonu paylaş
+     * ikonunun hemen bitişiğindeydi: yanlış dokunuş bir sohbeti kalıcı olarak
+     * yok ediyordu. Geri alma yok, çöp kutusu yok — tek koruma onaydır.
+     * Satır içi iki adım, telefonda diyalogdan hem hızlı hem daha az sürprizli.
+     */
+    var confirmingDelete by remember(summary.id) { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -156,17 +169,34 @@ private fun HistoryRow(
             )
         }
         Spacer(Modifier.width(4.dp))
-        IconButton(
-            onClick = onShare,
-            modifier = Modifier.semantics { contentDescription = "Sohbeti paylaş" },
-        ) {
-            Icon(Icons.Default.Share, contentDescription = null, tint = Muted, modifier = Modifier.size(20.dp))
-        }
-        IconButton(
-            onClick = onDelete,
-            modifier = Modifier.semantics { contentDescription = "Sohbeti sil" },
-        ) {
-            Icon(Icons.Default.Delete, contentDescription = null, tint = Coral, modifier = Modifier.size(20.dp))
+        if (confirmingDelete) {
+            TextButton(onClick = { confirmingDelete = false }) {
+                Text("Vazgeç", color = Muted, fontSize = 13.sp)
+            }
+            TextButton(
+                onClick = {
+                    confirmingDelete = false
+                    onDelete()
+                },
+                modifier = Modifier
+                    .semantics { contentDescription = "Silmeyi onayla" }
+                    .testTag("history_delete_confirm_${summary.id}"),
+            ) {
+                Text("Sil", color = Coral, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+        } else {
+            IconButton(
+                onClick = onShare,
+                modifier = Modifier.semantics { contentDescription = "Sohbeti paylaş" },
+            ) {
+                Icon(Icons.Default.Share, contentDescription = null, tint = Muted, modifier = Modifier.size(20.dp))
+            }
+            IconButton(
+                onClick = { confirmingDelete = true },
+                modifier = Modifier.semantics { contentDescription = "Sohbeti sil" },
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = null, tint = Coral, modifier = Modifier.size(20.dp))
+            }
         }
     }
 }

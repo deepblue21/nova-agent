@@ -24,6 +24,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nova.agent.data.AppSettings
+import com.nova.agent.data.UiMode
 import com.nova.agent.feature.settings.SettingsPanel
 import com.nova.agent.net.GatewayConnectionStatus
 import com.nova.agent.net.GatewayConnectionUiState
@@ -48,6 +49,7 @@ class SettingsPanelTest {
                     settings = AppSettings(
                         baseUrl = "http://10.0.2.2:8088/v1",
                         token = "secret",
+                        uiMode = UiMode.ADVANCED.id,
                     ),
                     connection = GatewayConnectionUiState(
                         GatewayConnectionStatus.UNKNOWN,
@@ -77,7 +79,7 @@ class SettingsPanelTest {
         composeRule.setContent {
             NovaTheme {
                 SettingsPanel(
-                    settings = AppSettings(token = "initial-secret"),
+                    settings = AppSettings(token = "initial-secret", uiMode = UiMode.ADVANCED.id),
                     connection = GatewayConnectionUiState(),
                     onTestConnection = { _, _ -> },
                     onSaveConnection = { baseUrl, token -> saved = baseUrl to token },
@@ -112,7 +114,7 @@ class SettingsPanelTest {
         composeRule.setContent {
             NovaTheme {
                 SettingsPanel(
-                    settings = AppSettings(reasoning = true),
+                    settings = AppSettings(reasoning = true, uiMode = UiMode.ADVANCED.id),
                     connection = GatewayConnectionUiState(),
                     onTestConnection = { _, _ -> },
                     onSaveConnection = { _, _ -> },
@@ -139,7 +141,7 @@ class SettingsPanelTest {
         composeRule.setContent {
             NovaTheme {
                 SettingsPanel(
-                    settings = AppSettings(themeId = "amethyst"),
+                    settings = AppSettings(themeId = "amethyst", uiMode = UiMode.ADVANCED.id),
                     connection = GatewayConnectionUiState(),
                     onTestConnection = { _, _ -> },
                     onSaveConnection = { _, _ -> },

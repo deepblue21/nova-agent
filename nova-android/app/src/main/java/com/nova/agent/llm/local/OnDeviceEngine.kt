@@ -10,6 +10,7 @@ import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.MessageCallback
+import com.google.ai.edge.litertlm.SamplerConfig
 import com.google.ai.edge.litertlm.ToolProvider
 import com.nova.agent.llm.ThinkingText
 
@@ -44,7 +45,13 @@ class OnDeviceEngine(private val appContext: Context) {
     private val lock = Any()
     private var engine: Engine? = null
     private var loadedPath: String? = null
+    private var loadedPreference: BackendPreference? = null
     private var activeConversation: Conversation? = null
+
+    /** Motorun gerçekten yüklendiği backend; tercih değil, ölçülen sonuç. */
+    @Volatile
+    var activeBackend: ActiveBackend = ActiveBackend.NONE
+        private set
 
     /**
      * Canlı konuşmanın gördüğü bağlamın normalize kopyası: ViewModel'in bir
@@ -54,6 +61,7 @@ class OnDeviceEngine(private val appContext: Context) {
     private val transcript = mutableListOf<Pair<String, String>>()
     private var sessionSystem: String = ""
     private var sessionHasTools: Boolean = false
+    private var sessionSampler: SamplerSettings? = null
     private var sessionBroken = true
 
     @Volatile
@@ -62,29 +70,84 @@ class OnDeviceEngine(private val appContext: Context) {
     val isLoaded: Boolean get() = synchronized(lock) { engine != null }
     val loadedModelPath: String? get() = synchronized(lock) { loadedPath }
 
-    /** Bloklayıcı; yalnız arka plan dispatcher'ında çağır. */
-    fun ensureLoaded(modelPath: String): kotlin.Result<Unit> {
+    /**
+     * `ensureLoaded` bu çağrıyı yeniden yükleme yapmadan karşılar mı.
+     *
+     * Yol aynı olsa bile **tercih değiştiyse motor yeniden kurulur**; çağıran
+     * taraf yükleme süresini bu yüzden yalnız yola bakarak 0 sayamaz, yoksa
+     * Modeller ekranındaki yükleme metriği yalan söylerdi.
+     */
+    fun isLoadedWith(modelPath: String, preference: BackendPreference): Boolean =
         synchronized(lock) {
-            if (engine != null && loadedPath == modelPath) return kotlin.Result.success(Unit)
+            engine != null && loadedPath == modelPath && loadedPreference == preference
         }
+
+    /**
+     * Modeli [preference] hızlandırmasıyla yükler ve gerçekten kullanılan
+     * backend'i döndürür.
+     *
+     * Tercih Otomatik ise plan sırayla denenir (GPU → CPU): GPU sürücüsü olmayan
+     * cihazlarda `Engine.initialize()` atar, bu yakalanır ve CPU denenir. Kullanıcı
+     * bir backend'i AÇIKÇA seçtiyse plan tek elemanlıdır — sessizce başka bir
+     * backend'e düşülmez, hata dürüstçe yukarı verilir.
+     *
+     * Bloklayıcı (initialize saniyeler sürebilir); yalnız arka plan
+     * dispatcher'ında çağır.
+     */
+    fun ensureLoaded(
+        modelPath: String,
+        preference: BackendPreference = BackendPreference.AUTO,
+    ): kotlin.Result<ActiveBackend> {
+        // Aynı model + aynı tercih zaten yüklüyse yeniden kurma.
+        if (isLoadedWith(modelPath, preference)) return kotlin.Result.success(activeBackend)
         unload()
-        return try {
-            val config = EngineConfig(
-                modelPath = modelPath,
-                backend = Backend.CPU(),
-                cacheDir = appContext.cacheDir.absolutePath,
-            )
-            val created = Engine(config)
-            created.initialize()
+
+        var lastError: Throwable? = null
+        for (candidate in BackendPlan.attempts(preference)) {
+            var attempt: Engine? = null
+            val created = try {
+                attempt = Engine(
+                    EngineConfig(
+                        modelPath = modelPath,
+                        backend = nativeBackend(candidate),
+                        // Yazılabilir önbellek 2. yüklemeyi belirgin hızlandırır.
+                        cacheDir = appContext.cacheDir.absolutePath,
+                    ),
+                )
+                attempt.initialize()
+                attempt
+            } catch (t: Throwable) {
+                lastError = t
+                // Yarım kalan motoru kapat: initialize() attıysa nesne zaten
+                // kurulmuştu ve GPU bağlamını tutuyor olabilir. Kapatmadan
+                // sonraki backend'i denemek sızıntı bırakırdı.
+                if (attempt != null) runCatching { attempt.close() }
+                continue
+            }
             synchronized(lock) {
                 engine = created
                 loadedPath = modelPath
+                loadedPreference = preference
+                activeBackend = candidate
             }
-            kotlin.Result.success(Unit)
-        } catch (t: Throwable) {
-            unload()
-            kotlin.Result.failure(t)
+            return kotlin.Result.success(candidate)
         }
+
+        unload()
+        val cause = describeError(lastError ?: RuntimeException("Yerel motor hatası"))
+        return kotlin.Result.failure(
+            BackendLoadException(BackendPlan.failureMessage(preference, cause), lastError),
+        )
+    }
+
+    /** Saf [ActiveBackend] seçimini LiteRT-LM tipine çevirir. Tek çeviri noktası. */
+    private fun nativeBackend(target: ActiveBackend): Backend = when (target) {
+        ActiveBackend.GPU -> Backend.GPU()
+        ActiveBackend.NPU -> Backend.NPU(
+            nativeLibraryDir = appContext.applicationInfo.nativeLibraryDir,
+        )
+        // NONE buraya BackendPlan üzerinden hiç gelmez; gelirse en uyumlu yol.
+        ActiveBackend.CPU, ActiveBackend.NONE -> Backend.CPU()
     }
 
     /**
@@ -100,6 +163,8 @@ class OnDeviceEngine(private val appContext: Context) {
         thinking: Boolean,
         tools: List<ToolProvider> = emptyList(),
         systemInstruction: String = "",
+        /** null = motora samplerConfig verilme; model kendi varsayılanıyla çalışsın. */
+        sampler: SamplerSettings? = null,
         cb: Callbacks,
     ) {
         val current = synchronized(lock) { engine }
@@ -113,7 +178,8 @@ class OnDeviceEngine(private val appContext: Context) {
         val cleanHistory = history.filter { (_, content) -> content.isNotBlank() }
 
         try {
-            val conversation = obtainConversation(current, cleanHistory, system, wantTools, tools)
+            val conversation =
+                obtainConversation(current, cleanHistory, system, wantTools, tools, sampler)
             val raw = StringBuilder()
 
             conversation.sendMessageAsync(
@@ -166,12 +232,17 @@ class OnDeviceEngine(private val appContext: Context) {
         system: String,
         wantTools: Boolean,
         tools: List<ToolProvider>,
+        sampler: SamplerSettings?,
     ): Conversation {
         val reusable = synchronized(lock) {
             if (!sessionBroken &&
                 activeConversation != null &&
                 sessionSystem == system &&
                 sessionHasTools == wantTools &&
+                // Örnekleme ayarı konuşma kurulurken sabitlenir; değiştiyse
+                // KV önbelleğini korumak yerine taze konuşma kurmak gerekir,
+                // yoksa kullanıcı ayarı değiştirir ve hiçbir şey değişmez.
+                sessionSampler == sampler &&
                 transcript == cleanHistory
             ) {
                 activeConversation
@@ -182,21 +253,38 @@ class OnDeviceEngine(private val appContext: Context) {
         if (reusable != null) return reusable
 
         closeActiveConversation()
-        val fresh = current.createConversation(
+        val instruction = system.takeIf { it.isNotEmpty() }?.let { Contents.of(it) }
+        val initial = cleanHistory.map { (role, content) ->
+            if (role == "user") Message.user(content) else Message.model(content)
+        }
+        // sampler null iken samplerConfig parametresi HİÇ verilmez: kütüphanenin
+        // kendi varsayılanı korunur ve bugünkü davranış birebir aynı kalır.
+        val config = if (sampler == null) {
             ConversationConfig(
-                systemInstruction = system.takeIf { it.isNotEmpty() }?.let { Contents.of(it) },
-                initialMessages = cleanHistory.map { (role, content) ->
-                    if (role == "user") Message.user(content) else Message.model(content)
-                },
+                systemInstruction = instruction,
+                initialMessages = initial,
                 tools = tools,
-            ),
-        )
+            )
+        } else {
+            ConversationConfig(
+                systemInstruction = instruction,
+                initialMessages = initial,
+                tools = tools,
+                samplerConfig = SamplerConfig(
+                    topK = sampler.topK,
+                    topP = sampler.topP,
+                    temperature = sampler.temperature,
+                ),
+            )
+        }
+        val fresh = current.createConversation(config)
         synchronized(lock) {
             activeConversation = fresh
             transcript.clear()
             transcript.addAll(cleanHistory)
             sessionSystem = system
             sessionHasTools = wantTools
+            sessionSampler = sampler
             sessionBroken = false
         }
         return fresh
@@ -222,6 +310,9 @@ class OnDeviceEngine(private val appContext: Context) {
             val e = engine
             engine = null
             loadedPath = null
+            loadedPreference = null
+            activeBackend = ActiveBackend.NONE
+            sessionSampler = null
             e
         }
         if (old != null) runCatching { old.close() }
@@ -257,6 +348,8 @@ class OnDeviceEngine(private val appContext: Context) {
         }
 
         fun describeError(t: Throwable): String = when (t) {
+            // Zaten hangi backend'in denendiğini ve ne yapılacağını anlatıyor.
+            is BackendLoadException -> t.message ?: "Yerel motor hatası"
             is UnsatisfiedLinkError ->
                 "Bu cihaz mimarisi yerel motoru desteklemiyor (ARM64 telefon gerekir)."
             is OutOfMemoryError ->
@@ -265,3 +358,9 @@ class OnDeviceEngine(private val appContext: Context) {
         }
     }
 }
+
+/**
+ * Planlanan tüm backend'ler denendi ve hiçbiri yüklenemedi. Mesaj kullanıcıya
+ * ne yapacağını söyler; ham native hata [cause] içinde korunur.
+ */
+class BackendLoadException(message: String, cause: Throwable?) : Exception(message, cause)

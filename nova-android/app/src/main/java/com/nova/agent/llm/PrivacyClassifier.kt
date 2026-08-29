@@ -29,6 +29,18 @@ object PrivacyClassifier {
     // 11 haneli TCKN adayı (kelime sınırıyla).
     private val tcknLike = Regex("(?<!\\d)\\d{11}(?!\\d)")
 
+    /**
+     * Dışarı çıkacak KONUŞMANIN TAMAMINI sınıflandırır (G2).
+     *
+     * Neden gerekli: istek gövdesi tek bir istemi değil, mesaj listesinin
+     * TAMAMINI taşır (bkz. NovaClient.complete). Yalnız son mesaja bakmak
+     * şu sızıntıya izin veriyordu: 1. turda kart numarası yazılır ve gizlilik
+     * kuralıyla telefonda kalır; 3. turda masum ama uzun bir istem uzunluk
+     * kuralıyla PC'ye gider ve **kart numarasını içeren 1. tur da onunla
+     * birlikte dışarı çıkar**. Karar artık gönderilecek şeyin tamamına bakar.
+     */
+    fun isAnySensitive(texts: List<String>): Boolean = texts.any { isSensitive(it) }
+
     fun isSensitive(text: String): Boolean {
         if (text.isBlank()) return false
         val lower = text.lowercase()

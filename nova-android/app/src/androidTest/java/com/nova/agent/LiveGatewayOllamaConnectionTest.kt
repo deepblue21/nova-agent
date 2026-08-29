@@ -35,7 +35,7 @@ class LiveGatewayOllamaConnectionTest {
         get() = instrumentationArgs.getString("liveGatewayBaseUrl")
             ?.trim()
             ?.takeIf { it.isNotEmpty() }
-            ?: "http://10.0.2.2:8088/v1"
+            ?: "http://10.0.2.2:18088/v1"
 
     private val token: String
         get() = instrumentationArgs.getString("liveGatewayToken").orEmpty().trim()
@@ -53,7 +53,7 @@ class LiveGatewayOllamaConnectionTest {
         }
 
         assertTrue(
-            "Gateway 15 sn icinde yanit vermedi — 10.0.2.2:8088 acik mi? (docker compose / start-horus)",
+            "Gateway 15 sn icinde yanit vermedi — 10.0.2.2:18088 acik mi? (docker compose / start-horus)",
             latch.await(15, TimeUnit.SECONDS),
         )
         val r = result

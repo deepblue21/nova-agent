@@ -2,6 +2,7 @@ package com.nova.agent.net
 
 import com.nova.agent.data.GatewayCatalog
 import com.nova.agent.data.ModelOption
+import com.nova.agent.util.str
 import java.io.IOException
 import java.net.ConnectException
 import java.net.NoRouteToHostException
@@ -24,7 +25,36 @@ data class GatewayConnectionUiState(
     val message: String = "Bağlantı henüz test edilmedi",
     /** Nedene özel çözüm önerisi; boşsa gösterilmez. */
     val hint: String = "",
-)
+) {
+    companion object {
+        /**
+         * Açılışta bağlantı sondası atılmalı mı — **saf**, testli.
+         *
+         * Yalnız `baseUrl`e bakmak yetmez: eskiden varsayılan adres dolu
+         * (`10.0.2.2:8088`) olduğu için **her temiz kurulum** açılışta sonda
+         * atıp "Bağlantı reddedildi" gösteriyordu. Yani kullanıcı, hiç
+         * kurmadığı bir bağlantı için ilk ekranda hata görüyordu. Adres artık
+         * boş geliyor (B5), ama kural belirteçte kalıyor: eşlemeden bir adres
+         * gelse bile belirteç yoksa sonda atmanın anlamı yok.
+         *
+         * Gerçek bir Gateway bağlantısı `Bearer nv_…` belirteci ister; belirteç
+         * yoksa bağlantı kurulmamış demektir ve sonda atmanın anlamı yoktur.
+         */
+        fun shouldProbeOnStart(baseUrl: String, token: String): Boolean =
+            baseUrl.isNotBlank() && token.isNotBlank()
+
+        /**
+         * Henüz PC bağlantısı kurmamış kullanıcının gördüğü nötr durum.
+         * Hata değil, bilgi: bu adım çevrimdışı kullanım için gerekmiyor.
+         */
+        fun notConfigured(): GatewayConnectionUiState = GatewayConnectionUiState(
+            status = GatewayConnectionStatus.UNKNOWN,
+            message = "PC bağlantısı kurulmadı",
+            hint = "Telefonda çevrimdışı model kullanmak için gerekmez. " +
+                "PC'ye bağlanmak istersen Ayarlar > PC bağlantısı.",
+        )
+    }
+}
 
 sealed interface GatewayConnectionResult {
     data object Ready : GatewayConnectionResult
@@ -113,14 +143,14 @@ class GatewayConnectionClient(
                     "ve ekranda yazan adresi birebir gir."
             e is UnknownHostException || e.cause is UnknownHostException ->
                 "Adres çözülemedi" to
-                    "Sunucu adı bulunamadı. IP adresini (ör. http://192.168.1.20:8088/v1) " +
+                    "Sunucu adı bulunamadı. IP adresini (ör. http://192.168.1.20:18088/v1) " +
                     "PC'de start-horus çıktısından kopyala."
             e is NoRouteToHostException || e.cause is NoRouteToHostException ->
                 "Ağ rotası yok: bu adrese giden yol bulunamadı" to
                     "Telefon farklı bir ağda olabilir (mobil veri?). Wi-Fi'ye geç veya Tailscale kullan."
             e is SSLException || e.cause is SSLException ->
                 "Güvenli bağlantı (TLS) kurulamadı" to
-                    "Yerel ağda https yerine http kullan (ör. http://192.168.1.20:8088/v1). " +
+                    "Yerel ağda https yerine http kullan (ör. http://192.168.1.20:18088/v1). " +
                     "Alan adı + gerçek sertifika varsa https kalabilir."
             else ->
                 "PC Gateway'e ulaşılamadı" to
@@ -140,18 +170,18 @@ class GatewayConnectionClient(
                 val models = buildList {
                     for (i in 0 until arr.length()) {
                         val o = arr.optJSONObject(i) ?: continue
-                        val id = o.optString("id").takeIf { it.isNotBlank() } ?: continue
+                        val id = o.str("id").takeIf { it.isNotBlank() } ?: continue
                         add(
                             ModelOption(
                                 id = id,
-                                name = o.optString("name").ifBlank { id },
+                                name = o.str("name").ifBlank { id },
                                 model = id,
-                                group = o.optString("group").ifBlank { "Diğer" },
-                                desc = o.optString("desc"),
+                                group = o.str("group").ifBlank { "Diğer" },
+                                desc = o.str("desc"),
                                 available = o.optBoolean("available", true),
-                                reason = o.optString("reason"),
+                                reason = o.str("reason"),
                                 tools = o.optBoolean("tools", false),
-                                toolsSource = o.optString("toolsSource"),
+                                toolsSource = o.str("toolsSource"),
                             ),
                         )
                     }
@@ -160,15 +190,35 @@ class GatewayConnectionClient(
                 val ollama = root.optJSONObject("ollama")
                 GatewayCatalog(
                     models = models,
-                    defaultModelId = root.optString("defaultModel").takeIf { it.isNotBlank() },
+                    defaultModelId = root.str("defaultModel").takeIf { it.isNotBlank() },
                     ollamaOk = ollama?.optBoolean("ok", true) ?: true,
-                    ollamaError = ollama?.optString("error")?.takeIf { it.isNotBlank() },
+                    ollamaError = ollama?.str("error")?.takeIf { it.isNotBlank() },
                 )
             } catch (_: Exception) {
                 null
             }
         }
 
+        /**
+         * Gateway adresini kanonik hâle getirir — ve **ağ politikasını uygular** (Y1).
+         *
+         * Bu fonksiyon uygulamadaki TEK boğaz noktasıdır: `NovaClient.stream`,
+         * `MobileTaskClient.request`, `test()` ve `modelsUrl()` hepsi buradan
+         * geçer. Politikayı buraya koymak, tek tek çağrı noktalarını
+         * güncellemeye göre daha güvenli: yarın eklenecek yeni bir istemci de
+         * kendiliğinden kapsanır.
+         *
+         * Eskiden `NetworkPolicy` YALNIZ `PairingClient`te çağrılıyordu.
+         * Manifestteki `usesCleartextTraffic="true"` yorumu "gerçek kontrol
+         * kodda, NetworkPolicy genel bir IP'ye http'yi engeller" diyordu ama bu
+         * güvence eşleme dışında hiçbir yerde geçerli değildi: Gelişmiş modda
+         * elle `http://<genel-ip>/v1` + belirteç girilince `Bearer nv_…`
+         * başlığı açık internete ŞİFRESİZ gidiyordu. Testler yeşil kalıyordu
+         * çünkü saf fonksiyonu test ediyorlardı, çağrılıp çağrılmadığını değil.
+         *
+         * https her zaman serbest; kısıtlanan yalnız şifresiz http'nin yerel
+         * olmayan bir adrese gitmesi.
+         */
         fun canonicalBaseUrl(baseUrl: String): HttpUrl? {
             val parsed = baseUrl.trim().toHttpUrlOrNull() ?: return null
             if (parsed.scheme !in setOf("http", "https")) return null
@@ -176,7 +226,11 @@ class GatewayConnectionClient(
             if (parsed.query != null || parsed.fragment != null) return null
             val segments = parsed.pathSegments.filter { it.isNotBlank() }
             if (segments.isNotEmpty() && segments != listOf("v1")) return null
-            return parsed.newBuilder().encodedPath("/v1").build()
+            val canonical = parsed.newBuilder().encodedPath("/v1").build()
+            // Politika, OkHttp'nin ÇÖZDÜĞÜ host üzerinden uygulanır; kendi
+            // dizge ayrıştırmamıza değil, gerçekte bağlanılacak adrese bakar.
+            if (!NetworkPolicy.allowsHost(canonical.scheme, canonical.host)) return null
+            return canonical
         }
 
         fun modelsUrl(baseUrl: String): HttpUrl? {

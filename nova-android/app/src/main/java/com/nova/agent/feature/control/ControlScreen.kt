@@ -37,10 +37,12 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nova.agent.data.FirstRunGuide
 import com.nova.agent.feature.tasks.MobileTask
 import com.nova.agent.feature.tasks.MobileTaskStatus
 import com.nova.agent.feature.tasks.userLabel
@@ -76,6 +78,12 @@ fun ControlScreen(
     onNewTask: () -> Unit,
     onOpenChat: () -> Unit,
     onOpenModels: () -> Unit,
+    /** Hiç model kurulu değil mi (aktif model değil, KATALOGUN tamamı). */
+    anyModelInstalled: Boolean = true,
+    firstRunGuideDismissed: Boolean = true,
+    recommendedName: String = "",
+    recommendedSize: String = "",
+    onDismissFirstRunGuide: () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -84,6 +92,18 @@ fun ControlScreen(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        // Yeni kullanıcı, varsayılan politika PC olduğu için uygulamanın
+        // manşet özelliğinden (telefonda çevrimdışı LLM) haberdar olmuyordu.
+        // Kart yolu TIKAMAZ: yalnız PC'ye bağlanmak isteyen "şimdilik atla" der.
+        if (FirstRunGuide.shouldShow(anyModelInstalled, firstRunGuideDismissed)) {
+            FirstRunCard(
+                recommendedName = recommendedName,
+                recommendedSize = recommendedSize,
+                onOpenModels = onOpenModels,
+                onDismiss = onDismissFirstRunGuide,
+            )
+        }
+
         SectionLabel("YÜRÜTME POLİTİKASI")
         PolicyPicker(policy, onPolicyChange)
 
@@ -108,9 +128,66 @@ fun ControlScreen(
     }
 }
 
+/**
+ * İlk açılış yönlendirme kartı. Metinler [FirstRunGuide] içinde (saf/testli);
+ * burada yalnız çizim var.
+ */
+@Composable
+private fun FirstRunCard(
+    recommendedName: String,
+    recommendedSize: String,
+    onOpenModels: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Surface1)
+            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+            .padding(16.dp)
+            .testTag("first_run_card"),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            FirstRunGuide.TITLE,
+            color = TextMain,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            FirstRunGuide.body(recommendedName, recommendedSize),
+            color = Muted,
+            fontSize = 12.sp,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = onOpenModels,
+                modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("first_run_open"),
+            ) {
+                Text(FirstRunGuide.PRIMARY_ACTION)
+            }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("first_run_dismiss"),
+            ) {
+                Text(FirstRunGuide.DISMISS_ACTION, color = Muted)
+            }
+        }
+    }
+}
+
 @Composable
 private fun SectionLabel(text: String) {
-    Text(text, color = Muted2, fontSize = 11.sp, letterSpacing = 1.2.sp)
+    // heading(): TalkBack kullanıcısı bölümler arasında tek hareketle
+    // gezinebilsin. Görsel olarak hiçbir şey değişmez.
+    Text(
+        text,
+        color = Muted2,
+        fontSize = 11.sp,
+        letterSpacing = 1.2.sp,
+        modifier = Modifier.semantics { heading() },
+    )
 }
 
 @Composable

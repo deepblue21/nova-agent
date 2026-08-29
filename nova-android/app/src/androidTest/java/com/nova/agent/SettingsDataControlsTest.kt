@@ -14,6 +14,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import com.nova.agent.data.AppSettings
+import com.nova.agent.data.UiMode
 import com.nova.agent.data.ModelOption
 import com.nova.agent.feature.settings.SettingsPanel
 import com.nova.agent.net.GatewayConnectionUiState
@@ -35,7 +36,7 @@ class SettingsDataControlsTest {
     val composeRule = createComposeRule()
 
     private fun panel(
-        settings: AppSettings = AppSettings(),
+        settings: AppSettings = AppSettings(uiMode = UiMode.ADVANCED.id),
         models: List<ModelOption> = com.nova.agent.data.FALLBACK_MODELS,
         modelsLive: Boolean = false,
         modelsNote: String = "",
@@ -92,7 +93,7 @@ class SettingsDataControlsTest {
 
     @Test
     fun personaSurvivesAsPlainTextBecauseItIsNotASecret() {
-        panel(settings = AppSettings(persona = "Türkçe konuş"))
+        panel(settings = AppSettings(persona = "Türkçe konuş", uiMode = UiMode.ADVANCED.id))
 
         composeRule.onNodeWithTag("persona").performScrollTo().assertIsDisplayed()
         composeRule.onAllNodesWithText("Türkçe konuş", useUnmergedTree = true)
@@ -189,7 +190,10 @@ class SettingsDataControlsTest {
     @Test
     fun modelDropdownShowsSelectionAndRoutesChange() {
         var chosen: String? = null
-        panel(settings = AppSettings(modelId = "auto"), onModelChange = { chosen = it })
+        panel(
+            settings = AppSettings(modelId = "auto", uiMode = UiMode.ADVANCED.id),
+            onModelChange = { chosen = it },
+        )
 
         composeRule.onNodeWithTag("model_dropdown")
             .performScrollTo()

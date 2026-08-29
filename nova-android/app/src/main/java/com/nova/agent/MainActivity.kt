@@ -2,10 +2,13 @@ package com.nova.agent
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
@@ -21,6 +24,18 @@ class MainActivity : ComponentActivity() {
     private val taskVm: MobileTaskViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // targetSdk 36'dan itibaren kenardan kenara çizim ZORUNLU; devre dışı
+        // bırakma seçeneği (windowOptOutEdgeToEdgeEnforcement) kaldırıldı ve
+        // themes.xml'deki statusBarColor/navigationBarColor yok sayılıyor.
+        // Bunu açıkça çağırmak sistem çubuğu ikonlarının kontrastını bizim
+        // belirlememizi sağlar: NOVA'nın yüzeyi koyu, dolayısıyla ikonlar açık.
+        // Inset'ler ekran tarafında karşılanıyor (NovaAppShell'de
+        // statusBarsPadding, Material3 NavigationBar'ın kendi navigationBars
+        // inset'i, sohbet girişinde imePadding).
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+        )
         super.onCreate(savedInstanceState)
         setContent {
             NovaTheme(themeId = vm.settings.themeId) {

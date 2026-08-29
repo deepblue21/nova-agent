@@ -1,16 +1,17 @@
 # Project Horus — Yol Haritası
 
-Tarih: 2026-07-16 (güncellendi 2026-07-17) · Dal: `codex/phase1-local-first`
+Tarih: 2026-07-16 (güncellendi 2026-08-09) · Dal: `codex/phase1-local-first`
 
 ## Tamamlanan fazlar (özet)
 
-Faz 1–8 kod olarak tamamlandı; **151 birim + 101 enstrümanlı test** yazıldı.
+Faz 1–9 ve 10A kod olarak tamamlandı; **288 birim + 122 enstrümanlı test** yazıldı.
 Detaylar aşağıdaki bölümlerde.
 
-> ⚠️ **Android derleme durumu:** Son `BUILD SUCCESSFUL` kaydı, ajan/araç
-> entegrasyonu ve Pulse Aperture ikon değişikliklerinden **önceye** ait.
-> O değişikliklerden sonra `./gradlew testDebugUnitTest assembleDebug`
-> henüz çalıştırılmadı — doğrulanana kadar "derleniyor" varsayma.
+**Android derleme durumu:** ✅ **2026-08-10'da emülatörde doğrulandı** —
+Pixel 10 Pro XL (API 37) üzerinde derlendi, kuruldu ve çalıştı. LiteRT-LM 0.14.0
+yükseltmesi, compileSdk 37 geçişi, Faz 9/10A/10D kodu ve 18 modellik katalog
+derleyiciden geçti. Kalan: **fiziksel ARM64 cihazda** cihaz-üstü üretim
+(Otomatik/CPU/GPU tok/sn) ve eşlemenin gerçek Wi-Fi'de multicast ile çalışması.
 
 | Faz | Kapsam | Durum |
 |-----|--------|-------|
@@ -22,8 +23,11 @@ Detaylar aşağıdaki bölümlerde.
 | 6 | Çevrimdışı ses (cihaz-üstü STT tercihi) | ✅ |
 | 7 | Veri yönetimi (dışa aktar/paylaş, yerel veriyi temizle) | ✅ |
 | 8 | Persona (sistem talimatı) + indirme öncesi yer kontrolü | ✅ |
+| 9 | Basit/Gelişmiş arayüz modu + backend (GPU/NPU) ve örnekleme ayarları | ✅ |
+| 10A | VPN'siz LAN bağlantısı: mDNS keşfi + kod/bağlantı ile eşleme | ✅ |
 
-Kalan tek şey: fiziksel ARM64 cihazda uçtan uca doğrulama (kullanıcı turu).
+Kalan: fiziksel ARM64 cihazda uçtan uca doğrulama — cihaz-üstü üretim (Otomatik/CPU/GPU)
+ve eşlemenin gerçek Wi-Fi'de multicast ile çalışması (kullanıcı turu).
 
 ## Ana hedef
 
@@ -43,7 +47,7 @@ Telefonda **çevrimdışı çalışan agentic bir yapay zeka** + PC'deki LLM iş
 
 ## Doğrulanmış teknik kararlar (2026-07-16)
 
-- Cihaz-üstü motor: **LiteRT-LM Kotlin API** — `com.google.ai.edge.litertlm:litertlm-android:0.13.1` (Google Maven; Engine/EngineConfig/Conversation, `sendMessageAsync` + `MessageCallback`, `Backend.CPU()`).
+- Cihaz-üstü motor: **LiteRT-LM Kotlin API** — `com.google.ai.edge.litertlm:litertlm-android` (Google Maven; Engine/EngineConfig/Conversation, `sendMessageAsync` + `MessageCallback`). Faz 1'de 0.13.1 ve `Backend.CPU()` sabitiyle başlandı; **Faz 9'da 0.14.0'a yükseltilip backend seçilebilir yapıldı** (Otomatik/CPU/GPU/NPU).
 - Referans model: **litert-community/Qwen3-0.6B** @ revizyon `3adacb36657dbe0119addf143782ed973c680716` (apache-2.0):
   - `qwen3_0_6b_mixed_int4.litertlm` — 497.664.000 B — SHA-256 `b1baab462f6be49d70eada79d715c2c52cd9ece0cad00bddf6a2c097d23498e9`
   - `Qwen3-0.6B.litertlm` — 614.236.160 B — SHA-256 `555579ff2f4fd13379abe69c1c3ab5200f7338bc92471557f1d6614a6e5ab0b4`
@@ -202,20 +206,230 @@ Faz 1-8 çekirdek teslimatları **kod olarak tamamlandı ve derleme yeşil**: `t
 (Kotlin 2.2.21 yükseltmesi, eksik import'lar, `setHistoryQuery` JVM setter çakışması, bozuk-JSON
 nazik ele alma). Kalan tek adım fiziksel ARM64 cihazda uçtan uca doğrulama.
 
-## Gelecek yol haritası (Faz 9+)
+## Faz 9 — Çevrimdışı optimizasyon + Basit/Gelişmiş mod (2026-08-09)
 
-**Faz 9 — Görev devri derinleştirme (telefon ↔ PC).** Telefonda başlayan işin PC'de sürmesi;
+Amaç: uygulamayı "ilk kez açan biri" için çalışır kılmak. İki ayrı iş yapıldı;
+ikisi de **davranışı değiştirmeden** yapıldı.
+
+### D1 — Arayüz yoğunluğu: Basit / Gelişmiş
+
+- `data/UiMode.kt` (saf): `UiMode` + `SettingsSection` tablosu. Hangi bölümün
+  hangi modda görüneceği **tek yerde** tanımlı; ekranlar kendi içinde "bunu da
+  gizle" mantığı yazmaz.
+- **Yalnız görünürlük değişir.** Gizlenen bir ayarın değeri silinmez,
+  sıfırlanmaz, varsayılana çekilmez — kayıtlı değeriyle çalışmaya devam eder.
+  `UiModeTest` bunu bölüm bölüm kilitler.
+- **Göç:** temiz kurulum Basit'te başlar, **mevcut kurulum Gelişmiş'te kalır**.
+  Zaten ayar yapmış birinin kontrollerinin güncelleme sonrası kaybolması bir
+  regresyondur. Karar `initialUiModeFor` içinde saf ve testli; `SettingsStore.load`
+  "temiz kurulum mu" sorusunu hiçbir göç yazmadan **önce** yanıtlar.
+- Basit modda gizlenen: elle Base URL/belirteç, Gateway model seçici, çaba
+  düzeyi + akıl yürütme, kişilik, HF belirteci, cihaz motoru ayarları.
+  Basit modda **korunan**: bağlantı durumu + test, tema, **veri temizleme**,
+  sürüm bilgisi. Gizlilik ve veri kontrolleri sadeleştirme adına kaldırılmaz.
+- Modeller ekranında kapılı modeller Basit modda listelenmez (indirmeleri
+  yalnız Gelişmiş'te görünen HF belirtecine bağlı — gösterilseler çıkmaz sokak
+  olurdu). Kullanıcı zaten indirmiş ya da seçmişse satır **gizlenmez**.
+
+### D2 — Cihaz-üstü motor: hızlandırma ve örnekleme
+
+- **LiteRT-LM 0.13.1 → 0.14.0.** Tek gerekçe hızlandırma; kullanılan API yüzeyi
+  aynı kaldı.
+- **`Backend.CPU()` artık çakılı değil.** `BackendPreference` (Otomatik/CPU/GPU/
+  NPU) eklendi. Otomatik = önce GPU, olmazsa CPU. **Kullanıcı açıkça bir backend
+  seçtiyse sessizce başkasına düşülmez** — sessiz devir yasağının motor
+  tarafındaki karşılığı. Yüklenemeyen backend, ne yapılacağını söyleyen bir
+  hatayla döner.
+- Arayüz **tercihi değil, ölçülen sonucu** yazar: "Şu an çalışan: GPU".
+  Otomatik seçiliyken gerçekte ne olduğunu görmenin tek dürüst yolu bu.
+- Başarısız denemede yarım kalan `Engine` kapatılır; GPU bağlamı sızmaz.
+- **Örnekleme (`SamplerConfig`) ilk kez bağlandı.** Hazır ayarlar:
+  Model varsayılanı / Kesin / Dengeli / Yaratıcı / Elle.
+  **Varsayılan "Model varsayılanı"dır ve motora hiçbir sampler değeri
+  göndermez** — yani bu sürüm kimsenin yanıtlarını kendiliğinden değiştirmez.
+  Elle değerler diske yazılmadan önce de sonra da kırpılır.
+- Örnekleme değişince konuşma taze kurulur (KV önbelleği korunsa ayar hiç
+  uygulanmazdı). Kaydırıcılar sürüklerken yerel durumda kalır, diske yalnız
+  parmak kalkınca yazılır.
+
+**Testler:** `UiModeTest`, `LocalEngineSettingsTest`, `AppSettingsEngineTest`
+(JVM) + `SettingsUiModeTest` (enstrümanlı). Mevcut enstrümanlı ayar testleri
+artık modu açıkça `ADVANCED` veriyor.
+
+**Kullanıcıda kalan doğrulama:** fiziksel ARM64 cihazda `assembleDebug` sonrası
+Otomatik / CPU / GPU üçünün de denenmesi ve tok/sn farkının Modeller
+ekranındaki metrikten okunması.
+
+## Faz 10A — VPN'siz LAN bağlantısı: eşleme arayüze bağlandı (2026-08-09)
+
+Analiz ve seçenek matrisi `docs/BAGLANTI-ANALIZI.md`'de. Faz A'nın çekirdek kodu
+(mDNS yayını, eşleme kodu, takas ucu, Kotlin ayrıştırıcılar) daha önce yazılmış
+ve testlenmişti; **eksik olan tek şey arayüze bağlanmasıydı**. Bu turda bağlandı.
+
+- `feature/pairing/PairingUiState.kt` (saf): durum + `PairingForm` kuralları —
+  ne zaman gönderilebilir, liste boşken ne yazar, seçim nasıl uzlaştırılır.
+- `feature/pairing/PairingController.kt`: `NsdGatewayDiscovery` + `PairingClient`
+  kabuğu. Panel açılınca tarar, kapanınca durdurur (mDNS taraması pil harcar).
+- Ayarlar > PC bağlantısı: bulunan PC listesi + 8 karakterlik kod alanı.
+  **Eşleme her iki modda da görünür**; elle adres/belirteç Gelişmiş'te *yedek*
+  olarak kalır. Kullanıcı hiçbir yere IP ya da anahtar yazmıyor.
+
+**Korunan güvenceler:**
+
+- Takastan dönen `nv_` anahtarı **state'te tutulmaz, loglanmaz**; doğrudan
+  mevcut `saveConnection` yoluna verilir — kaydetme/doğrulama davranışı elle
+  girişle birebir aynı.
+- Tek kullanımlık kod, takas sürerken ikinci kez gönderilemez (aksi halde
+  ikinci istek 410 döner ve kullanıcı başarılı denemesinin başarısız olduğunu
+  sanardı).
+- Hiçbir şey bulunamazsa sonsuza kadar "aranıyor…" gösterilmez: nedeni
+  (AP izolasyonu / farklı ağ) ve elle çıkış yolu yazılır. NSD yoksa ya da
+  başlatılamazsa akış kapanır ve tarama bitmiş sayılır.
+- 8 karakter yazılmış ama alfabede olmayan karakter varsa (Crockford Base32'de
+  U yoktur) buton pasif kalırken **sebebi yazılır**.
+
+**Testler:** `PairingFormTest` (JVM) + `PairingSectionTest` (enstrümanlı).
+
+**Yapıştırılan eşleme bağlantısı (aynı turda eklendi).** Kod alanı iki şeyi
+birden kabul eder: 8 karakterlik kod ya da QR'ın içerdiği tam
+`horus://pair?v=1&code=…&host=…&port=…` bağlantısı. İkincisi adresi de
+taşıdığı için **keşif hiçbir şey bulamasa bile** (AP izolasyonu, farklı ağ)
+Basit modda tek hamlede bağlanılır — daha önce bu durumda Gelişmiş moda geçip
+adresi elle yazmak gerekiyordu. Ayrıştırıcı `Pairing.parsePairUri` zaten
+yazılmış ve gateway'deki JS eşleniğiyle 307 vakada diferansiyel testliydi;
+yalnız kullanılmıyordu. Sıfır yeni bağımlılık.
+
+**Kalan:** cihazda multicast doğrulaması (`addMembership` sandbox'ta
+koşulamadı) ve isteğe bağlı QR **kamera** taraması. Kamera için iki yol var ve
+ikisinin de kalıcı bedeli farklı: GmsBarcodeScanner (CAMERA izni yok, APK
+büyümüyor ama Google Play Services zorunlu) ya da CameraX + paketli ML Kit
+(her cihazda çalışır ama CAMERA izni + ~5 MB). Karar verilmedi; keşif + kod +
+yapıştırılan bağlantı üçlüsü kamerasız da tam bir yol sunuyor.
+
+## Faz 10C — Model kataloğu: RAM kapsaması + açıklamalar (2026-08-09)
+
+Karşılaştırma: **Off Grid** (`ai.offgridmobile`, MIT). Ayrıntılı inceleme ve
+sıradaki adımlar: `docs/MODEL-KATALOG-YOLHARITASI.md`.
+
+İnceleme sonucu NOVA seçim akışında geride değildi — boyut, gereken RAM ve
+cihaz RAM'iyle karşılaştırma (Rahat/Sınırlı/Riskli çipi) zaten vardı. İki
+somut boşluk kapatıldı:
+
+**1. RAM kapsaması.** 4 GB'lık 0.6B ile 8 GB'lık 4B arasında **hiçbir seçenek
+yoktu**; 5-7 GB'lık telefonlar (en yaygın sınıf) ya zayıf ya "Riskli" bir
+modele düşüyordu. Eklenen dört model (kapısız, Apache-2.0, boyut + SHA-256 +
+revizyon 2026-08-09'da HF API'sinden doğrulandı):
+
+| Model | Boyut | Önerilen RAM |
+|-------|-------|--------------|
+| Granite 4.0 350M (q8) | 468.209.584 B | 2 GB |
+| Qwen3 1.7B (int4) | 977.184.032 B | 5 GB |
+| Qwen3 1.7B (tam) | 2.056.729.520 B | 6 GB |
+| Gemma 4 E2B (uç-cihaz) | 2.588.147.712 B | 6 GB |
+
+Granite ayrıca düşük ucu **tokensız** yapıyor: 2 GB sınıfındaki tek model
+(FunctionGemma) kapılıydı, artık kapısız bir alternatif var. Testle kilitlendi:
+2/3/4/6/8/12/16 GB'ın her birinde kapısız ve "Rahat" çalışan bir model olmalı.
+
+**2. Açıklamalar.** Katalogdaki **13 modelin tamamına** ne işe yaradığını,
+kimin için uygun olduğunu ve dürüst sınırını anlatan `note` yazıldı. Açıklama
+artık **kurulduktan sonra da** görünüyor — önceden `!installed` koşuluna
+bağlıydı ve kullanıcı indirdiği modelin ne olduğunu unuttuğunda tam o an
+kayboluyordu. Kapılı modellerin token gerekliliğini yazması testle zorunlu.
+
+**Arayüz değişmedi** — satır düzeni, uygunluk çipi ve öneri banner'ı aynı
+bileşenlerle çalışıyor; eklenenler katalog verisi ve tek satırlık görünürlük
+düzeltmesi.
+
+**Yan etki (bilinçli):** RAM ölçülemediğinde önerilen model artık Granite 350M
+(en küçük kapısız). `ModelAutomationTest` bu kuralı kimliğe sabitlemek yerine
+"kapısızların en küçüğü" olarak doğruluyor, böylece katalog büyüdükçe kırılmıyor.
+
+**3. Düşünme anahtarı modele bağlandı.** `supportsThinkingToggle` alanı katalog
+dışında hiç kullanılmıyordu; anahtar modelden bağımsız çiziliyor ve başlığı
+sabit "(Qwen3)" yazıyordu. Katalog 16 modele çıkınca düşünmeyi desteklemeyen
+**altı model** oluştu ve anahtar onlarda da etkin görünüyordu. `LocalThinkingSupport`
+(saf, testli) artık durumu seçili modelden türetiyor; desteklemeyen modelde
+anahtar gizlenmiyor, **pasif çiziliyor ve nedeni yazılıyor**. Sözleşme
+katalogun tamamında testle doğrulanıyor.
+
+**Katalog: 16 model** (Gemma 4 E2B/E4B/12B, Qwen3 0.6B–14B, Qwen3.5 0.8B,
+iki uzmanlaşmış 4B, Granite 350M), 2 GB'dan 24 GB'a her sınıfta kapısız seçenek.
+Gemma tarafında eklenecek başka bir şey **kalmadı**: üç bağımsız arama
+(litert-community, hub geneli `library=litert-lm`, resmî `google`/`Qwen`
+hesapları) yeni bir resmî `.litertlm` modeli bulmadı. Gemma 3'ün 4B/12B
+dosyaları `.task` formatında olduğu için motor tarafından yüklenemez.
+
+**Sıradaki (M3-M5):** aynı ailede quantization çeşitliliği, donanıma özel
+derlemeler (`-gpu` dosyaları katalogun sabitlediği revizyonlarda YOK — daha
+yeni bir commit'te; pinlemek 404 üretirdi), ilk açılış model adımı.
+
+## Faz 10D — İlk açılış adımı + erişilebilirlik (2026-08-10)
+
+**İlk açılış model kartı (M5).** Uygulamanın manşet özelliği telefonda
+çevrimdışı LLM çalıştırmak, ama varsayılan politika `GATEWAY_ONLY` olduğu için
+yeni kullanıcı Kontrol ekranında bundan **hiç haberdar olmuyordu**. Off Grid
+bunu zorunlu bir indirme ekranıyla çözüyor; burada **kapatılabilir bir kart**
+seçildi — zorunlu ekran, yalnız PC'ye bağlanmak isteyeni ilgilenmediği bir
+GB'lık indirmeyle karşılardı. Kart üç koşul birden sağlanınca çıkar (model yok,
+kapatılmamış, indirme sürmüyor); "şimdilik atla" kalıcıdır. Karar mantığı
+`FirstRunGuide` içinde saf ve testli.
+
+**Erişilebilirlik denetimi.** Kod taranarak iki somut ihlal bulundu ve
+düzeltildi:
+
+- **`heading()` semantiği hiç kullanılmıyordu (0 örnek).** Bölüm başlıkları
+  ("YÜRÜTME POLİTİKASI", "CİHAZDAKİ MODELLER", Ayarlar kart başlıkları) düz
+  metindi; TalkBack kullanıcısı başlıklar arasında gezinemiyordu. Beş noktaya
+  `heading()` eklendi — **görsel olarak hiçbir şey değişmedi**.
+- **48 dp altı dokunma hedefleri.** Modeller ekranındaki *İndir* ve *Sürdür*
+  düğmeleri 40 dp, önerilen model indirme düğmesi 46 dp idi; Material asgarisi
+  48 dp. Üçü de düzeltildi. (Tema renk noktası 12 dp kaldı — dekoratif, tıklanmaz.)
+
+Kaynak: [Compose erişilebilirlik teknikleri](https://developer.android.com/develop/ui/compose/designsystems/material3)
+— "Informative Content" kategorisi başlık semantiğini açıkça sayıyor.
+
+## Faz 10E — Emülatörde bulunan ilk gerçek hata (2026-08-10)
+
+Uygulama ilk kez emülatörde çalıştırıldı ve **ekrana bakarak** bir hata
+bulundu — statik incelemeyle görülemeyecek türden:
+
+**Temiz kurulumda ilk ekranda hata mesajı çıkıyordu.** Üst çubukta ve hedef
+kartında "Bağlantı reddedildi: adres bulundu ama bu portta dinleyen yok"
+yazıyordu. Sebep: varsayılan `baseUrl` (`10.0.2.2:8088`) hiçbir zaman boş
+olmadığı için `NovaViewModel.init` **koşulsuz** bağlantı sondası atıyordu.
+Yani kullanıcı, hiç kurmadığı bir bağlantı için açılışta hata görüyordu —
+üstelik uygulamanın manşet özelliği (çevrimdışı model) bunu hiç gerektirmiyor.
+
+**Düzeltme:** `GatewayConnectionUiState.shouldProbeOnStart` (saf, testli) —
+sonda yalnız **belirteç de varsa** atılır, çünkü gerçek bir Gateway bağlantısı
+`Bearer nv_…` ister. Belirteç yoksa nötr `notConfigured()` durumu gösterilir:
+"PC bağlantısı kurulmadı · Telefonda çevrimdışı model kullanmak için gerekmez."
+
+Düzeltme aynı emülatörde yeniden derlenip **doğrulandı**: üst çubuk artık
+hata değil bilgi gösteriyor.
+
+## Gelecek yol haritası (Faz 10B+)
+
+**Faz 10B — iroh taşıma katmanı (CGNAT arkası, VPN'siz).** Faz 10A aynı Wi-Fi'yi
+çözdü; bu adım mobil veri / farklı ağ durumunu çözer. `computer.iroh:iroh-android`
+Maven Central'da hazır derlenmiş (Rust/NDK zinciri gerekmiyor), PC tarafı için
+resmî Node bindingi var. **Dikkat: Android'de resmî destek yalnız aarch64/armv7
+— x86_64 emülatörde iroh çalışmaz**, doğrulama fiziksel telefon ister.
+Ayrıntı ve kabul edilmesi gereken bedeller `docs/BAGLANTI-ANALIZI.md` §10.3'te.
+
+**Faz 11 — Görev devri derinleştirme (telefon ↔ PC).** Telefonda başlayan işin PC'de sürmesi;
 Gateway ajan koşusu köprüsü, canlı ilerleme (SSE) ve İşler ekranında birleşik takip. Hibrit
 vizyonunun "PC entegrasyonu" yarısını tamamlar.
 
-**Faz 10 — Çok-modluluk (cihaz-üstü).** Gemma 3n benzeri modelle telefonda görsel/ses girişi
+**Faz 12 — Çok-modluluk (cihaz-üstü).** Gemma 3n benzeri modelle telefonda görsel/ses girişi
 (LiteRT-LM vision/audio backend). Sohbete görsel ekleme, çevrimdışı görüntü/ses anlama.
 
-**Faz 11 — Model yaşam döngüsü.** Güncelleme bildirimi, delta/parça indirme, depolama baskısında
+**Faz 13 — Model yaşam döngüsü.** Güncelleme bildirimi, delta/parça indirme, depolama baskısında
 otomatik boşaltma, düşük RAM'de otomatik quantization tercihi.
 
-**Faz 12 — Hızlandırma ve dağıtım.** NPU/GPU backend seçenekleri + cihaz profiline göre otomatik
-hızlandırma; çoklu dil (i18n); cihazda çevrimdışı RAG (yerel gömme + arama); Play Store dağıtımı,
+**Faz 14 — Dağıtım.** Cihaz profiline göre otomatik hızlandırma ayarı (backend seçimi Faz 9'da
+geldi); çoklu dil (i18n); cihazda çevrimdışı RAG (yerel gömme + arama); Play Store dağıtımı,
 release imzalama ve sürüm kanalları.
 
 **Sürekli.** Enstrümanlı testlerin CI'da (emülatör) koşulması — **eklendi (2026-07-19)**:

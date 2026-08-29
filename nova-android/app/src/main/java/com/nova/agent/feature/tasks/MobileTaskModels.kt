@@ -5,6 +5,15 @@ enum class MobileTaskStatus {
     WAITING_FOR_CONFIRMATION, WAITING_FOR_DEVICE, WAITING_FOR_COMPUTE,
     PAUSED, COMPLETED, FAILED, CANCELLED;
 
+    /**
+     * Görev bitti mi — bundan sonra olay beklenmez.
+     *
+     * Aynı kural eskiden üç ayrı yerde kopyalanmıştı (MobileTaskScreen'de özel
+     * bir uzantı, MobileTaskViewModel'de özel bir fonksiyon) ve Reducer'dan
+     * erişilemiyordu — T2'nin fark edilmemesinin bir nedeni de bu. Tek yer.
+     */
+    fun isTerminal(): Boolean = this == COMPLETED || this == FAILED || this == CANCELLED
+
     companion object {
         fun fromWire(value: String) = entries.firstOrNull { it.name.equals(value, ignoreCase = true) }
             ?: FAILED

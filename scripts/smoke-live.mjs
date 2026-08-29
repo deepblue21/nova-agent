@@ -6,7 +6,7 @@
 // Optional checks (informational unless SMOKE_STRICT=1): chat, agent, RAG.
 //
 // Env:
-//   GATEWAY_URL    base url           (default http://localhost:8088)
+//   GATEWAY_URL    base url           (default http://localhost:$GATEWAY_PORT, 18088)
 //   GATEWAY_TOKEN  bearer token / API key (enables the auth-enforcement check)
 //   SMOKE_MODEL    model id for chat/agent (default "auto")
 //   SMOKE_AGENT=1  run the agent tool-calling check (calculator)
@@ -16,7 +16,8 @@
 //
 // Usage:  node scripts/smoke-live.mjs
 
-const BASE = (process.env.GATEWAY_URL || "http://localhost:8088").replace(/\/$/, "");
+const BASE = (process.env.GATEWAY_URL ||
+  `http://localhost:${process.env.GATEWAY_PORT || 18088}`).replace(/\/$/, "");
 const TOKEN = process.env.GATEWAY_TOKEN || "";
 const MODEL = process.env.SMOKE_MODEL || "auto";
 const STRICT = process.env.SMOKE_STRICT === "1";

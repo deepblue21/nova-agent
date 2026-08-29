@@ -1,8 +1,13 @@
 package com.nova.agent.llm
 
 /**
- * Yürütme politikası. Varsayılan GATEWAY_ONLY'dir: mevcut kurulumlar
- * kendiliğinden telefona geçirilmez, davranış bire bir korunur.
+ * Yürütme politikası.
+ *
+ * TEMİZ kurulumun varsayılanı LOCAL_FIRST'tür (bkz. AppSettings.executionPolicy,
+ * Play kararı B5): uygulama kutudan çıktığı gibi telefonda çalışır. Mevcut
+ * kurulumlar diskteki değerini koruduğu için kendiliğinden telefona geçirilmez.
+ * Aşağıdaki fromId yedeği hâlâ GATEWAY_ONLY'dir; o yalnız BOZUK/bilinmeyen bir
+ * id için geçerlidir, temiz kurulum yolu buraya hiç uğramaz.
  *
  * LOCAL_ONLY (Çevrimdışı): istekler yalnız telefonda çalışır, devir kapalıdır.
  * HYBRID (Faz 3): kısa işler telefonda, uzun işler ve düşük pil PC'de;

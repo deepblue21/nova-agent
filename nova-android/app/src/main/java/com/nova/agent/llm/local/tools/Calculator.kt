@@ -25,8 +25,14 @@ object Calculator {
             val value = parser.parseExpression()
             if (!parser.atEnd()) {
                 Outcome.Error("Beklenmeyen karakter: '${parser.peek()}'")
-            } else if (value.isNaN() || value.isInfinite()) {
-                Outcome.Error("Tanımsız sonuç (sıfıra bölme olabilir)")
+            } else if (value.isNaN()) {
+                // Sıfıra bölme AYRICA ve daha önce yakalanıyor (parseTerm), yani
+                // buraya asla ulaşamaz: eski "(sıfıra bölme olabilir)" açıklaması
+                // hiçbir koşulda doğru olamayacak bir tahmindi. Buraya düşen
+                // gerçek durumlar farklı — örn. negatif sayının kesirli kuvveti.
+                Outcome.Error("Tanımsız sonuç (geçersiz işlem)")
+            } else if (value.isInfinite()) {
+                Outcome.Error("Sonuç sayı aralığının dışında (taşma)")
             } else {
                 Outcome.Ok(value, format(value))
             }
@@ -50,6 +56,30 @@ object Calculator {
 
         fun atEnd(): Boolean = i >= s.length
         fun peek(): Char = if (atEnd()) ' ' else s[i]
+
+        /**
+         * Özyineleme derinliği.
+         *
+         * `((((…))))` gibi derin iç içe ifade `parsePrimary → parseExpression →
+         * … → parsePrimary` zincirini yığın taşana kadar sürüyordu.
+         * `StackOverflowError` bir `Exception` DEĞİL, `Error`'dır: aşağıdaki
+         * `catch (e: CalcException)` onu yakalamaz ve **uygulama çöker**.
+         * "Araç hataları uygulamayı düşüremez" garantisi tam burada kırılıyordu.
+         *
+         * Yığın taşmasını yakalamaya çalışmak güvenilmez (yakalandığı anda yığın
+         * zaten tükenmiştir); doğrusu oraya hiç varmamak. Sınır cömert: elle
+         * yazılabilecek her makul ifadenin çok üstünde.
+         */
+        private var depth = 0
+
+        private inline fun <T> nested(block: () -> T): T {
+            if (++depth > MAX_DEPTH) throw CalcException("İfade fazla iç içe")
+            try {
+                return block()
+            } finally {
+                depth--
+            }
+        }
 
         // expr := term (('+'|'-') term)*
         fun parseExpression(): Double {
@@ -97,13 +127,14 @@ object Calculator {
         }
 
         private fun parseUnary(): Double {
+            // "-----…-1" de aynı zinciri kurar; o da sayılır.
             if (!atEnd() && peek() == '-') {
                 i++
-                return -parseUnary()
+                return nested { -parseUnary() }
             }
             if (!atEnd() && peek() == '+') {
                 i++
-                return parseUnary()
+                return nested { parseUnary() }
             }
             return parsePrimary()
         }
@@ -112,7 +143,7 @@ object Calculator {
             if (atEnd()) throw CalcException("İfade eksik")
             if (peek() == '(') {
                 i++
-                val value = parseExpression()
+                val value = nested { parseExpression() }
                 if (atEnd() || s[i] != ')') throw CalcException("Kapanmayan parantez")
                 i++
                 return value
@@ -122,6 +153,10 @@ object Calculator {
             if (start == i) throw CalcException("Sayı bekleniyordu: '${peek()}'")
             val token = s.substring(start, i)
             return token.toDoubleOrNull() ?: throw CalcException("Geçersiz sayı: $token")
+        }
+
+        private companion object {
+            const val MAX_DEPTH = 128
         }
     }
 }

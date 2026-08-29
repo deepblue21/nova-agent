@@ -7,6 +7,7 @@ import com.nova.agent.feature.tasks.MobileTaskMutation
 import com.nova.agent.feature.tasks.MobileTaskStatus
 import com.nova.agent.feature.tasks.MobileTaskUiState
 import com.nova.agent.feature.tasks.canResolveConfirmation
+import com.nova.agent.feature.tasks.orderEvents
 import com.nova.agent.feature.tasks.reduceMobileTask
 import com.nova.agent.feature.tasks.reduceMobileTaskResponse
 import com.nova.agent.feature.tasks.userLabel
@@ -306,7 +307,19 @@ class MobileTaskReducerTest {
         assertEquals(confirmationB, afterDelayedResponse.pendingConfirmation)
         assertEquals(waitingForB.task, afterDelayedResponse.task)
         assertFalse(afterDelayedResponse.loading)
-        assertNull(reduceMobileTaskResponse(waitingForB, responseForA, confirmationA.id))
+
+        // BU SATIR T4 İLE DEĞİŞTİ. Eskiden burada `assertNull` vardı: gecikmiş
+        // yanıt DÜŞÜYORDU. Ama düşme nedeni bir koruma değil, T4 hatasının
+        // kendisiydi — B, A'yı ekrandan ezdiği için onay kimliği tutmuyor ve
+        // mutasyon geçersiz sayılıyordu. T4 kapanınca (A ekranda kalır, B
+        // kuyruğa girer) yanıt artık GEÇERLİ: A gerçekten çözüldü, sıradaki B
+        // panele gelir. Testin asıl koruduğu şey duruyor ve üstteki üç iddiayla
+        // ölçülüyor: A'nın eski durumu (EXECUTING) B'nin panelinin üstüne
+        // yazılmıyor.
+        assertEquals(
+            afterDelayedResponse,
+            reduceMobileTaskResponse(waitingForB, responseForA, confirmationA.id),
+        )
     }
 
     @Test
@@ -402,4 +415,285 @@ class MobileTaskReducerTest {
         summary = summary,
         confirmation = confirmation,
     )
+
+    // ---------- T1: olay kimligi sozlesmesi ----------
+
+    private fun ev(id: String, status: MobileTaskStatus? = null, type: String = "worker.log") =
+        MobileTaskEvent(id = id, taskId = "t1", type = type, summary = "s", status = status)
+
+    /**
+     * Asil regresyon: ayristirici kimligi serbest metin kabul ediyor (bkz.
+     * MobileTaskClientTest), reducer ise `BigInteger(it.id)` diyordu. Gateway
+     * ULID uretmeye baslasa ilk olayda ana thread'de cokerdi.
+     */
+    @Test
+    fun `sayisal olmayan olay kimligi cokertmez ve gelis sirasi korunur`() {
+        val gelen = listOf(ev("evt_01H8XYZ"), ev("evt_01H8ABC"), ev("evt_01H8DEF"))
+
+        val sirali = orderEvents(gelen)
+
+        assertEquals(gelen.map { it.id }, sirali.map { it.id })
+    }
+
+    @Test
+    fun `tamami sayisal kimlikler sayisal siraya girer`() {
+        val sirali = orderEvents(listOf(ev("10"), ev("2"), ev("44")))
+
+        assertEquals(listOf("2", "10", "44"), sirali.map { it.id })
+    }
+
+    @Test
+    fun `float gibi gelen kimlik de cokertmez`() {
+        // JSON'da sayi float gelirse toString "1.0" verir; BigInteger("1.0") atardi.
+        val sirali = orderEvents(listOf(ev("1.0"), ev("2")))
+
+        assertEquals(listOf("1.0", "2"), sirali.map { it.id })
+    }
+
+    @Test
+    fun `karisik kimlikte siralama yapilmaz`() {
+        // Sayisal olmayan varsa "dogru" bir sayisal sira yoktur; uydurmuyoruz.
+        val gelen = listOf(ev("10"), ev("evt_x"), ev("2"))
+
+        assertEquals(gelen.map { it.id }, orderEvents(gelen).map { it.id })
+    }
+
+    @Test
+    fun `sayisal olmayan kimlikli olay reducer uzerinden gecebilir`() {
+        val basla = reduceMobileTaskResponse(
+            MobileTaskUiState(task = MobileTask("t1", "p", MobileTaskStatus.EXECUTING)),
+            MobileTask("t1", "p", MobileTaskStatus.EXECUTING),
+            confirmationId = null,
+        ) ?: MobileTaskUiState(task = MobileTask("t1", "p", MobileTaskStatus.EXECUTING))
+
+        val sonra = reduceMobileTask(basla, MobileTaskMutation.EventReceived(ev("evt_01H8XYZ")))
+
+        assertEquals(1, sonra.events.size)
+    }
+
+    // ---------- T2: terminal gorev bekleyen onayi temizler ----------
+
+    /**
+     * Kilit senaryosu: onay istendi, kullanici karar vermeden worker zaman
+     * asimina dusup `failed` yayinladi. Bekleyen onay temizlenmezse modal
+     * karartma katmani tum dokunuslari yutuyor, "Yeni gorev" ulasilamiyor ve
+     * gorev terminal oldugu icin kurtarici bir olay da gelemiyordu -- cikis yok.
+     */
+    @Test
+    fun `basarisiz gorev bekleyen onayi temizler`() {
+        val onayli = MobileTaskUiState(
+            task = MobileTask("t1", "p", MobileTaskStatus.WAITING_FOR_CONFIRMATION),
+            pendingConfirmation = MobileConfirmation("c1", "R3", "Ayarlar'i ac"),
+        )
+
+        val sonra = reduceMobileTask(
+            onayli,
+            MobileTaskMutation.EventReceived(
+                ev("1", status = MobileTaskStatus.FAILED, type = "task.state"),
+            ),
+        )
+
+        assertNull("terminal gorevde bekleyen onay kalmamali", sonra.pendingConfirmation)
+    }
+
+    @Test
+    fun `iptal edilen gorev de bekleyen onayi temizler`() {
+        val onayli = MobileTaskUiState(
+            task = MobileTask("t1", "p", MobileTaskStatus.WAITING_FOR_CONFIRMATION),
+            pendingConfirmation = MobileConfirmation("c1", "R2", "Dosya sil"),
+        )
+
+        val sonra = reduceMobileTask(
+            onayli,
+            MobileTaskMutation.EventReceived(
+                ev("1", status = MobileTaskStatus.CANCELLED, type = "task.state"),
+            ),
+        )
+
+        assertNull(sonra.pendingConfirmation)
+    }
+
+    @Test
+    fun `terminal olmayan durum bekleyen onayi korur`() {
+        val onay = MobileConfirmation("c1", "R1", "Ekran goruntusu al")
+        val onayli = MobileTaskUiState(
+            task = MobileTask("t1", "p", MobileTaskStatus.WAITING_FOR_CONFIRMATION),
+            pendingConfirmation = onay,
+        )
+
+        val sonra = reduceMobileTask(
+            onayli,
+            MobileTaskMutation.EventReceived(
+                ev("1", status = MobileTaskStatus.EXECUTING, type = "task.state"),
+            ),
+        )
+
+        assertEquals(onay, sonra.pendingConfirmation)
+    }
+
+    // ---------- T4: onay paneli parmagin altinda degismez ----------
+
+    private fun taskState(status: MobileTaskStatus = MobileTaskStatus.EXECUTING) =
+        MobileTaskUiState(task = MobileTask("t1", "dosyayi sil", status))
+
+    private fun confirmationEvent(id: String, eventId: String, summary: String) =
+        MobileTaskEvent(
+            id = eventId,
+            taskId = "t1",
+            type = "confirmation.requested",
+            summary = summary,
+            confirmation = MobileConfirmation(id, "high", summary),
+        )
+
+    @Test
+    fun `ikinci onay istegi ekrandakini ezmez kuyruga girer`() {
+        var state = reduceMobileTask(
+            taskState(),
+            MobileTaskMutation.EventReceived(confirmationEvent("c1", "1", "A dosyasini sil")),
+        )
+        state = reduceMobileTask(
+            state,
+            MobileTaskMutation.EventReceived(confirmationEvent("c2", "2", "TUM diski bicimlendir")),
+        )
+
+        assertEquals("ekrandaki onay sabit kalmali", "c1", state.pendingConfirmation?.id)
+        assertEquals(listOf("c2"), state.queuedConfirmations.map { it.id })
+    }
+
+    @Test
+    fun `ekrandaki onay cozulunce kuyruktaki panele gelir`() {
+        var state = reduceMobileTask(
+            taskState(),
+            MobileTaskMutation.EventReceived(confirmationEvent("c1", "1", "A")),
+        )
+        state = reduceMobileTask(
+            state,
+            MobileTaskMutation.EventReceived(confirmationEvent("c2", "2", "B")),
+        )
+        state = reduceMobileTask(
+            state,
+            MobileTaskMutation.ConfirmationResolved(
+                MobileTask("t1", "dosyayi sil", MobileTaskStatus.EXECUTING),
+                "c1",
+            ),
+        )
+
+        assertEquals("c2", state.pendingConfirmation?.id)
+        assertTrue(state.queuedConfirmations.isEmpty())
+    }
+
+    @Test
+    fun `kuyruktaki onay cozulunce ekrandakine dokunulmaz`() {
+        var state = reduceMobileTask(
+            taskState(),
+            MobileTaskMutation.EventReceived(confirmationEvent("c1", "1", "A")),
+        )
+        state = reduceMobileTask(
+            state,
+            MobileTaskMutation.EventReceived(confirmationEvent("c2", "2", "B")),
+        )
+        state = reduceMobileTask(
+            state,
+            MobileTaskMutation.EventReceived(
+                MobileTaskEvent(
+                    id = "3",
+                    taskId = "t1",
+                    type = "confirmation.rejected",
+                    summary = "reddedildi",
+                    confirmation = MobileConfirmation("c2", "high", "B"),
+                ),
+            ),
+        )
+
+        assertEquals("c1", state.pendingConfirmation?.id)
+        assertTrue(state.queuedConfirmations.isEmpty())
+    }
+
+    @Test
+    fun `ayni onay iki kez gelirse kuyruk sismez`() {
+        var state = reduceMobileTask(
+            taskState(),
+            MobileTaskMutation.EventReceived(confirmationEvent("c1", "1", "A")),
+        )
+        state = reduceMobileTask(
+            state,
+            MobileTaskMutation.EventReceived(confirmationEvent("c1", "2", "A")),
+        )
+
+        assertEquals("c1", state.pendingConfirmation?.id)
+        assertTrue(state.queuedConfirmations.isEmpty())
+    }
+
+    @Test
+    fun `terminal gorev kuyrugu da temizler`() {
+        var state = reduceMobileTask(
+            taskState(),
+            MobileTaskMutation.EventReceived(confirmationEvent("c1", "1", "A")),
+        )
+        state = reduceMobileTask(
+            state,
+            MobileTaskMutation.EventReceived(confirmationEvent("c2", "2", "B")),
+        )
+        state = reduceMobileTask(
+            state,
+            MobileTaskMutation.EventReceived(
+                MobileTaskEvent("3", "t1", "task.failed", "hata", MobileTaskStatus.FAILED),
+            ),
+        )
+
+        assertNull(state.pendingConfirmation)
+        assertTrue(state.queuedConfirmations.isEmpty())
+    }
+
+    // ---------- statusuz olay durumu geri almaz ----------
+
+    @Test
+    fun `statusuz olay duraklatmayi geri almaz`() {
+        var state = taskState(MobileTaskStatus.EXECUTING)
+        state = reduceMobileTask(
+            state,
+            MobileTaskMutation.EventReceived(
+                MobileTaskEvent("1", "t1", "worker.executing", "calisiyor", MobileTaskStatus.EXECUTING),
+            ),
+        )
+        // Kullanici "Duraklat"a basti; durum HTTP yanitindan geldi, olaydan degil.
+        state = reduceMobileTask(
+            state,
+            MobileTaskMutation.TaskLoaded(MobileTask("t1", "dosyayi sil", MobileTaskStatus.PAUSED)),
+        )
+        // Ardindan statusuz bir olay dusuyor.
+        state = reduceMobileTask(
+            state,
+            MobileTaskMutation.EventReceived(MobileTaskEvent("2", "t1", "worker.log", "cikti")),
+        )
+
+        assertEquals(
+            "statusuz olay geriye bakip EXECUTING'i geri getiriyordu",
+            MobileTaskStatus.PAUSED,
+            state.task?.status,
+        )
+    }
+
+    @Test
+    fun `statulu olay durumu ilerletmeye devam eder`() {
+        var state = taskState(MobileTaskStatus.QUEUED)
+        state = reduceMobileTask(
+            state,
+            MobileTaskMutation.EventReceived(
+                MobileTaskEvent("1", "t1", "task.planning", "plan", MobileTaskStatus.PLANNING),
+            ),
+        )
+
+        assertEquals(MobileTaskStatus.PLANNING, state.task?.status)
+    }
+
+    @Test
+    fun `gelen olay yapiskan hatayi temizler`() {
+        val state = reduceMobileTask(
+            taskState().copy(error = "Baglanti koptu"),
+            MobileTaskMutation.EventReceived(MobileTaskEvent("1", "t1", "worker.log", "cikti")),
+        )
+
+        assertNull("akis yasiyorsa cozulmus hata ekranda kalmamali", state.error)
+    }
 }

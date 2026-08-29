@@ -47,7 +47,8 @@ Ok "Firewall kurali hazir (port $listen)"
 
 # 4) Gateway'i yeni OLLAMA_URL ile yeniden baslat (diger portlari koru)
 $env:OLLAMA_URL = "http://host.docker.internal:$listen"
-if (Get-NetTCPConnection -LocalPort 8088 -State Listen -ErrorAction SilentlyContinue) { $env:GATEWAY_PORT = "18088" }
+# Horus kendi 18xxx blogunda kalir; 8088 hicbir zaman sahiplenilmez.
+$env:GATEWAY_PORT = "18088"
 $env:GATEWAY_BIND = "0.0.0.0"   # telefon/tailnet erisimi acik kalsin
 Write-Host "Gateway yeniden baslatiliyor (OLLAMA_URL=$($env:OLLAMA_URL))..." -ForegroundColor Cyan
 cmd /c "docker compose up -d gateway 2>&1" | Out-String | Write-Host

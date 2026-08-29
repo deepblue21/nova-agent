@@ -3,6 +3,7 @@ package com.nova.agent.net
 import com.nova.agent.data.ChatMessage
 import com.nova.agent.data.ToolSource
 import com.nova.agent.data.ToolStep
+import com.nova.agent.util.str
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -39,6 +40,28 @@ class NovaClient {
     }
 
     private val JSON = "application/json; charset=utf-8".toMediaType()
+
+    /**
+     * Akış nesli — M1.
+     *
+     * `EventSource.cancel()` OkHttp'de `onFailure`'ı `IOException("Canceled")` ile
+     * ve HÂLÂ AÇIK olan 200 yanıtıyla tetikler. Eski kod `code != null` görüp
+     * "Gateway hatası (200)" yazıyordu: kullanıcı "Durdur"a bastığında kendi
+     * iptali sunucu hatası gibi görünüyordu. (Yerel yolda bastırılmıştı, gateway
+     * yolunda değil.)
+     *
+     * Metne bakmak (`t.message == "Canceled"`) çözüm değil — yerelleştirme ve
+     * OkHttp sürümüyle değişir; Y5'te aynı hatayı temizledik. Bunun yerine iptali
+     * BİZ işaretliyoruz: [cancelStream] nesli artırır, eski dinleyicinin geri
+     * çağrıları sessizce düşer.
+     */
+    private val streamGeneration = java.util.concurrent.atomic.AtomicLong(0)
+
+    /** Akışı iptal eder ve bunun kullanıcı isteği olduğunu işaretler (M1). */
+    fun cancelStream(source: EventSource?) {
+        streamGeneration.incrementAndGet()
+        source?.cancel()
+    }
 
     fun stream(
         baseUrl: String,
@@ -87,6 +110,9 @@ class NovaClient {
         if (token.isNotBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
         val request = reqBuilder.build()
 
+        val generation = streamGeneration.get()
+        fun superseded() = generation != streamGeneration.get()
+
         val listener = object : EventSourceListener() {
             override fun onOpen(eventSource: EventSource, response: Response) {
                 response.header("x-nova-route")?.let { cb.onRoute(it) }
@@ -100,15 +126,22 @@ class NovaClient {
             }
 
             override fun onClosed(eventSource: EventSource) {
+                if (superseded()) return
                 cb.onDone()
             }
 
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
+                // Kullanıcının kendi "Durdur"u hata değildir (M1).
+                if (superseded()) return
                 val code = response?.code
                 val msg = when {
                     code == 401 -> "Yetkisiz — gateway token yanlış"
                     code == 403 -> "Model izinli değil"
                     code == 429 -> "Çok fazla istek"
+                    // 2xx yanıt gelmiş ama akış koptu: sunucu durum kodu suçsuz,
+                    // "Gateway hatası (200)" yazmak yanlış yeri gösterir.
+                    code != null && code in 200..299 ->
+                        "Akış kesildi: ${t?.message ?: "bağlantı kapandı"}"
                     code != null -> "Gateway hatası ($code)"
                     t != null -> "Bağlantı hatası: ${t.message}"
                     else -> "Bilinmeyen hata"
@@ -144,8 +177,8 @@ class NovaClient {
                 if (choices.length() == 0) return null
                 val delta = choices.getJSONObject(0).optJSONObject("delta") ?: return null
 
-                val content = delta.optString("content", "").ifEmpty { null }
-                val thought = delta.optString("reasoning_content", "").ifEmpty { null }
+                val content = delta.str("content", "").ifEmpty { null }
+                val thought = delta.str("reasoning_content", "").ifEmpty { null }
                 val tool = delta.optJSONObject("tool_step")?.let(::parseToolStep)
 
                 if (content == null && thought == null && tool == null) null
@@ -156,17 +189,17 @@ class NovaClient {
         }
 
         private fun parseToolStep(o: JSONObject): ToolStep? {
-            val name = o.optString("name").takeIf { it.isNotBlank() } ?: return null
+            val name = o.str("name").takeIf { it.isNotBlank() } ?: return null
             val args = o.optJSONObject("args")
             val query = listOf("query", "location", "expression", "role")
-                .firstNotNullOfOrNull { key -> args?.optString(key)?.takeIf { it.isNotBlank() } }
+                .firstNotNullOfOrNull { key -> args?.str(key)?.takeIf { it.isNotBlank() } }
                 .orEmpty()
             val sources = o.optJSONArray("sources")?.let { arr ->
                 buildList {
                     for (i in 0 until arr.length()) {
                         val s = arr.optJSONObject(i) ?: continue
-                        val url = s.optString("url")
-                        val title = s.optString("title").ifBlank { url.ifBlank { "Kaynak" } }
+                        val url = s.str("url")
+                        val title = s.str("title").ifBlank { url.ifBlank { "Kaynak" } }
                         add(ToolSource(title = title, url = url, index = s.optInt("n", 0)))
                     }
                 }

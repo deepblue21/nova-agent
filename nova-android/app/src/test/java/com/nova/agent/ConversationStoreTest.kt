@@ -7,6 +7,7 @@ import com.nova.agent.data.ConversationText
 import java.io.File
 import java.nio.file.Files
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -108,5 +109,71 @@ class ConversationStoreTest {
         store.save(convo("c", 30, user("c")))
         val ids = store.list().map { it.id }
         assertEquals(listOf("c", "b"), ids)
+    }
+
+    // ---------- V1: bozulma ve atomik yazma ----------
+
+    /**
+     * Asil regresyon. Eski davranis: yarim JSON -> parseList yakalar -> BOS liste
+     * -> ilk save() dosyayi tek sohbetle ezer. 80 sohbetlik gecmis tek uyari
+     * olmadan yok oluyordu. Artik bozuk icerik karantinaya aliniyor.
+     */
+    @Test
+    fun `bozuk dosya karantinaya alinir ve sessizce silinmez`() {
+        val dir = Files.createTempDirectory("convo_corrupt").toFile()
+        val file = File(dir, "c.json")
+        val yarim = """[{"id":"a","title":"yarim","createdAt":1,"updatedAt":2,"messages":[{"role":"user","""
+        file.writeText(yarim)
+        val store = ConversationStore(file)
+
+        assertTrue("bozuk icerik bos liste dondurur", store.readAll().isEmpty())
+
+        val backup = File(dir, "c.json.corrupt")
+        assertTrue("bozuk icerik yedeklenmeli", backup.exists())
+        assertEquals(yarim, backup.readText())
+    }
+
+    @Test
+    fun `gercekten bos dosya karantinaya alinmaz`() {
+        val dir = Files.createTempDirectory("convo_empty").toFile()
+        val file = File(dir, "c.json")
+        file.writeText("[]")
+        val store = ConversationStore(file)
+
+        assertTrue(store.readAll().isEmpty())
+        assertFalse(
+            "bos liste bozulma degildir",
+            File(dir, "c.json.corrupt").exists(),
+        )
+    }
+
+    @Test
+    fun `yazma sonrasi gecici dosya birakilmaz`() {
+        val dir = Files.createTempDirectory("convo_atomic").toFile()
+        val file = File(dir, "c.json")
+        val store = ConversationStore(file)
+
+        store.save(convo("a", 10, user("merhaba")))
+
+        assertTrue("hedef dosya yazilmali", file.exists())
+        assertFalse(
+            "atomik yazmadan sonra .tmp kalmamali",
+            File(dir, "c.json.tmp").exists(),
+        )
+        assertEquals(1, store.readAll().size)
+    }
+
+    @Test
+    fun `karantina mevcut yedegin uzerine yazmaz`() {
+        val dir = Files.createTempDirectory("convo_corrupt2").toFile()
+        val file = File(dir, "c.json")
+        val backup = File(dir, "c.json.corrupt")
+        backup.writeText("ILK-BOZULMA")
+        file.writeText("{bozuk")
+        val store = ConversationStore(file)
+
+        store.readAll()
+
+        assertEquals("ilk yedek korunmali", "ILK-BOZULMA", backup.readText())
     }
 }

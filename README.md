@@ -294,7 +294,7 @@ Nova_Agent_AI/
 | `gateway/gateway.mjs` | Hardened server: auth, CORS allowlist, rate limit. |
 | `gateway/lib/` | Agent loop, MCP, RAG, memory, RBAC, prodcheck and helpers. |
 | `gateway/routes/` | Knowledge, memory, scheduled tasks, workspaces, agent runs and API routes. |
-| `gateway/migrations/` | SQL migrations `001` through `010`. |
+| `gateway/migrations/` | SQL migrations `001` through `011`. |
 | `gateway/.env.example` | Copy to `.env` and fill in per machine. |
 | `web/` | Browser UI with Vite, React and PWA support. |
 | `web/src/nova-agent.jsx` | Main browser UI component. |

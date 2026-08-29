@@ -1,9 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!--
+      targetSdk 36 (Android 16) notu:
+      android:statusBarColor, android:navigationBarColor ve
+      android:windowLightStatusBar bu hedefte SİSTEM TARAFINDAN YOK SAYILIYOR.
+      Kenardan kenara çizim zorunlu; sistem çubuğu ikonlarının kontrastı artık
+      MainActivity'deki enableEdgeToEdge(...) çağrısıyla belirleniyor.
+      Bu attribute'ları geri eklemek sessiz bir yanılsama yaratır — eklemeyin.
+    -->
     <style name="Theme.NOVA" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/bg</item>
-        <item name="android:statusBarColor">@color/bg</item>
-        <item name="android:navigationBarColor">@color/bg</item>
-        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

@@ -55,12 +55,21 @@ class ModelAutomationTest {
         assertEquals("kucuk", ModelRecommender.recommend(models, 3.0).id)
     }
 
+    /**
+     * Sözleşme: RAM ölçülemediğinde en güvenli seçim = kapısız modellerin
+     * EN KÜÇÜĞÜ. Kimlik sabitlenmez — katalog büyüdükçe en küçük model
+     * değişebilir (2026-08-09'da Granite 350M, Qwen3 0.6B int4'ün altına indi)
+     * ve test o zaman kırılmak yerine kuralı doğrulamaya devam etmeli.
+     */
     @Test
     fun `RAM olculemezse kapisiz en kucuk onerilir`() {
         val rec = ModelRecommender.recommend(deviceRamGb = 0.0)
         assertFalse(rec.gated)
-        // Katalogdaki en küçük kapısız model int4 Qwen'dir.
-        assertEquals("qwen3-0.6b-int4", rec.id)
+
+        val enKucukKapisiz = LocalModelCatalog.entries
+            .filter { !it.gated }
+            .minByOrNull { it.sizeBytes }!!
+        assertEquals(enKucukKapisiz.id, rec.id)
     }
 
     @Test

@@ -5,7 +5,28 @@ package com.nova.agent.data
  * [allowGateway] true ise kullanıcı onayıyla PC'ye devir önerilir;
  * Çevrimdışı (LOCAL_ONLY) modda false'tur ve istem cihaz dışına ASLA çıkmaz.
  */
-data class PendingFallback(val reason: String, val allowGateway: Boolean = true)
+/**
+ * Yerel yol istemi işleyemediğinde gösterilecek izin kartının içeriği.
+ *
+ * [kind] eklendi (U1): kart eskiden HER durumda "Telefon modeli yanıt veremedi"
+ * yazıyordu. Oysa iki bambaşka durum aynı karta düşüyor ve birinde bu cümle
+ * doğrudan yanlış: telefonda kurulu model YOKKEN "yanıt veremedi" demek, var
+ * olmayan bir modeli suçlamaktır. Kullanıcının o durumda ihtiyacı olan eylem de
+ * farklıdır — PC'ye göndermek değil, model indirmek.
+ */
+enum class FallbackKind {
+    /** Telefonda kurulu/doğrulanmış model yok. Çözüm: model indir. */
+    NO_LOCAL_MODEL,
+
+    /** Model vardı ama üretim hata verdi. Çözüm: PC'ye devret ya da vazgeç. */
+    LOCAL_ERROR,
+}
+
+data class PendingFallback(
+    val reason: String,
+    val allowGateway: Boolean = true,
+    val kind: FallbackKind = FallbackKind.LOCAL_ERROR,
+)
 
 /** Tek bir sohbet mesajı. */
 data class ChatMessage(

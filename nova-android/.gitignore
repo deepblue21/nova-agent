@@ -9,3 +9,8 @@
 .cxx
 local.properties
 app/build/
+
+# Play yükleme imzası — ASLA commit edilmez (bloker B2).
+keystore.properties
+*.jks
+*.keystore

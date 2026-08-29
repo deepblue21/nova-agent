@@ -1,6 +1,8 @@
 package com.nova.agent.data
 
+import com.nova.agent.util.str
 import java.io.File
+import java.io.FileOutputStream
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -15,13 +17,36 @@ class ConversationStore(
     private val maxConversations: Int = 100,
 ) {
 
+    /**
+     * Geçmişi okur — V1.
+     *
+     * Dosya bozuksa (yarım yazma) ARTIK SESSİZCE SIFIRLANMIYOR: bozuk içerik
+     * `<dosya>.corrupt` olarak bir kenara alınır, böylece ilk `save()` onu
+     * üzerine yazıp yok etmez ve veri elle kurtarılabilir kalır.
+     *
+     * Eski davranış şuydu: yarım JSON -> `parseList` yakalayıp BOŞ liste döner
+     * -> `save()` dosyayı tek sohbetle ezer. 80 sohbetlik geçmiş, tek uyarı
+     * olmadan yok oluyordu.
+     */
     @Synchronized
-    fun readAll(): List<Conversation> =
-        if (file.exists()) {
-            runCatching { parseList(file.readText()) }.getOrDefault(emptyList())
-        } else {
-            emptyList()
+    fun readAll(): List<Conversation> {
+        if (!file.exists()) return emptyList()
+        val text = runCatching { file.readText() }.getOrNull() ?: return emptyList()
+        if (text.isBlank()) return emptyList()
+        val parsed = parseList(text)
+        if (parsed.isEmpty() && looksLikeContent(text)) quarantine(text)
+        return parsed
+    }
+
+    /** Boş liste beklenen mi, yoksa bozulma mı — "[]" gerçekten boştur. */
+    private fun looksLikeContent(text: String): Boolean = text.trim() !in setOf("[]", "[ ]")
+
+    private fun quarantine(text: String) {
+        runCatching {
+            val backup = File(file.parentFile, file.name + ".corrupt")
+            if (!backup.exists()) backup.writeText(text)
         }
+    }
 
     @Synchronized
     fun list(): List<ConversationSummary> =
@@ -63,10 +88,34 @@ class ConversationStore(
         if (file.exists()) file.delete()
     }
 
+    /**
+     * Geçmişi ATOMİK yazar — V1.
+     *
+     * `file.writeText` önce dosyayı kısaltıp (truncate) sonra yazıyordu. Android
+     * uygulamayı arka planda her an öldürebildiği için yazma ortasında ölmek
+     * dosyayı yarım JSON hâlinde bırakıyordu. Artık geçici dosyaya yazılıp
+     * `renameTo` ile yerine konuyor: ya eski tam içerik ya yeni tam içerik
+     * görünür, arada bir durum yok.
+     *
+     * `fd.sync()` rename'den ÖNCE çağrılıyor; aksi halde rename diske işlenip
+     * içerik sayfa önbelleğinde kalabilir ve ani güç kesintisinde dosya doğru
+     * boyutta ama çöp içerikle kalırdı.
+     */
     private fun write(list: List<Conversation>) {
         runCatching {
             file.parentFile?.mkdirs()
-            file.writeText(serializeList(list))
+            val payload = serializeList(list)
+            val tmp = File(file.parentFile, file.name + ".tmp")
+            FileOutputStream(tmp).use { out ->
+                out.write(payload.toByteArray())
+                out.flush()
+                out.fd.sync()
+            }
+            if (!tmp.renameTo(file)) {
+                // Aynı dizinde rename başarısızsa (nadir) yedek yol: doğrudan yaz.
+                file.writeText(payload)
+                tmp.delete()
+            }
         }
     }
 
@@ -126,20 +175,20 @@ class ConversationStore(
             val msgs = mutableListOf<ChatMessage>()
             for (i in 0 until msgsJson.length()) {
                 val mo = msgsJson.optJSONObject(i) ?: continue
-                val route = mo.optString("route", "").ifBlank { null }
+                val route = mo.str("route", "").ifBlank { null }
                 msgs.add(
                     ChatMessage(
-                        role = mo.optString("role", "assistant"),
-                        content = mo.optString("content", ""),
-                        thoughts = mo.optString("thoughts", ""),
+                        role = mo.str("role", "assistant"),
+                        content = mo.str("content", ""),
+                        thoughts = mo.str("thoughts", ""),
                         route = route,
                         streaming = false,
                     ),
                 )
             }
             return Conversation(
-                id = o.optString("id"),
-                title = o.optString("title").ifBlank { "Yeni sohbet" },
+                id = o.str("id"),
+                title = o.str("title").ifBlank { "Yeni sohbet" },
                 createdAt = o.optLong("createdAt", 0L),
                 updatedAt = o.optLong("updatedAt", 0L),
                 messages = msgs,

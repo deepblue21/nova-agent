@@ -6,6 +6,7 @@ import com.nova.agent.llm.local.LocalModelStore
 import com.nova.agent.llm.local.ModelDownloader
 import java.io.ByteArrayInputStream
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -55,12 +56,41 @@ class LocalLlmHelpersTest {
         assertEquals("Sadece cevap.", content)
     }
 
+    /**
+     * SÖZLEŞME DEĞİŞTİ (E1). Bu test eskiden tersini doğruluyordu: kapanmamış
+     * blok "şeffaflık" gerekçesiyle içerikte bırakılıyordu. Karar yanlıştı —
+     * iki söz veriyor, ikisini de tutmuyordu: balonda ham `<think>` etiketi
+     * görünüyor, dışa aktarmaya ve panoya da düşünme metni sızıyordu. Kapanmamış
+     * blok akışın düşünmenin ORTASINDA kesildiğini gösterir; kuyruk cevap
+     * değildir. Şeffaflık kaybolmuyor: metin düşünme panelinde duruyor.
+     */
     @Test
-    fun `kapanmamis think blogu oldugu gibi birakilir`() {
-        val raw = "<think>yarim kaldi"
-        val (thoughts, content) = ThinkingText.split(raw)
-        assertEquals("", thoughts)
-        assertEquals(raw, content)
+    fun `kapanmamis think blogu icerige degil dusunmeye gider`() {
+        val (thoughts, content) = ThinkingText.split("Merhaba. <think>yarim kaldi")
+        assertEquals("yarim kaldi", thoughts)
+        assertEquals("Merhaba.", content)
+    }
+
+    @Test
+    fun `kapanmamis blok tek basinaysa icerik bos kalir`() {
+        val (thoughts, content) = ThinkingText.split("<think>yarim kaldi")
+        assertEquals("yarim kaldi", thoughts)
+        assertEquals("", content)
+    }
+
+    @Test
+    fun `birden fazla think blogu tumuyle ayiklanir`() {
+        val (thoughts, content) = ThinkingText.split(
+            "<think>once</think>Cevap bir. <think>sonra</think>Cevap iki.",
+        )
+        assertEquals("once\n\nsonra", thoughts)
+        assertEquals("Cevap bir. Cevap iki.", content)
+    }
+
+    @Test
+    fun `think icindeki metin icerige sizmaz`() {
+        val (_, content) = ThinkingText.split("<think>KART 4111 1111 1111 1111</think>Tamam.")
+        assertFalse("dusunme metni disa aktarilan icerige gecmemeli", content.contains("4111"))
     }
 
     // ---------- kod bloklari ----------
@@ -104,9 +134,10 @@ class LocalLlmHelpersTest {
     }
 
     @Test
-    fun `varsayilan ayarlar geriye uyumlu`() {
+    fun `varsayilan ayarlar cihaz ustu calisir`() {
         val settings = com.nova.agent.data.AppSettings()
-        assertEquals("gateway_only", settings.executionPolicy)
+        // Play kararı B5: temiz kurulum PC olmadan da çalışmalı.
+        assertEquals("local_first", settings.executionPolicy)
         assertTrue(settings.localModelId.isNotBlank())
         assertEquals("amethyst", settings.themeId)
     }

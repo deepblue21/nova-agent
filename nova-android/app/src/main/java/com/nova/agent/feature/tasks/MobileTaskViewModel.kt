@@ -125,7 +125,8 @@ internal class MobileTaskRequestSettings(
             RequestStart(taskGeneration, snapshot, taskCalls.start(), stale)
         }
         staleCalls.forEach(Call::cancel)
-        val call = client.createTask(request.baseUrl, request.token, prompt) { result ->
+        val call = try {
+            client.createTask(request.baseUrl, request.token, prompt) { result ->
             try {
                 val token = synchronized(this) {
                     if (requestGeneration != taskGeneration || taskConnection !== request) {
@@ -140,8 +141,18 @@ internal class MobileTaskRequestSettings(
             } finally {
                 taskCalls.complete(operation)
             }
+            }
+        } catch (e: IllegalArgumentException) {
+            // Adres gecersiz (temiz kurulumda baseUrl BOS). MobileTaskClient.request()
+            // burada IllegalArgumentException firlatir ve bu zincir Compose
+            // onClick'inden SENKRON geldigi icin istisna ana thread'de yakalanmadan
+            // ucar -> uygulama coker. Artik cokme yerine kullanicinin gordugu
+            // normal hata yoluna (showFailure) veriliyor.
+            taskCalls.complete(operation)
+            callback(MobileTaskRequestToken(requestGeneration, null), Result.failure(e))
+            null
         }
-        taskCalls.attach(operation, call)
+        if (call != null) taskCalls.attach(operation, call)
     }
 
     fun command(
@@ -158,7 +169,8 @@ internal class MobileTaskRequestSettings(
         callback: (MobileTaskRequestToken, Result<MobileTask>) -> Unit,
     ) {
         val (request, operation) = startRequest(taskId)
-        val call = client.command(
+        val call = try {
+            client.command(
             request.connection.baseUrl,
             request.connection.token,
             taskId,
@@ -174,8 +186,18 @@ internal class MobileTaskRequestSettings(
             } finally {
                 taskCalls.complete(operation)
             }
+            }
+        } catch (e: IllegalArgumentException) {
+            // Adres gecersiz (temiz kurulumda baseUrl BOS). MobileTaskClient.request()
+            // burada IllegalArgumentException firlatir ve bu zincir Compose
+            // onClick'inden SENKRON geldigi icin istisna ana thread'de yakalanmadan
+            // ucar -> uygulama coker. Artik cokme yerine kullanicinin gordugu
+            // normal hata yoluna (showFailure) veriliyor.
+            taskCalls.complete(operation)
+            callback(MobileTaskRequestToken(request.generation, taskId), Result.failure(e))
+            null
         }
-        taskCalls.attach(operation, call)
+        if (call != null) taskCalls.attach(operation, call)
     }
 
     fun resolveConfirmation(
@@ -194,7 +216,8 @@ internal class MobileTaskRequestSettings(
         callback: (MobileTaskRequestToken, Result<MobileTask>) -> Unit,
     ) {
         val (request, operation) = startRequest(taskId)
-        val call = client.resolveConfirmation(
+        val call = try {
+            client.resolveConfirmation(
             request.connection.baseUrl,
             request.connection.token,
             taskId,
@@ -211,8 +234,18 @@ internal class MobileTaskRequestSettings(
             } finally {
                 taskCalls.complete(operation)
             }
+            }
+        } catch (e: IllegalArgumentException) {
+            // Adres gecersiz (temiz kurulumda baseUrl BOS). MobileTaskClient.request()
+            // burada IllegalArgumentException firlatir ve bu zincir Compose
+            // onClick'inden SENKRON geldigi icin istisna ana thread'de yakalanmadan
+            // ucar -> uygulama coker. Artik cokme yerine kullanicinin gordugu
+            // normal hata yoluna (showFailure) veriliyor.
+            taskCalls.complete(operation)
+            callback(MobileTaskRequestToken(request.generation, taskId), Result.failure(e))
+            null
         }
-        taskCalls.attach(operation, call)
+        if (call != null) taskCalls.attach(operation, call)
     }
 
     fun streamEvents(
@@ -301,6 +334,7 @@ class MobileTaskViewModel(app: Application) : AndroidViewModel(app) {
     private var reconnectJob: Job? = null
     private var reconnectAttempt = 0
     private var streamGeneration = 0L
+    private var streamOpenedAt = 0L
 
     var state by mutableStateOf(MobileTaskUiState())
         private set
@@ -425,6 +459,7 @@ class MobileTaskViewModel(app: Application) : AndroidViewModel(app) {
 
         stopStream()
         val generation = streamGeneration
+        streamOpenedAt = System.nanoTime()
         val lastEventId = state.events.lastOrNull()?.id
         eventSource = requestSettings.streamEvents(
             taskId,
@@ -437,11 +472,29 @@ class MobileTaskViewModel(app: Application) : AndroidViewModel(app) {
                     ) {
                         reconnectAttempt = 0
                         update(MobileTaskMutation.EventReceived(event))
+                        // Görev SSE üzerinden terminale geçtiyse akış kapanmalı.
+                        // HTTP yolu bunu yapıyordu (`acceptTaskResult`), olay yolu
+                        // yapmıyordu: biten görevin boşta bağlantısı ekran açık
+                        // kaldığı sürece taşınıyordu.
+                        state.task?.takeIf(::isTerminal)?.let { disconnect() }
                     }
                 }
 
+                /**
+                 * T3: temiz kapanış da bir kopmadır.
+                 *
+                 * Eskiden burada yalnızca `eventSource = null` vardı. Araya giren
+                 * proxy (nginx/Cloudflare) boşta akışı ~60 sn'de HATASIZ kapatır;
+                 * `onError` hiç çağrılmaz, yeniden bağlanma tetiklenmez. Görev PC'de
+                 * çalışmaya devam ederken telefon "Plan hazırlanıyor"da sonsuza dek
+                 * donuyor, sonradan gelen ONAY İSTEĞİ hiç görünmüyor ve görev
+                 * onay bekleyerek asılı kalıyordu.
+                 */
                 override fun onClosed() = onMain {
-                    if (generation == streamGeneration) eventSource = null
+                    if (generation == streamGeneration) {
+                        eventSource = null
+                        if (state.task?.takeUnless(::isTerminal) != null) scheduleReconnect()
+                    }
                 }
 
                 override fun onError(message: String, recoverable: Boolean) = onMain {
@@ -458,8 +511,24 @@ class MobileTaskViewModel(app: Application) : AndroidViewModel(app) {
         val task = state.task ?: return
         if (isTerminal(task)) return
 
+        // Bir süre AYAKTA KALMIŞ akışın kapanması sağlıklı bir döngüdür (proxy'nin
+        // boşta zaman aşımı), arıza değil: geri çekilme sayacı sıfırlanır. Aksi
+        // halde sessiz ama uzun süren bir görev, yalnızca proxy 60 sn'de bir
+        // kapattığı için birkaç dakika sonra "vazgeçildi" sayılırdı.
+        if (System.nanoTime() - streamOpenedAt >= HEALTHY_STREAM_NANOS) reconnectAttempt = 0
+
         stopStream()
         reconnectJob?.cancel()
+
+        // Geri çekilme yalnızca ANINDA ölen akışa karşı: sunucu gerçekten kapalıysa
+        // sonsuza dek denemek yerine durumu kullanıcıya söylemek gerekir. Eskiden
+        // yeniden deneme sınırsızdı ve hata mesajı ekranda yapışık kalıyordu.
+        if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
+            stopStream()
+            update(MobileTaskMutation.Failed(RECONNECT_EXHAUSTED))
+            return
+        }
+
         val delayMs = minOf(1_000L shl reconnectAttempt.coerceAtMost(4), 10_000L)
         reconnectAttempt += 1
         reconnectJob = viewModelScope.launch {
@@ -468,6 +537,14 @@ class MobileTaskViewModel(app: Application) : AndroidViewModel(app) {
                 state.task?.takeUnless(::isTerminal)?.let { connect(it.id) }
             }
         }
+    }
+
+    /** Kullanıcının "Yeniden dene"si: sayacı sıfırlar, hatayı siler, yeniden bağlanır. */
+    fun retryStream() {
+        val task = state.task?.takeUnless(::isTerminal) ?: return
+        reconnectAttempt = 0
+        update(MobileTaskMutation.ErrorCleared)
+        connect(task.id)
     }
 
     private fun showFailure(error: Throwable) {
@@ -494,15 +571,19 @@ class MobileTaskViewModel(app: Application) : AndroidViewModel(app) {
         if (Looper.myLooper() == Looper.getMainLooper()) block() else main.post(block)
     }
 
-    private fun isTerminal(task: MobileTask): Boolean = task.status in setOf(
-        MobileTaskStatus.COMPLETED,
-        MobileTaskStatus.FAILED,
-        MobileTaskStatus.CANCELLED,
-    )
+    private fun isTerminal(task: MobileTask): Boolean = task.status.isTerminal()
 
     override fun onCleared() {
         disconnect()
         requestSettings.reset()
         super.onCleared()
+    }
+
+    private companion object {
+        const val MAX_RECONNECT_ATTEMPTS = 6
+        val HEALTHY_STREAM_NANOS = java.util.concurrent.TimeUnit.SECONDS.toNanos(20)
+        const val RECONNECT_EXHAUSTED =
+            "Görev akışına yeniden bağlanılamadı. Görev PC'de sürüyor olabilir; " +
+                "bağlantıyı kontrol edip yeniden deneyin."
     }
 }

@@ -56,7 +56,7 @@ The smoke test creates a task, verifies its queued state, pauses, resumes, and c
 
 ## Local Emulator Worker
 
-The Docker Gateway is published only to `127.0.0.1:8088`. Keep the worker disabled until its dedicated token and the WSL ADB bridge are configured; do not publish the worker API, ADB, PostgreSQL, or Redis to the LAN.
+The Docker Gateway is published only to `127.0.0.1:18088` (host side; the port inside the container stays 8088). Horus never claims the shared `8088`/`8080`/`80`/`443` ports — see `docs/PORTLAR.md`. Keep the worker disabled until its dedicated token and the WSL ADB bridge are configured; do not publish the worker API, ADB, PostgreSQL, or Redis to the LAN.
 
 Run one worker pass from the WSL worker shell:
 
