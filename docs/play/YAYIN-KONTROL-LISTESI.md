@@ -24,12 +24,35 @@ herkese açık hâle getirirdi. Yayımlanan şey açıkça seçilmiş olmalı.
 
 **Senin yapman gerekenler (2 dakika)**
 
-1. `site/` ve `.github/workflows/pages.yml` dosyalarını **`main` dalına** al
-   (bu dosyalar şu an `codex/phase1-local-first` üzerinde).
-2. GitHub → repo → **Settings → Pages → Source: GitHub Actions**.
-   *(Varsayılan `github-pages` ortamı yalnız ana daldan dağıtıma izin verir;
-   bu yüzden 1. adım önce gelmeli.)*
-3. Actions sekmesinden iş akışının yeşil olduğunu gör.
+Commit'ler hazır ve yerelde bekliyor; göndermek için Windows'ta çalıştır
+(kimlik doğrulaman orada):
+
+```powershell
+cd C:\Users\salih\Project_Horus
+git push nova-upstream codex/phase1-local-first
+```
+
+Sonra gizlilik sayfasını yayına almak için — Pages yalnız ana daldan dağıtır,
+o yüzden ilgili commit `main`'e geçmeli:
+
+```powershell
+git checkout main
+git pull nova-upstream main
+git cherry-pick 1b1dd0c      # yalnız Play hazırlığı: site/ + pages.yml + docs/play
+git push nova-upstream main
+git checkout codex/phase1-local-first
+```
+
+*(Yalnız yeni dosya eklediği için çakışma beklenmiyor. Tüm dalı birleştirmek
+istersen `git merge codex/phase1-local-first` de olur.)*
+
+Son adım, tek seferlik: GitHub → repo → **Settings → Pages → Source: GitHub
+Actions**. Ardından Actions sekmesinden iş akışının yeşil olduğunu gör.
+
+> **Temizlik notu:** bu oturumda git'i Linux tarafından çalıştırdığım için
+> `.git/` içinde silinemeyen geçici dosyalar kaldı (~210 `tmp_obj_*` ve birkaç
+> `*.lock.stale`). Zararsızlar, ama Windows'ta `git gc --prune=now` ile
+> temizlenirler.
 
 **Ortaya çıkacak adres**
 
