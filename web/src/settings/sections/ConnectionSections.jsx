@@ -1,7 +1,7 @@
 // Sağlayıcılar (+ Keycloak oturumu), ses (Whisper STT / TTS) ve ajan katmanı.
 import React from "react";
 import { Check, Link2 } from "lucide-react";
-import { Accordion, Field, Switch, Chip } from "../../ui/primitives.jsx";
+import { Accordion, Field, SecretField, Switch, Chip } from "../../ui/primitives.jsx";
 import { Icons } from "../../lib/icons.mjs";
 import { AGENTS, PROV_META, PROV_ORDER } from "../../lib/constants.mjs";
 
@@ -36,15 +36,14 @@ export function ProvidersSection({
             </Field>
 
             {meta.keyLabel && (
-              <Field label={meta.keyLabel}>
-                <input
-                  className="input mono"
-                  type="password"
-                  value={p.apiKey}
-                  onChange={(e) => onProv(id, { apiKey: e.target.value })}
-                  placeholder="••••••••"
-                />
-              </Field>
+              <SecretField
+                label={meta.keyLabel}
+                value={p.apiKey}
+                onChange={(v) => onProv(id, { apiKey: v })}
+                hint={id === "gateway"
+                  ? "Aynı anahtar Android uygulamasındaki “Erişim belirteci” alanına girilir."
+                  : ""}
+              />
             )}
 
             {id === "gateway" && (

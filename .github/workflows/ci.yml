@@ -44,8 +44,16 @@ jobs:
       - name: Unit tests (web)
         run: npm --prefix web test
 
+      # mDNS testleri de burada: tel biçimi `scripts/lib/mdns.mjs` ile
+      # Android'deki `GatewayDiscovery.kt` arasında paylaşılan bir sözleşmedir.
+      # Koşmazsa, biri bozulduğunda CI yeşil kalır ve eşleme sessizce kırılır.
       - name: Smoke-script unit tests
-        run: node --test scripts/smoke-mobile-control-plane.test.mjs scripts/smoke-mobilerun-worker.test.mjs
+        run: |
+          node --test \
+            scripts/smoke-mobile-control-plane.test.mjs \
+            scripts/smoke-mobilerun-worker.test.mjs \
+            scripts/mdns.test.mjs \
+            scripts/mdns-wire.test.mjs
 
       - name: Build web
         run: npm --prefix web run build

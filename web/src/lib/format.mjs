@@ -78,8 +78,39 @@ export function download(filename, content, mime = "text/plain") {
   } catch (e) {}
 }
 
-export function copyText(t) {
-  try { navigator.clipboard && navigator.clipboard.writeText(t); } catch (e) {}
+/**
+ * Panoya kopyala. `navigator.clipboard` YALNIZ güvenli bağlamda (https ya da
+ * localhost) vardır — uygulamayı `http://100.x.y.z:8081` gibi bir tailnet/LAN
+ * adresinden açtığında tanımsızdır. O yüzden gizli bir textarea + execCommand
+ * yedeği var; yoksa telefondan bağlanınca kopyalama sessizce çalışmıyordu.
+ *
+ * @returns {Promise<boolean>} kopyalandıysa true
+ */
+export async function copyText(t) {
+  const text = String(t == null ? "" : t);
+  if (!text) return false;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) { /* yedeğe düş */ }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "-1000px";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return !!ok;
+  } catch (e) {
+    return false;
+  }
 }
 
 /** Dosya adı için güvenli gövde (Türkçe harfler korunur). */

@@ -104,6 +104,20 @@ export const SURFACES_CSS = `
 .input:focus, .textarea:focus, .select:focus { border-color: var(--line-bright); }
 .input::placeholder, .textarea::placeholder { color: var(--muted2); }
 .input.mono { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; }
+
+/* Gizli değer satırı: alan + göster + kopyala. Düğmeler alanla aynı
+   yükseklikte olsun diye icon-btn'in küçük varyantı kullanılır. */
+.secret-row { display: flex; align-items: stretch; gap: 6px; }
+.secret-row .input { flex: 1 1 auto; min-width: 0; }
+.icon-btn.sm {
+  width: 38px; height: auto; min-height: 38px; flex: 0 0 auto;
+  border-radius: var(--radius-sm);
+}
+.icon-btn.sm:disabled { opacity: .4; cursor: not-allowed; }
+.icon-btn.sm:disabled:hover { color: var(--muted); border-color: var(--line); background: var(--surface1); }
+.icon-btn.sm.ok { color: var(--accent); border-color: var(--accent); }
+.icon-btn.sm.err { color: var(--danger, #e5484d); border-color: var(--danger, #e5484d); }
+.secret-hint { font-size: 11px; color: var(--muted2); }
 .textarea { resize: vertical; min-height: 62px; line-height: 1.55; }
 .select { cursor: pointer; appearance: none;
   background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
