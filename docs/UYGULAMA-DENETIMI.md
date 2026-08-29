@@ -1,0 +1,931 @@
+# NOVA Android — kod denetimi (2026-08-27)
+
+İki bağımsız denetim, 11.496 satır ana kaynak (58 dosya). Her bulgu okunan koddaki
+somut satırlara dayanıyor; doğrulanamayanlar **şüpheli** olarak işaretli.
+
+**Cevap: hayır, uygulama kusursuz değil.** En ciddi üç kusur, mağazadan indiren
+bir kullanıcının ilk 5 dakikasında karşısına çıkıyor.
+
+---
+
+## Bugün düzeltilenler (3)
+
+Üçü de dün `baseUrl` varsayılanını boşaltmamın (B5) açtığı ya da büyüttüğü kusurlar.
+
+### ✔ D1. Çökme — "Görevi başlat" uygulamayı düşürüyordu
+
+`MobileTaskClient.request()` adres geçersizse `IllegalArgumentException` fırlatıyor.
+Zincir Compose `onClick`'inden **senkron** geliyor ve hiçbir yerde yakalanmıyordu.
+
+Senaryo: temiz kurulum (`baseUrl = ""`) → eşlen → Görevler → "Görevi başlat" → **çökme.**
+Eski varsayılan (`http://10.0.2.2:8088/v1`) ayrıştırılabildiği için bu yol daha önce
+hiç açılmamıştı.
+
+**Düzeltme:** `createTask`, `command`, `resolveConfirmation` çağrıları try/catch ile
+sarıldı; hata artık çökme yerine kullanıcının gördüğü normal hata yoluna gidiyor.
+
+> Kalan: `streamEvents` aynı istisnayı fırlatabiliyor ama yalnız başarılı bir görev
+> oluşturmadan **sonra** çağrılıyor, yani adres o noktada zaten geçerli. Sarmadım.
+
+### ✔ D2. Ayarlar panelini kapatmak sahte hata üretiyordu
+
+`onRestoreAppliedConnection` panel her kapanışında koşulsuz `testConnection()`
+çağırıyordu. Açılıştaki koruma (`shouldProbeOnStart`) bu yolu kapsamıyordu.
+
+Senaryo: temiz kurulum, kullanıcı sırf tema seçmek için Ayarlar'ı açıp kapatır →
+kalıcı **"Gateway adresi geçersiz"** → Basit modda düzeltebileceği alan ekranda yok.
+
+**Düzeltme:** `NovaViewModel.refreshConnectionState()` eklendi; açılış kuralının
+aynısını uyguluyor. Kullanıcının kendi bastığı "Bağlantıyı test et" bunun dışında —
+orada geçersiz adresi söylemek doğru.
+
+### ✔ D3. Eşleme sonrası Görevler ekranı eski adreste kalıyordu
+
+`onUpdateTaskConnection`'ı yalnız elle "Kaydet" yolu çağırıyordu; **eşleme yolu
+çağırmıyordu.** Bağlantı kartı "PC hazır" derken görev istekleri boş adrese gidiyordu
+(D1'in tetikleyicisi de buydu).
+
+**Düzeltme:** Görevler bağlantısı artık ayarları **izliyor** (`LaunchedEffect`), kimse
+elle itmiyor. Aynı hatanın gelecekte açılacak her yeni bağlantı yolunda tekrarlanmasını
+da önlüyor.
+
+---
+
+## Açık — kritik (2)
+
+### K1. İndirilen model AKTİF OLMUYOR → yeni kullanıcı için gerçek çıkmaz
+
+`NovaViewModel.kt:302`, `SettingsStore.kt:53`, `ModelRecommender.kt:36-53`
+
+`recommended` cihaz RAM'ine göre en uygun modeli seçer, ama `settings.localModelId`
+sabit `"qwen3-0.6b-int4"` kalır ve indirme bitince `setLocalModel`'i çağıran **hiçbir
+yer yoktur** (tek çağıran `NovaApp.kt:154`, yani elle dokunuş).
+
+Senaryo: 8 GB RAM'li telefon → kart "önerilen: Gemma 4 E4B" der → "Önerileni indir" →
+3,4 GB iner ve doğrulanır → sohbete yazılır → **"Telefonda kurulu model yok. Modeller
+sekmesinden bir model indirin."** Aynı anda ilk açılış kartı da kaybolur
+(`anyInstalled()=true`), yani yönlendirme tam gerektiği anda yok olur.
+
+**Bu, `local_first` varsayılanının ana yolu.** Play sürümünde ilk deneyim bu.
+
+### K2. İndirme arka planda ölüyor, bildirim yok
+
+`NovaViewModel.kt:88` (`viewModelScope`) → `onCleared()` → `shutdown()` → indirme iptal.
+Manifest'te Service yok, WorkManager yok, `POST_NOTIFICATIONS` yok.
+
+Senaryo: 8,6 GB indirme başlar, kullanıcı uygulamayı kapatır → sessizce iptal.
+`.part` korunduğu için veri kaybı yok ama "indir"e basıp telefonu cebine koyan
+**herkes** başarısız olur.
+
+---
+
+## Açık — yüksek (6)
+
+| # | Kusur | Sonuç |
+|---|-------|-------|
+| Y1 | `NetworkPolicy` yalnız eşlemede çağrılıyor (`PairingClient.kt:40`); sohbet/test/görev yolları kontrolsüz | Gelişmiş modda genel bir IP'ye `Bearer nv_…` **şifresiz** gider. Manifest yorumundaki güvence tutmuyor; testler yeşil kalır çünkü saf fonksiyonu test ediyorlar, çağrıldığını değil |
+| Y2 | Doğrulaması başarısız model silinmiyor, `isInstalled` yine true (`LocalModelStore.kt:48,61`) | Bozuk `.litertlm` native motora verilir; SIGSEGV `catch(Throwable)` ile yakalanamaz. Üstelik satırda "yeniden indir" düğmesi yok |
+| Y3 | Tam boyutlu `.part` → kalıcı HTTP 416 (`ModelDownloader.kt:68`, `>` yerine `>=`) | %100'de duraklatan kullanıcı bir daha sürdüremez; tek çıkış 8,6 GB'ı baştan indirmek |
+| Y4 | Hedef dosya varsa SHA-256 doğrulaması tamamen atlanıyor (`ModelDownloader.kt:70`) | Arayüz "başarılı" der, satır sonsuza dek "Doğrulanmadı" kalır |
+| Y5 | Disk dolunca "Bağlantı hatası ... sürdürülebilir" deniyor (`ModelDownloader.kt:149`) | Hem etiket hem öneri yanlış; yer yokken sürdürülemez |
+| Y6 | `iptal` `ensureLoaded` sonrası dinlenmiyor; tek motorda iki eşzamanlı üretim (`LocalLlmController.kt:262-345`) | "Dur" → yeni istem → iki coroutine aynı `Engine`'e girer, biri `unload()` çağırırken diğeri üretir → native çökme *(şüpheli, cihazda üretilmedi)* |
+
+---
+
+## Açık — orta (7)
+
+- **mDNS sızıntısı:** `unregisterServiceInfoCallback` hiç çağrılmıyor (`NsdGatewayDiscovery.kt:104`); panel her açılışta kayıt birikir, "arka planda sürmemeli" sözleşmesi tutmuyor.
+- **Kaybolan PC listeden düşmüyor:** `onServiceLost` `displayName` ile eşleştiriyor ama o TXT `name`'den geliyor (`NsdGatewayDiscovery.kt:69`); kapanan PC listede kalır, kullanıcı kodu boşuna yakar.
+- **API 34 öncesi ikinci PC hiç çözümlenmiyor:** `resolveService` asenkron, `FAILURE_ALREADY_ACTIVE` yutuluyor (`NsdGatewayDiscovery.kt:121`).
+- **"Yeniden tara" butonu ölü:** `startDiscovery()` ilk satırda erken dönüyor, job daima aktif (`PairingController.kt:51`).
+- **Özel TXT `path` ile eşleme "başarılı" der ama kaydetmez:** `GatewayDiscovery` `/api/v1`'i destekler, `canonicalBaseUrl` reddeder — iki bileşen ayrı ayrı testli, dikiş testsiz.
+- **İzin kartı yanlış üç mesaj gösteriyor:** "Telefon modeli yanıt veremedi" (model hiç yok), tek eylem "PC'ye gönder", o da yapılandırılmamış gateway'de patlar (`ChatScreen.kt:204`).
+- **Yedekleme kuralları yok:** `allowBackup="true"`, `dataExtractionRules` yok → `hfToken` ve GB'larca model Auto Backup kapsamında; 25 MB kotası yüzünden yedekleme büsbütün başarısız olur.
+
+---
+
+## Test kapsamındaki gerçek boşluklar
+
+1. **Boş `baseUrl` ile hiçbir UI testi yok.** Tüm `NovaAppSettingsSyncTest` testleri Gelişmiş mod + dolu adres kullanıyor. Yeni varsayılanın gerçek hâli (Basit mod + boş adres) hiç test edilmiyor — D2 bu yüzden fark edilmemişti.
+2. **Eşleme → görev bağlantısı dikişi testsiz** (D3).
+3. **`NetworkPolicy`'nin çağrıldığını doğrulayan test yok** (Y1) — 12 test saf fonksiyonu kapsıyor, çağrı noktalarını değil.
+4. **`PairingController` yaşam döngüsü testsiz:** erken dönüş, `stopDiscovery` sonrası state, iptal edilen çağrı.
+5. **`saveConnection`'ın sessizce persist etmeyen dalı testsiz.**
+
+---
+
+## Önerilen sıra
+
+1. **K1** — tek satırlık düzeltme değil ama en yüksek getirili: indirme bitince aktif model ayarlansın. Play'e giden ana yolun çıkmazı bu.
+2. **Y3 + Y4 + Y5** — indirme dayanıklılığı; üçü de `ModelDownloader.kt`'de, birlikte kapanır.
+3. **K2** — `WorkManager` + foreground bildirim. En çok iş, ama Play öncesi zorunlu.
+4. **Y1** — `NetworkPolicy`'yi gerçek çağrı noktalarına bağla + çağrıldığını doğrulayan test.
+5. **Y2 + Y6** — bozuk model ve eşzamanlı üretim; ikisi de native çökme sınıfı.
+6. Orta grup, keşif/eşleme kalemleri eve dönünce LAN testiyle birlikte.
+
+Not: bugünkü üç düzeltme **derlenmedi ve test edilmedi** — `CALISTIR-derleme.bat` hâlâ
+çalıştırılmayı bekliyor. Onaylanmadan "düzeldi" saymayın.
+
+---
+
+# İkinci tur — kalan yarı (2026-08-27)
+
+İlk tur bağlantı/eşleme ve model yolunu kapsıyordu. Bu tur sohbet, ses, geçmiş,
+araçlar, görev durum makinesi ve uygulama kabuğunu kapsıyor. **23 yeni bulgu.**
+
+> Not: ikinci turdaki denetçilerden biri, düzeltmelerden ÖNCE alınmış bir kaynak
+> kopyasını okudu ve D1/D3'ü "hâlâ açık" diye raporladı. Cihazdaki dosyalarda
+> üç düzeltme de yerinde — doğrulandı. O bulguları buradan çıkardım.
+
+## KRİTİK (6)
+
+### G1. Hassas istem, izin sorulmadan buluta gidiyor
+`NovaViewModel.kt:488-497` (`autoHandoffAfterLocalError`)
+
+`decideHybrid` hassas istemi bilerek telefonda tutuyor. Ama yerel motor hata verince
+`autoHandoffAfterLocalError` **`PrivacyClassifier`'ı yeniden sormadan** aynı istemi
+gateway'e yolluyor ve izin kartını hiç göstermiyor.
+
+Senaryo: HYBRID + oto-devir açık → "IBAN'ım TR33 0006…" → gizlilik nedeniyle telefonda
+kalıyor → model zaman aşımına düşüyor → istem sessizce gateway'e, oradan seçili model
+bir bulut sağlayıcısıysa **buluta** gidiyor. `PrivacyClassifier`'daki "override yalnız
+otomatik devri engeller" sözü bu yolda tutmuyor.
+
+### G2. Sınıflandırıcı son mesaja bakıyor, gönderilen tüm geçmiş
+`NovaViewModel.kt:468-478` + `NovaClient.kt:61`
+
+`privacySensitive` yalnız **son** kullanıcı mesajından hesaplanıyor, ama istek
+konuşmanın tamamını taşıyor.
+
+Senaryo: 1. tur kart numarası → telefonda kalıyor (doğru). 3. tur uzun ve masum bir
+istem → uzunluk kuralıyla gateway'e → **kart numarası içeren 1. tur da aynı istekle
+dışarı çıkıyor.**
+
+### T1. Sayısal olmayan olay kimliği uygulamayı çökertiyor
+`MobileTaskReducer.kt:65` (`BigInteger(it.id)`) ↔ `MobileTaskClient.kt:178`
+
+Ayrıştırıcı kimliği serbest string kabul ediyor (test bunu bilerek doğruluyor), reducer
+ondalık tamsayı şart koşuyor. İki katman arasında **doğrudan sözleşme çelişkisi**.
+
+Senaryo: gateway ULID/UUID üretirse (`id: evt_01H8…`) ya da JSON'da `"id":1.0` gelirse
+ilk olayda ana thread'de `NumberFormatException` → çökme.
+
+### T2. Terminal görev + bekleyen onay = uygulamayı zorla kapatmak
+`MobileTaskReducer.kt:60-64`, `MobileTaskScreen.kt:97-122`
+
+`task.state{failed|cancelled}` bekleyen onayı temizlemiyor.
+
+Senaryo: onay istendi, kullanıcı karar vermeden worker zaman aşımına düşüp `failed`
+yayınladı → karartma katmanı tüm dokunuşları yutuyor, alttaki içerik erişilemez,
+"Yeni görev" ulaşılamaz, Onayla/Reddet 404 dönüyor, görev terminal olduğu için
+kurtarıcı SSE olayı da gelemez. **Çıkış yok.**
+
+### V1. Sohbet geçmişi atomik yazılmıyor; bozulunca sessizce sıfırlanıyor
+`ConversationStore.kt:66-71`, `:90-103`
+
+Tüm sohbetler tek dosyada, `writeText` önce truncate ediyor. Yazma sırasında süreç
+ölürse yarım JSON kalıyor → `parseList` `catch` ile **boş liste** dönüyor → ilk kayıt
+dosyayı tek sohbetle eziyor. Geçici dosya + rename yok, yedek yok, uyarı yok.
+
+Senaryo: 80 sohbet kayıtlı → yazma sırasında Android süreci öldürüyor → uygulama
+açılınca "Henüz kayıtlı sohbet yok."
+
+### V2. Hata ve "Durdur" sonrası sohbet hiç kaydedilmiyor
+`NovaViewModel.kt:646-651`, `:570-589`, `:413-422`
+
+`saveCurrent()` yalnız 4 yerde çağrılıyor; hata yolunda ve Durdur'da yok. Hiçbir yaşam
+döngüsü kancası da kaydetmiyor (kaynakta tek `LifecycleEventObserver` yok).
+
+Senaryo: uzun soru, akış ortasında ağ düşüyor → kullanıcı uygulamayı kapatıyor → soru
+da kısmi yanıt da geçmişte yok.
+
+## YÜKSEK (7)
+
+| # | Kusur | Sonuç |
+|---|-------|-------|
+| T3 | SSE `onClosed`'da yeniden bağlanma yok (`MobileTaskViewModel.kt:443`) | Proxy 60 sn'de akışı temiz kapatıyor → ekran "Plan hazırlanıyor"da sonsuza kadar donuyor, sonradan gelen **onay isteği hiç görünmüyor**, görev PC'de asılı kalıyor |
+| T4 | Onay paneli parmağın altında değişebiliyor (`MobileTaskReducer.kt:60`) | A'nın özetini okuyup dokunurken B düşerse **B onaylanmış oluyor** — riskli eylem yanlışlıkla onaylanabilir |
+| S1 | TTS 4000 karakter sınırı kontrol edilmiyor (`SpeechManager.kt:99`) | 5000 karakterlik yanıtta `speak` ERROR döner, `onDone` hiç gelmez → orb sonsuza dek "Konuşuyorum", ses yok |
+| L1 | `onCleared` → `shutdown()` → `viewModelScope.launch` **hiç çalışmıyor** (scope zaten kapalı) | LiteRT motoru, GPU bağlamı ve GB'larca mmap'li model süreç ölene kadar bellekte |
+| J1 | Android `org.json` `optString(name, fallback)` JSON null'da **`"null"` dizesi** döndürür | Geçmişten yüklenen mesajın altında "→ null"; `reasoning_content:null` gönderen sağlayıcıda düşünme panelinde "nullnullnull…" |
+| M1 | Kullanıcı "Durdur"a basınca "⚠️ Gateway hatası (200)" yazılıyor (`NovaClient.kt:106`) | Kendi iptali sunucu hatası gibi gösteriliyor (yerel yolda bastırılmış, gateway yolunda değil) |
+| E1 | Kapanmamış `<think>` bloğu içeriğe düşüp dışa aktarmaya sızıyor; gateway yolunda `ThinkingText.split` **hiç çağrılmıyor** | "Düşünme paylaşımdan çıkarılır" vaadi tutmuyor; aynı model Ollama üzerinden kullanılınca ham `<think>` balonda görünüyor |
+
+## ORTA (10)
+
+- Statüsüz olay, HTTP ile doğrulanmış durumu geri alıyor → "Duraklat" sessizce EXECUTING'e dönüyor (`MobileTaskReducer.kt:66`).
+- Yapışkan hata mesajı + sınırsız yeniden deneme; `clearError()` **ölü kod**, hiçbir yerden çağrılmıyor.
+- SSE ile terminale geçen görevde akış kapanmıyor → boşta bağlantı taşınıyor.
+- API anahtarı panoya `EXTRA_IS_SENSITIVE` olmadan kopyalanıyor → Android 13+ önizleme baloncuğu anahtarı düz metin gösteriyor, maskeleme anlamsızlaşıyor.
+- Geçmiş aramasında yarış: eski sorgunun sonucu yenisini eziyor (bağlantı sondaları için yazılan koruma deseninin karşılığı yok).
+- Geçmişte silme onaysız ve geri alınamaz; çöp kutusu ikonu paylaş ikonunun bitişiğinde.
+- `Calculator` taşmada "sıfıra bölme olabilir" diyor (`9^999`); derin özyinelemede `StackOverflowError` bir `Error` olduğu için "araç hataları uygulamayı düşüremez" garantisi kapsamıyor *(şüpheli)*.
+- `modelsCall` `onCleared`'da iptal edilmiyor → ViewModel sızıntısı.
+- Pil okunamadığında modele ham `-1` veriliyor → NOVA "pilin %-1" diyor.
+- `LaunchedEffect(vm.mode)` gövdede `baseUrl` okuyor ama key'de yok *(düşük etki)*.
+
+## Temiz çıkanlar
+
+`NoteStore`'da yol/dosya adı zaafı yok. `DeviceStatusReader` izin gerektiren API
+kullanmıyor. **Tüm `src/main`'de tek bir `Log.*`/`println`/`printStackTrace` yok** —
+sohbet içeriği loglanmıyor. `ChatMarkdown.splitBlocks` sonsuz döngüye girmiyor,
+`PrivacyClassifier` regex'lerinde ReDoS riski yok.
+
+## Toplam
+
+| | İlk tur | İkinci tur | Toplam |
+|---|---|---|---|
+| Düzeltildi | 3 | 0 | **3** |
+| Kritik | 2 | 6 | **8** |
+| Yüksek | 6 | 7 | **13** |
+| Orta | 7 | 10 | **17** |
+
+Kalan **38 açık bulgu**. Bunların 8'i (gizlilik sızıntısı, kalıcı kilit, çökme,
+veri kaybı) Play'e çıkmadan önce kapatılması zorunlu sınıfta.
+
+---
+
+# G1 + G2 düzeltildi (2026-08-27, ikinci oturum)
+
+## G2 — sınıflandırıcı artık gönderilecek şeyin tamamına bakıyor
+
+`PrivacyClassifier.isAnySensitive(texts: List<String>)` eklendi.
+`NovaViewModel.conversationSensitive()` gizlilik kararının **tek kaynağı** oldu ve
+`messages` içindeki tüm **kullanıcı** mesajlarını tarıyor.
+
+Eski hâli `messages.lastOrNull { role == "user" }` idi — yalnız son istem. Sızıntı tam
+buradaydı: kart numarası 1. turda yazılıp telefonda kalıyor, 3. turdaki masum ama uzun
+istem uzunluk kuralıyla PC'ye gidiyor ve **kart numarasını içeren 1. tur da onunla
+birlikte** dışarı çıkıyordu (istek gövdesi mesaj listesinin tamamını taşır).
+
+Bilinen sınır: yalnız kullanıcı mesajları taranıyor. Asistanın sırrı yankılaması bu
+kontrole takılmaz — sır kullanıcı tarafında yazılır, asistan yanıtı ondan türer.
+
+## G1 — otomatik devir gizlilik kapısından geçiyor
+
+`autoHandoffAfterLocalError()` başına eklendi:
+
+```kotlin
+if (conversationSensitive()) return false
+```
+
+`decideHybrid` hassas konuşmayı **bilerek** cihazda tutuyordu; yerel motor hata verdi
+diye aynı içerik sessizce dışarı çıkamaz. Eskiden bu kapı yoktu: hassas istem, izin
+kartı hiç gösterilmeden gateway'e — oradan da seçili model bulut sağlayıcısıysa
+**buluta** — gidiyordu.
+
+`false` dönünce akış zaten izin kartını kuruyor, yani kullanıcı isterse **kendi eliyle**
+onaylıyor (`approveFallback`). `PrivacyClassifier` sınıf yorumundaki "gizlilik override'ı
+yalnız OTOMATİK devri engeller, kullanıcının elle tercihini kısıtlamaz" sözü ancak böyle
+tutuyor.
+
+Ek olarak izin kartı **nedeni söylüyor**: otomatik devir gizlilik yüzünden durduysa kart
+bunu yazıyor. Aksi halde kullanıcı, açık olan kuralının neden işlemediğini bilemezdi.
+
+## Doğrulama
+
+| | Sonuç |
+|---|---|
+| Derleme (Assemble Project with Tests) | ✔ BUILD SUCCESSFUL |
+| Birim testleri | ✔ **291/291 geçti** (288 + 3 yeni) |
+| Eski `isSensitive(lastPrompt)` çağrısı | ✔ kalmadı (0 eşleşme) |
+| APK | ✔ `app/build/outputs/apk/debug/app-debug.apk`, 67,268,523 bayt |
+
+Yeni testler `PrivacyClassifierTest`'te:
+`gecmisteki sir sonraki turda da hassas sayilir` (asıl regresyon kilidi — aynı test hem
+`isAnySensitive`'in yakaladığını hem eski `isSensitive(son mesaj)` kuralının
+**kaçırdığını** ispatlıyor), `tamamen masum konusma hassas degildir`, `bos liste hassas
+degildir`.
+
+Ayrıca bu turda bulunan ve düzeltilen dördüncü kusur: `NovaSecretFieldTest.FakeClipboard`
+içindeki `var text` alanı `ClipboardManager.getText()/setText()` ile *platform declaration
+clash* üretiyordu; **enstrümanlı test kaynağı bugüne kadar hiç derlenmiyordu.** Push CI'ı
+yalnız JVM testlerini koştuğu, enstrümanlı workflow ise elle tetiklendiği için
+görülmemiş. Alan `stored` olarak yeniden adlandırıldı.
+
+**Kalan:** 36 açık bulgu. Sıradaki kritikler K1 (indirilen model aktif olmuyor),
+K2 (indirme arka planda ölüyor), T1 (`BigInteger(id)` çökmesi), T2 (kalıcı modal kilidi),
+V1/V2 (sohbet geçmişi veri kaybı).
+
+---
+
+# K1, K2, T1, T2, V1, V2 düzeltildi (2026-08-27, üçüncü oturum)
+
+## K1 — indirilen model artık aktif oluyor
+
+`LocalLlmController`'a `onModelInstalled` geri çağrısı eklendi; kurulum bitince
+`NovaViewModel.activateIfNothingUsable` çalışıyor.
+
+Kural bilinçli olarak "her indirmede geç" değil: seçili model zaten kuruluysa
+kullanıcının çalışan tercihi elinden alınmaz. Ama kurulu değilse ortada
+kullanılabilir bir şey yok demektir — çıkmaz tam oradaydı.
+
+## K2 — indirme uygulamadan koparıldı
+
+**Araştırma kararı değiştirdi.** İlk plan `dataSync` ön plan servisiydi; ama
+Android 15+ hedefleyen uygulamalarda bu tür **24 saatte 6 saatle sınırlı**
+([FGS timeouts](https://developer.android.com/develop/background-work/services/fgs/timeout)).
+Zaman sınırı olmayan doğru API "user-initiated data transfer" (UIDT, API 34+),
+**ama Jetpack'te desteği yok**: `setUserInitiated()` WorkManager'da bulunmuyor,
+ham `JobScheduler` `JobService` yazmak gerekiyor
+([UIDT](https://developer.android.com/develop/background-work/background-tasks/uidt)).
+
+Karar: WorkManager + `dataSync`, sınırı manifestte açıkça belgelenmiş hâlde.
+8,6 GB için ~4 Mbit/s sürekli hız yeterli; sayaç uygulama öne gelince sıfırlanır
+ve `.part` korunduğu için indirme kaldığı yerden sürer.
+
+- Yeni `ModelDownloadWorker`: ön plan bildirimi, ilerleme (1,5 sn'de bir), iptal
+  aksiyonu, `FOREGROUND_SERVICE_TYPE_DATA_SYNC` (API 34+ zorunlu).
+- `LocalLlmController` işi kuyruğa alıyor, `getWorkInfosByTagFlow` ile izliyor.
+  Gözlemci `viewModelScope`'a bağlı **ama iş değil**: uygulama ölünce yalnız
+  izleme durur.
+- Bağımlılık: `androidx.work:work-runtime:2.11.2`. **`-ktx` değil** — o artifact
+  2.9.0'dan beri boş, `CoroutineWorker` dahil her şey ana artifact'ta.
+- İzinler: `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC`.
+
+**Bonus (denetim L1):** `shutdown()` içindeki motor boşaltması `viewModelScope`
+ile yazılmıştı ve o scope `onCleared`'dan ÖNCE kapandığı için **hiç
+çalışmıyordu**. Ayrı bir daemon thread'e alındı.
+
+## T1 — sayısal olmayan olay kimliği çökertmiyor
+
+`BigInteger(it.id)` yerine `orderEvents`: kimliklerin tamamı sayısalsa sayısal
+sıraya girer, değilse geliş sırası korunur. Sayısal olmayan kimlikte "doğru" bir
+sayısal sıra yoktur; uydurmak yerine dokunmuyoruz (SSE zaten sıralı teslim eder).
+
+## T2 — terminal görev kilidi açıldı
+
+`task.state{failed|cancelled|completed}` artık bekleyen onayı temizliyor.
+
+Yol boyunca `isTerminal()` kuralının **üç ayrı yere kopyalanmış** olduğu çıktı
+(ekranda özel uzantı, VM'de özel fonksiyon, reducer'dan erişilemez). Kusurun
+fark edilmemesinin bir nedeni buydu — kural enum üyesine taşındı, üçü de oradan
+okuyor.
+
+## V1 — geçmiş atomik yazılıyor, bozulma sessizce silinmiyor
+
+- Geçici dosya + `fd.sync()` + `renameTo`. Ya eski tam içerik ya yeni tam içerik.
+- Bozuk dosya `<dosya>.corrupt` olarak karantinaya alınıyor; ilk `save()` artık
+  onu ezip yok edemiyor. `[]` gerçekten boştur, karantinaya alınmaz.
+
+## V2 — kaydetme boşlukları kapandı
+
+`saveCurrent()` artık `stop()`, gateway hata yolu ve yerel hata yolunda da
+çağrılıyor. `onCleared` için bloklayan varyant eklendi — orada
+`viewModelScope.launch` çalışmaz (L1 ile aynı tuzak).
+
+## Doğrulama
+
+| | Sonuç |
+|---|---|
+| Derleme | ✔ BUILD SUCCESSFUL (WorkManager 2.11.2 çözüldü) |
+| Birim testleri | ✔ **303/303 geçti** (291 + 12 yeni) |
+| APK | ✔ `app/build/outputs/apk/debug/app-debug.apk`, 67.787.469 bayt |
+
+**12 yeni test:** T1 için dört (ULID, float `"1.0"`, karışık kimlik, reducer'dan
+uçtan uca), T2 için üç (failed/cancelled temizler, EXECUTING korur), V1 için
+dört (karantina, `[]` karantinaya alınmaz, `.tmp` kalmaz, mevcut yedek ezilmez),
+artı G2'den devreden regresyon kilidi.
+
+**Test edilemeyenler (dürüstlük notu):** K1'in aktifleştirme kuralı ve V2'nin
+kaydetme çağrıları ViewModel içinde — JVM biriminden erişilemiyor. K2'nin worker'ı
+enstrümanlı test ister. Bunlar **derlendi ama davranışsal olarak doğrulanmadı**;
+gerçek cihazda görülmeleri gerekiyor.
+
+**Kalan:** 30 açık bulgu. Sıradaki yüksekler Y1 (`NetworkPolicy` çağrı
+noktalarına bağlı değil), Y2 (bozuk model native motora veriliyor), Y3/Y4/Y5
+(indirme dayanıklılığı: HTTP 416, atlanan SHA, disk dolu mesajı), Y6 (tek
+motorda iki eşzamanlı üretim), S1 (TTS 4000 karakter kilidi), J1 (Android
+`org.json` null farkı).
+
+Ayrıca derlemede görülen yeni uyarı: `androidx.compose.ui.platform.ClipboardManager`
+kullanımdan kaldırılmış, yerine `Clipboard` öneriliyor. Kusur değil, sonraki tur işi.
+
+---
+
+# Tur 3 — Y1…Y6 + güvenlik ve kod denetim testleri
+
+## Y1 — ağ politikası artık çağrı noktasına bağlı
+
+`NetworkPolicy` vardı ama **kimse çağırmıyordu**: ayarlar ekranındaki tek kontrol
+kaydetme anındaydı, sonrasında istek atan her yol politikayı atlıyordu.
+
+- `GatewayConnectionClient.canonicalBaseUrl()` tek boğaz noktası oldu: URL'i
+  `/v1` yoluna sabitliyor ve **her seferinde** `NetworkPolicy.allowsHost()`
+  çağırıyor. Model listesi de (`modelsUrl`) aynı noktadan türüyor.
+- `hostOf()` otorite sınırını yanlış buluyordu: yalnızca `/` arıyordu, bu yüzden
+  `http://evil.com?x=@127.0.0.1` gibi bir dizgede yanlış konağı okuyabiliyordu.
+  Sınır artık `/`, `?` ve `#` üçlüsünün ilki.
+- Yeni `allowsHost(scheme, host)`, ayrıştırılmış `HttpUrl` üzerinden çalışıyor —
+  dizgeyi ikinci kez elle ayrıştırmak yok.
+
+## Y2 — doğrulanmamış model native motora verilmiyor
+
+İki taraflı düzeltildi:
+
+- `LocalModelStore.verify()` başarısız olunca artık işaretçiyi **ve model
+  dosyasını** siliyor. Bozuk dosya diskte kalıp her açılışta yeniden denenmez.
+- `LocalLlmController` yüklemeden önce `diskState.verified` bakıyor;
+  `Installed` olması tek başına yetmiyor.
+
+Bu ikisi ayrı: birincisi bozuk dosyayı temizler, ikincisi temizlenmemiş bir şey
+kalırsa motoru korur. Native tarafta bozuk GGUF çökme demek, tek katman az.
+
+## Y3 — HTTP 416 "hata" olmaktan çıktı
+
+Yarım dosya tam boya ulaşmışken sunucu `416 Range Not Satisfiable` döndürüyor,
+kod bunu `else` dalında yakalayıp **"İndirme hatası (HTTP 416)"** diye
+gösteriyordu — indirme aslında bitmişti. Artık `.part` beklenen boydaysa
+doğrulanıp kuruluyor, ağa hiç çıkılmıyor.
+
+## Y4 — atlanan SHA doğrulaması
+
+Hedef dosya zaten varsa kod doğrudan `Result.Success` dönüyordu; içeriğin doğru
+olduğunu kimse kontrol etmiyordu. Artık aynı `verifyAndMark()` yolundan geçiyor.
+
+## Y5 — disk dolu mesajı
+
+`IOException` gövdesindeki metne bakmak yerine `modelsDir.usableSpace` ölçülüyor
+(`LOW_SPACE_BYTES = 16 MiB`). Metin eşleştirmesi yerelleştirme ve üretici
+farklarında sessizce yanlış cevap verirdi.
+
+## Y6 — tek motorda iki eşzamanlı üretim
+
+`@Volatile generationToken`: her üretim kendi jetonunu alıyor, jeton değiştiyse
+eski akış çıktıyı yazmadan çekiliyor. `stop()` de jetonu artırıyor.
+
+**Bonus:** `shutdown()` indirmeleri de iptal ediyordu — ekran kapanınca arka
+plandaki model indirmesi ölüyordu. Artık yalnızca motoru boşaltıyor; indirme
+WorkManager'ın işi (K2).
+
+## Yeni test türleri
+
+Bunlar mevcut birim testlerinden ayrı, farklı bir soruyu soruyorlar.
+
+**`NetworkPolicyEnforcementTest` — 8 güvenlik testi.** "Politika doğru cevap
+veriyor mu" değil, **"politika gerçekten uygulanıyor mu"**. Yasak konaklara
+`canonicalBaseUrl()` üzerinden gidiliyor; `null` dönmesi bekleniyor. Y1'in
+otorite-sınırı hatası (`?x=@127.0.0.1`) doğrudan kilitlendi.
+
+**`SourceGuardTest` — 13 kod denetim testi.** Kaynağı okuyup düzeltilen kusurun
+geri gelmediğini doğruluyorlar: `BigInteger(it.id)` yok, `shutdown()` içinde
+indirme iptali yok, `verify()` başarısızlıkta siliyor, hedef dosya doğrulanmadan
+`Success` dönmüyor.
+
+İlk koşuda **ikisi kırmızı yandı** — ve sebebi öğretici: guard'lar kodu
+denetlemeli ama yorumu da tarıyorlardı, benim KDoc'larımda eski hatalı satır
+aynen yazılıydı. `stripComments()` eklendi. Kural doğruydu, ölçtüğü metin
+yanlıştı. Ters yönü daha önemli: yorum taranırsa bir kural yalnızca yorumla
+"sağlanmış" görünebilirdi.
+
+## Doğrulama
+
+| | Sonuç |
+|---|---|
+| Birim testleri | ✔ **324/324 geçti** (1 sn 677 ms) |
+| APK | ✔ `app/build/outputs/apk/debug/app-debug.apk`, 67.990.113 bayt, 28.08.2026 05:25 UTC |
+
+303 → 324: 21 yeni test (8 güvenlik + 13 kod denetim).
+
+**Kalan:** ~24 açık bulgu. Sıradakiler S1 (TTS 4000 karakter kilidi), J1
+(Android `org.json` null → `"null"`), mDNS sızıntısı, ölü "Yeniden tara"
+düğmesi, panonun hassas işaretlenmemesi, geçmiş arama yarışı, onaysız silme,
+Hesap Makinesi taşması, iptal edilmeyen `modelsCall`, batarya `-1`.
+
+---
+
+# Tur 4 — T3, T4, E1, S1, J1, M1 (yüksek grubun kalanı)
+
+## T3 — temiz kapanış da bir kopmadır
+
+`onClosed()` yalnızca `eventSource = null` yapıyordu. Araya giren proxy
+(nginx/Cloudflare) boşta akışı ~60 sn'de **hatasız** kapatır: `onError` hiç
+çağrılmaz, yeniden bağlanma tetiklenmez. Kod zaten geri çekilmeli yeniden
+bağlanmaya sahipti — ama yalnızca `onError`'dan ulaşılabiliyordu, yani en sık
+kopma biçimi tam olarak kör noktadaydı. Görev PC'de sürerken telefon "Plan
+hazırlanıyor"da donuyor, sonradan gelen **onay isteği hiç görünmüyordu**.
+
+Üç şey birlikte düzeltildi:
+
+- `onClosed` → görev terminal değilse `scheduleReconnect()`. Nesil koruması
+  (`streamGeneration`) bizim kendi iptalimizi zaten eliyor.
+- **Sağlıklı akış sayacı sıfırlar:** 20 sn'den uzun yaşamış bir akışın kapanması
+  proxy'nin normal döngüsüdür, arıza değil. Yoksa sessiz ama uzun süren bir
+  görev, yalnızca 60 sn'de bir kapatıldığı için birkaç dakika sonra
+  "vazgeçildi" sayılırdı.
+- **Yeniden deneme artık sınırlı** (6 ardışık başarısız deneme). Sunucu
+  gerçekten kapalıysa sonsuza dek denemek yerine durum söyleniyor ve ekrana
+  "Yeniden bağlan" düğmesi geliyor — `clearError()` bu iş için yazılmıştı ama
+  hiçbir yerden çağrılmıyordu, ekranda çıkışsız hata kalıyordu.
+
+**Bonus:** görev SSE üzerinden terminale geçtiğinde akış kapatılmıyordu (HTTP
+yolu kapatıyordu, olay yolu kapatmıyordu) — biten görevin boşta bağlantısı ekran
+açık kaldığı sürece taşınıyordu.
+
+## T4 — onay paneli parmağın altında değişmiyor
+
+`pendingConfirmation` yeni istekle doğrudan **eziliyordu**. A'nın özetini okuyup
+dokunurken B düşerse, kullanıcı A sandığı şeye basıp **B'yi onaylıyordu** —
+üstelik B daha riskli olabilir. Riskli eylem onayının tüm değeri "ne
+onayladığını gördün" garantisine dayanır.
+
+Artık ekrandaki onay çözülene kadar sabit; yeni istek `queuedConfirmations`
+kuyruğuna girer ve sırası gelince panele kendi gelir. Kaybolmaz.
+
+Bu düzeltme **gizli bir bağımlılığı** açığa çıkardı: gecikmiş HTTP yanıtının
+görev durumunu ezmesine karşı koruma, aslında T4 hatasının kendisiydi (onay
+ezildiği için kimlik tutmuyor, mutasyon düşüyordu). T4 kapanınca koruma da gitti;
+`ConfirmationResolved` içine açıkça yazıldı. Eski test bunu `assertNull` ile
+kilitliyordu — iddia güncellendi, testin **koruduğu şey** (A'nın eski durumu
+B'nin panelinin üstüne yazılmasın) duruyor.
+
+Ayrıca: **statüsüz olay durumu geri alıyordu.** Kullanıcı "Duraklat"a basıp HTTP
+yanıtı PAUSED yazdıktan sonra gelen statüsüz bir `worker.*` olayı, geriye bakıp
+son statülü olayı (EXECUTING) buluyor ve duraklatmayı sessizce geri alıyordu.
+
+## E1 — düşünme sızıntısı (iki ayrı kusur)
+
+1. **Gateway yolu düşünmeyi hiç ayıklamıyordu.** `finishLocal` ayıklıyor,
+   `finish` ayıklamıyordu. Aynı model Ollama üzerinden gateway'e bağlanınca ham
+   `<think>` balonda görünüyor, dışa aktarmaya ve panoya da gidiyordu —
+   "düşünme paylaşımdan çıkarılır" vaadi gateway yolunda tümden geçersizdi.
+2. **Akış sırasında ham metin gösteriliyordu.** Her iki yolda da `onToken`
+   doğrudan `sb.toString()` yazıyordu; düşünme canlı canlı balonda akıyor,
+   yalnızca bitişte kayboluyordu. Kullanıcı o arada kopyalarsa düşünmeyi
+   kopyalıyordu.
+
+Tek bir `renderStreamed()` boğaz noktası eklendi; gateway'in ayrı kanaldan
+gönderdiği düşünme ile metnin içinden ayıklanan blok birleşiyor, iki kaynak
+birbirini ezmiyor.
+
+**Sözleşme değişti — dürüstlük notu:** kapanmamış `<think>` bloğu eskiden
+"şeffaflık" gerekçesiyle bilerek içerikte bırakılıyordu ve **iki test bunu
+doğruluyordu**. O karar yanlıştı: iki söz veriyor, ikisini de tutmuyordu. Artık
+kapanmamış blok düşünme sayılıyor. Şeffaflık kaybolmuyor — metin düşünme
+panelinde duruyor, yalnızca doğru yere yazılıyor. İki test yeni sözleşmeye
+güncellendi, gerekçesi test dosyalarında yazılı. Ayrıca birden fazla blok da
+destekleniyor (bazı modeller araç turları arasında yeni blok açar; tek bloğa
+bakan eski kod ikincisini içerikte bırakıyordu).
+
+## S1 — TTS uzunluk sınırı
+
+`speak()` girdisi `getMaxSpeechInputLength()` sınırını (çoğu cihazda 4000)
+aşarsa **ERROR döner ve hiçbir geri çağrı gelmez**: ne `onDone`, ne `onError`.
+Dönüş değeri de kontrol edilmiyordu, yani hata tümüyle sessizdi — 5000
+karakterlik yanıtta orb sonsuza dek "Konuşuyorum"da kalıyor, ses çıkmıyordu.
+
+Yeni `TtsChunker` (saf, JVM-testli) cümle → kelime → sert kesim önceliğiyle
+bölüyor; parçalar kuyruğa veriliyor, `onDone` yalnızca son parça bitince bir kez
+çağrılıyor. Her çıkış yolu `onDone`'a bağlandı.
+
+## J1 — Android `org.json`'un null farkı
+
+Android'in `org.json`'u referans JVM uygulamasından sessizce ayrılır: değer JSON
+null ise `optString(name, fallback)` fallback döndürmez, **`"null"` dizesini**
+döndürür. Sağlayıcılar boş alanları atlamak yerine `null` yazdığı için pratikte
+sık: `{"route": null}` → balonun altında "→ null"; `{"reasoning_content": null}`
+→ her deltada bir "null", düşünme panelinde "nullnullnull…".
+
+Tek yardımcıya (`JSONObject.str`) indirildi ve **36 çağrı noktasının tamamı**
+oradan geçiyor.
+
+**Bunu birim testi yakalayamaz** — JVM'de kullanılan referans `org.json` doğru
+davranır, hata yalnızca cihazda çıkar. O yüzden asıl koruma guard testi: üretim
+kodunda ham `optString` kalmadığını doğruluyor.
+
+## M1 — kullanıcının kendi iptali "Gateway hatası (200)"
+
+`EventSource.cancel()` OkHttp'de `onFailure`'ı `IOException("Canceled")` ile ve
+**hâlâ açık olan 200 yanıtıyla** tetikler; kod `code != null` görüp "Gateway
+hatası (200)" yazıyordu. Kullanıcı "Durdur"a bastığında kendi iptali sunucu
+hatası gibi görünüyordu.
+
+Metne bakmak (`t.message == "Canceled"`) çözüm değil — Y5'te aynı hatayı
+temizledik. İptal artık işaretleniyor: `NovaClient.cancelStream()` nesli artırır,
+eski dinleyicinin geri çağrıları sessizce düşer. Ayrıca 2xx yanıtta akış koparsa
+artık durum kodu değil kopma nedeni yazılıyor.
+
+## Doğrulama
+
+| | Sonuç |
+|---|---|
+| Birim testleri | ✔ **355/355 geçti** (1 sn 741 ms) |
+| Yeni testler | 21 (8 kod denetim + 13 davranış) |
+
+324 → 355. Guard testleri 13 → 21.
+
+**İlk koşuda 3 test kırmızıydı ve üçü de gerçek çelişkiydi**, düzeltmelerin
+kendisindeki hata değil: (1) hata temizleme fazla genişti — biten görevde hata
+mesajı ne olduğunun kaydıdır, silinmemeli; (2) T4'ün açığa çıkardığı gizli
+bağımlılık; (3) E1'in bilerek değiştirdiği düşünme sözleşmesi. Üçü de kaynakta
+düzeltildi ya da testte gerekçesiyle güncellendi.
+
+**Kalan:** ~17 açık bulgu — tamamı "orta" sınıfta. Keşif/eşleme kalemleri (mDNS
+sızıntısı, kaybolan PC listede kalıyor, ölü "Yeniden tara" düğmesi, API 34
+öncesi ikinci PC), izin kartının yanlış üç mesajı, panonun hassas
+işaretlenmemesi, geçmiş arama yarışı, onaysız silme, Hesap Makinesi taşması,
+iptal edilmeyen `modelsCall`, batarya `-1`, yedekleme kuralları.
+
+---
+
+# Tur 5 — arayüz mantık denetimi (emülatörde + kodda)
+
+Uygulama ilk kez **emülatörde çalıştırıldı** (Pixel 10 Pro XL, API 37). Dört tur
+kod düzeltmesinden sonra kimse uygulamayı açmamıştı; açıldı, çöküş yok.
+
+## Önce bir yanlış alarm — dürüstlük notu
+
+Emülatörde ilk göze çarpan şey şuydu: üstte "PC bağlantısı kurulmadı" yazarken
+yürütme politikası **"PC / Gateway"** seçili, arayüz **Gelişmiş** modda ve
+gateway adresi `http://10.0.2.2:8088/v1` (üstelik gateway artık 18088'de).
+Üçü de "temiz kurulum böyle açılıyor" gibi duruyordu.
+
+Değildi. Kodda varsayılanlar doğru: `executionPolicy = "local_first"`,
+`baseUrl = ""`, `uiMode = SIMPLE`. Emülatördeki değerler **eski geliştirme
+kurulumundan kalma diskteki ayarlar**. Ekranda görüneni koda bakmadan bulgu
+saymak, olmayan üç kusur uydurmak olurdu.
+
+Aynı şekilde Kontrol ekranının altındaki kartın kesik görünmesi de kusur değil:
+ekran kaydırılabilir ve `Scaffold` gezinme çubuğunun payını zaten uyguluyor.
+
+## U1 — izin kartı: yanlış başlık, imkânsız eylem, eksik çıkış
+
+Kart üç ayrı şekilde yanlıştı ve üçü aynı anda görülüyordu:
+
+- **Başlık her durumda "Telefon modeli yanıt veremedi".** Oysa kart, telefonda
+  kurulu model HİÇ YOKKEN de açılıyor (`RouteDecision.LocalNeedsSetup`). Var
+  olmayan bir modeli "yanıt veremedi" diye suçluyordu.
+- **Tek eylem "PC'ye gönder", yalnız politikaya bakılarak gösteriliyordu.**
+  Varsayılan kurulumda gateway adresi BOŞ. Yani kart, basıldığında kesin
+  başarısız olacak bir eylemi tek çıkış yolu olarak sunuyordu.
+- **Asıl çözüm hiç sunulmuyordu:** model yoksa yapılacak şey model indirmektir.
+  Karttan Modeller'e giden bir yol yoktu.
+
+`PendingFallback` artık `kind` taşıyor (`NO_LOCAL_MODEL` / `LOCAL_ERROR`); kart
+başlığı buna göre değişiyor, "Modelleri aç" birincil eylem oluyor ve "PC'ye
+gönder" **yalnız PC gerçekten ulaşılabilirken** öneriliyor. Ulaşılamıyorsa
+nedeni yazılıyor.
+
+## U2 — sohbet çiplerinde eylem, durumla aynı görünüyordu
+
+Tek satırda üç farklı cins vardı ve üçü birebir aynı görünüyordu: durum
+göstergesi (hedef, model), gezinme (Geçmiş) ve **gerçek bir eylem** —
+"PC ajanına devret", son soruyu tüm bağlamıyla PC'ye gönderir.
+
+Sohbeti cihaz dışına çıkaran bir eylemin pasif bir durum etiketiyle aynı
+görünmesi kabul edilemez; G1/G2'de kapattığımız sızıntı sınıfının arayüz
+karşılığı bu. Eylem çipleri artık vurgulu, durum çipleri sönük.
+
+## U3 — Görevler ekranı: bağlantısız açık ama gönderilemez girdi
+
+Metin alanı ve üç hızlı komut, PC bağlantısı olmadan da **etkindi**. Kullanıcı
+"Ayarlar'ı aç"a basıyor, metin alana yazılıyor, sonra ekrandaki tek düğme onu
+Ayarlar'a götürüyordu. Görevi PC'deki çalışan yürüttüğü için bağlantısız bu
+ekranda yapılabilecek tek anlamlı iş bağlantıyı kurmaktır. Girdi artık yalnız
+bağlıyken görünüyor, bağlantısızken nedeni yazıyor.
+
+## U4 — "CİHAZDAKİ MODELLER" başlığı yalandı
+
+Liste kataloğun tamamını gösteriyor — henüz indirilmemiş modelleri de. Hiçbir
+şey indirmemiş kullanıcıya "bunlar cihazında" diyordu. Başlık **"TELEFON
+MODELLERİ"** oldu.
+
+## U5 — önerilen model iki kez
+
+Öneri afişi ("Önerileni indir") hemen altındaki listede aynı modeli tekrar
+gösteriyordu: arka arkaya iki özdeş kart. Afiş artık yalnız model **cihazda
+değilken** çıkıyor ve afiş gösterilirken o modelin satırı listeden çıkarılıyor.
+Model kurulduğunda afiş kapanıyor, satır listeye dönüyor — silme/doğrulama
+yönetimi kaybolmuyor.
+
+## U6 — hazır olmayan duruma onay ikonu
+
+"Çevrimdışı için model gerekli" cümlesinin yanında ✓ (CheckCircle) duruyordu.
+Onay işareti "tamamlandı" demektir; cümleyle taban tabana zıt. İki durum yalnız
+renkle ayrılıyordu, yani renk körlüğünde hiç ayrılmıyordu. Hazır değilken artık
+indirme ikonu kullanılıyor.
+
+## U7 — donmuş telefon-kontrol sekmesi kaldırıldı
+
+"İşler" sekmesi gezinmeden çıkarıldı. Üç bağımsız gerekçe aynı yeri gösteriyor:
+
+1. **Ürün kararı:** telefon kontrolü (AccessibilityService / mobilerun) ilk
+   sürüme girmiyor — bu kararı sen verdin.
+2. **Play politikası (28 Ocak 2026):** AccessibilityService ile özerk eylem
+   yasak. Sekmenin hızlı komutları ("Ayarlar'ı aç", "Bir uygulamayı aç") tam
+   olarak bu davranışı tarif ediyor; mağaza incelemesinde doğrudan ret gerekçesi.
+3. **Kullanılabilirlik:** görevi PC'deki çalışan yürütüyor. Mağazadan indiren
+   kullanıcının PC'si yok; dört ana sekmeden biri onun için hiçbir koşulda
+   çalışmıyordu.
+
+**Kod silinmedi.** `NovaAppShell.PHONE_TASKS_TAB_ENABLED = false` tek anahtar;
+`true` yapmak sekmeyi olduğu gibi geri getirir. Sekme kapalıyken TASKS
+durumunda kalan kullanıcı Sohbet'e alınıyor — yoksa gezinme çubuğunda o sekme
+olmadığı için erişilemeyen bir ekranda kilitlenirdi.
+
+## Doğrulama
+
+| | Sonuç |
+|---|---|
+| Birim testleri | ✔ **362/362 geçti** (1 sn 741 ms) |
+| Emülatör | ✔ Kurulum + açılış sorunsuz; değişiklikler ekranda doğrulandı |
+
+355 → 362: 7 yeni kod denetim testi. Guard testleri 21 → 28.
+
+Bir guard ilk koşuda kırmızı yandı ve **haklı olarak**: "onay ikonu kullanma"
+kuralını tüm dosyaya uygulamıştım, o da gateway model satırındaki ✓ işaretini
+yakaladı — orada ✓ "bu model seçili" demek ve doğru. Kural doğruydu, kapsamı
+genişti; yalnız çevrimdışı hazırlık kartına daraltıldı.
+
+**Kalan:** ~17 orta bulgu (mDNS sızıntısı, kaybolan PC listede kalıyor, ölü
+"Yeniden tara" düğmesi, panonun hassas işaretlenmemesi, geçmiş arama yarışı,
+onaysız silme, batarya `-1`, yedekleme kuralları).
+
+---
+
+# Tur 6 — kalan orta bulgular (denetim listesi kapandı)
+
+## Keşif / eşleme (5)
+
+**mDNS geri çağrıları geri alınmıyordu.** API 34+ `registerServiceInfoCallback`
+bulunan her servis için kayıt bırakıyor, `awaitClose` yalnız
+`stopServiceDiscovery` çağırıyordu. Panel her açılışta kayıtlar birikiyor ve
+kapanmış akışa veri göndermeye devam ediyordu — "arka planda sürmemeli"
+sözleşmesinin tam tersi. Kayıtlar listeleniyor ve kapanışta geri alınıyor.
+
+**Kapanan PC listede kalıyordu.** `onServiceLost` yalnız servis adını bilir;
+kod ise `displayName` ile eşleştiriyordu ve o ad TXT'teki `name` alanından
+geliyor — ikisinin aynı olması şart değil. Sonuç: kapanmış bir PC listede
+duruyor, kullanıcı ölü kayıt için boşuna eşleme kodu yakıyordu. Artık servis
+adı → baseUrl dizini tutuluyor.
+
+**API 34 öncesi ikinci PC hiç çözümlenmiyordu.** `resolveService` ASENKRONDUR;
+eski kod onu tek iş parçacıklı havuza atıyordu ama iş parçacığı çağrıyı başlatıp
+hemen dönüyordu — yani sıraya alma diye bir şey yoktu. İki PC arka arkaya
+bulununca ikinci çağrı `FAILURE_ALREADY_ACTIVE` alıyor, `onResolveFailed` da onu
+sessizce yutuyordu. Artık iş parçacığı çözümleme bitene kadar bekliyor (zaman
+aşımıyla), kuyruk gerçekten sıralı.
+
+**"Yeniden tara" düğmesi ölüydü.** Doğrudan `startDiscovery`'ye bağlıydı, o da
+`discoveryJob` aktifse ilk satırda dönüyordu. mDNS keşfi normalde HİÇ bitmez,
+yani job her zaman aktifti: düğme hiçbir şey yapmıyordu — ne tarama, ne geri
+bildirim. PC'sini yeni açan kullanıcı için tek çıkış paneli kapatıp açmaktı.
+Yeni `rescan()` taramayı kapatıp listeyi temizleyerek baştan başlatıyor.
+
+**Özel TXT `path` dikişi — iki bileşen birbirini yalanlıyordu.** Keşif
+`path=/api/v1` gibi özel bir yolu kabul ediyordu ve **bir test bunu
+doğruluyordu**. Oysa `canonicalBaseUrl` Y1'den beri `/v1` dışını REDDEDİYOR.
+İkisi ayrı ayrı testliydi, aradaki dikiş değildi: böyle bir gateway listede
+çıkıyor, eşleme "başarılı" diyor, sonra her istek sessizce düşüyordu. NOVA
+yalnız `/v1` konuşur; keşif artık aynı kuralı uyguluyor ve kullanılamayacak
+PC'yi hiç önermiyor. Testin iddiası tersine çevrildi, gerekçesi yazılı.
+
+## Veri ve sızıntı (8)
+
+**API anahtarı panoya hassas işaretlenmeden gidiyordu.** Android 13+ panoya
+kopyalanan içeriğin ÖNİZLEMESİNİ ekranda gösteriyor. Anahtar arayüzde özenle
+maskeleniyordu ama "Kopyala"ya basıldığı anda sistem onu düz metin olarak
+gösteriyordu — maskelemenin tüm anlamı orada kaçıyordu.
+`ClipDescription.EXTRA_IS_SENSITIVE` eklendi.
+
+**Geçmiş aramasında yarış.** Her tuş vuruşu ayrı arama başlatıyor, sonuçlar
+BİTİŞ sırasına göre yazılıyordu: "abc" hızlı yazıldığında "a" araması en son
+bitip "abc"nin sonucunu ezebiliyordu. Bağlantı sondaları için yazılmış nesil
+deseninin karşılığı geçmişte yoktu; eklendi.
+
+**Silme onaysız ve geri alınamazdı**, üstelik çöp kutusu ikonu paylaş ikonunun
+bitişiğindeydi. Yanlış dokunuş bir sohbeti kalıcı yok ediyordu. Satır içi iki
+adımlı onay eklendi.
+
+**`modelsCall` `onCleared`'da iptal edilmiyordu** → ViewModel yıkımından sonra
+yanıt bekleyip onu canlı tutuyordu.
+
+**Bilinmeyen pil ham `-1` olarak modele veriliyordu** → NOVA "pilin %-1"
+diyordu. `-1` bir yüzde değil, "bilinmiyor" demek; öyle söyleniyor.
+
+**`LaunchedEffect(vm.mode)` gövdede `baseUrl` okuyup key'de tutmuyordu:**
+Modeller ekranı açıkken eşleme tamamlanıp adres dolduğunda katalog
+tazelenmiyordu.
+
+**Hesap Makinesi taşma mesajı hiçbir koşulda doğru olamazdı.** `9^999` için
+"Tanımsız sonuç (sıfıra bölme olabilir)" yazıyordu — oysa sıfıra bölme AYRICA ve
+daha önce yakalanıyor, yani o dala asla ulaşamaz. Taşma ve tanımsız sonuç artık
+ayrı ayrı söyleniyor.
+
+**Derin iç içe ifade uygulamayı çökertiyordu.** `((((…))))` özyineleme zincirini
+yığın taşana kadar sürdürüyordu. `StackOverflowError` bir `Exception` DEĞİL,
+`Error`'dır: `catch (e: CalcException)` onu yakalamaz. "Araç hataları uygulamayı
+düşüremez" garantisi tam burada kırılıyordu. Yığın taşmasını yakalamaya çalışmak
+güvenilmez (yakalandığı anda yığın zaten tükenmiştir); doğrusu oraya hiç
+varmamak — derinlik sınırı kondu.
+
+## Yedekleme kuralları (Play blokeri)
+
+`allowBackup="true"` ve hiçbir kural dosyası yoktu. İki sonucu vardı:
+Hugging Face belirteci ve gateway anahtarı kullanıcının Drive'ına kopyalanıyordu;
+ve indirilen modeller GB'larca yer tuttuğu için 25 MB'lık Auto Backup kotası
+aşılıyor, uygulamanın yedeği TÜMÜYLE atlanıyordu — yani yedeklenmesi anlamlı
+olan sohbet ve notlar da yedeklenmiyordu. `backup_rules.xml` (API ≤30) ve
+`data_extraction_rules.xml` (API 31+) eklendi: modeller ve sırlar buluta
+gitmiyor, sırlar cihazdan cihaza aktarımda KALIYOR (telefon yenilendiğinde
+yeniden eşleme gerekmesin).
+
+## Doğrulama
+
+| | Sonuç |
+|---|---|
+| Birim testleri | ✔ **378/378 geçti** (1 sn 808 ms) |
+| Emülatör | ✔ Yeni manifest'le kurulum ve açılış sorunsuz |
+
+362 → 378: 16 yeni test (11 kod denetim + 5 Hesap Makinesi). Guard testleri
+28 → 39.
+
+## Denetim listesi kapandı
+
+İlk turda 41 bulgu vardı. **Kalan gerçek kusur yok.** Bilinen tek açık kalem
+bir kusur değil, derleyici uyarısı: `androidx.compose.ui.platform.ClipboardManager`
+kullanımdan kaldırıldı, yerine `Clipboard` öneriliyor.
+
+Bundan sonrası kod değil **Play hazırlığı**: gizlilik politikası URL'i (B4),
+uygulama içi AI içerik bildirimi (B6), Data Safety formu (B7), mağaza görselleri,
+Play Console hesabı + geliştirici doğrulaması (30 Eylül 2026), 12 test
+kullanıcısı / 14 gün, ve imzalı release AAB için upload keystore.
+
+---
+
+# Tur 7 — Play B6: uygulama içi yapay zekâ içerik bildirimi
+
+Kod denetimi kapandıktan sonra kalan **tek kod blokeri** buydu.
+
+## Gereklilik (politika metni)
+
+Play'in AI-Generated Content politikası: *"Apps that generate content using AI
+must contain in-app user reporting or flagging features that allow users to
+report or flag offensive content to developers **without needing to exit the
+app**."* Ayrıca: *"Developers should utilize user reports to inform content
+filtering and moderation."*
+
+Belirleyici kısım **"uygulamadan çıkmadan"**. E-posta uygulamasına ya da
+tarayıcıya atarak biten bir akış bu şartı karşılamaz.
+
+## Çözülmesi gereken çelişki
+
+NOVA'nın "istemler telefondan çıkmaz" sözü var ve geliştiriciye ait bir sunucu
+**yok**. Bildirimi arkadan yüklemek hem bu sözü hem Data Safety beyanını
+çiğnerdi. Ama yalnız cihazda tutmak da "geliştiriciye bildirebilme" şartını
+zorlar.
+
+Ayrım şurada: **bildirmek** ile **göndermek** aynı şey değil.
+
+- **Bildirme** cihazda kapanır: yanıtın altındaki bayrak → sebep seçimi →
+  isteğe bağlı not → kaydedildi onayı. Uygulamadan çıkılmaz. ✔ politika şartı
+- **Gönderme** ayrı ve isteğe bağlı: Ayarlar → İçerik bildirimleri →
+  "Geliştiriciye gönder". Kullanıcı gönderilecek metni paylaşım ekranında
+  **görür**.
+
+## Eklenenler
+
+- `data/ContentReport.kt` — bildirim modeli + politikanın saydığı sakıncalı
+  içerik türlerine karşılık gelen sebepler. Alıntı 400 karakterle sınırlı:
+  bildirim dosyası sohbet arşivine dönüşmesin.
+- `data/ContentReportStore.kt` — cihazdaki depo. V1'deki atomik yazma deseni
+  (geçici dosya + `fd.sync()` + `renameTo`) ve bozuk dosyayı silmek yerine
+  `.corrupt` olarak karantinaya alma kararı burada da geçerli. 200 kayıt sınırı.
+- Sohbet ekranı: her yapay zekâ yanıtının yanında **bayrak** eylemi +
+  `ReportContentDialog`. Bildirilecek alıntı kullanıcıya gösteriliyor — neyi
+  bildirdiğini görmeden onaylamasını istemek "ne paylaştığını gör" ilkesinin
+  ihlali olurdu.
+- Ayarlar: "İçerik bildirimleri" bölümü — sayaç, gönder, sil.
+- Kısa onay mesajı (`notice`): kullanıcı bildirdiğini görmeli, yoksa aynı yanıtı
+  tekrar tekrar bildirir ya da işe yaramadığını sanır.
+
+**Bildirim eylemi neden Ayarlar'da değil:** Ayarlar'a gömülü bir form "içeriği
+bildir" değil "bir yerde şikâyet et" olurdu; kullanıcı hangi yanıtı bildirdiğini
+de seçemezdi.
+
+## Doğrulama
+
+| | Sonuç |
+|---|---|
+| Birim testleri | ✔ **389/389 geçti** (3 sn 221 ms) |
+| Emülatör | ✔ Kurulum ve açılış sorunsuz, Ayarlar açılıyor |
+
+378 → 389: 11 yeni test (8 depo + 3 kod denetim). Guard testleri 39 → 42.
+
+**Dürüstlük notu:** bildirim iletişim kutusunun kendisi cihazda **görsel olarak
+denenmedi**. Emülatöre metin yazmak bu oturumdaki erişim seviyesiyle mümkün
+değil, dolayısıyla gerçek bir yapay zekâ yanıtı üretilip bayrağa basılamadı.
+Depo mantığı, akışın cihazda kapandığı ve sessiz yükleme olmadığı testlerle
+kilitli; kutunun görsel akışı gerçek cihazda bir kez denenmeli.
+
+## Play durumu
+
+| Kalem | Durum |
+|---|---|
+| B6 — uygulama içi AI içerik bildirimi | ✔ **kapandı** (kod) |
+| B4 — gizlilik politikası | ✔ **yayına hazır** → `site/privacy/index.html` + `.github/workflows/pages.yml`; adımlar `docs/play/YAYIN-KONTROL-LISTESI.md` |
+| B7 — Data Safety formu | ✔ cevaplar hazır → `docs/play/DATA-SAFETY-FORMU.md`; **Play Console'a senin girmen gerekiyor** |
+| Mağaza görselleri, açıklamalar | ✖ açık |
+| Play Console hesabı + geliştirici doğrulaması | ✖ açık (30 Eylül 2026 sınırı) |
+| 12 test kullanıcısı / 14 gün | ✖ açık |
+| Upload keystore + imzalı AAB | ✖ açık — `scripts/new-upload-keystore.ps1` ile **senin** oluşturman gerekiyor |
