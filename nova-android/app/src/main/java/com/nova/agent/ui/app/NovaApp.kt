@@ -33,6 +33,7 @@ import com.nova.agent.llm.local.tools.HorusToolSet
 import com.nova.agent.net.DiscoveredGateway
 import com.nova.agent.net.GatewayConnectionClient
 import com.nova.agent.net.GatewayConnectionUiState
+import com.nova.agent.ui.components.rememberNotificationPermissionRequest
 
 @Composable
 fun NovaApp(
@@ -42,6 +43,9 @@ fun NovaApp(
 ) {
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showHistory by rememberSaveable { mutableStateOf(false) }
+
+    // Model indirmesi başlarken bağlamında istenir; bkz. NotificationPermission.kt.
+    val requestNotificationPermission = rememberNotificationPermissionRequest()
 
     // Kontrol/Modeller açılınca disk durumunu tazele (indirme dışı değişiklikler için).
     // Modeller ekranında ayrıca PC kataloğu da tazelenir: bağlandıktan sonra
@@ -186,7 +190,14 @@ fun NovaApp(
                 gatewayModels = vm.modelOptions(),
                 gatewaySelectedId = vm.settings.modelId,
                 uiMode = vm.settings.uiModeValue,
-                onDownload = { vm.local.startDownload(it.spec, vm.settings.hfToken) },
+                onDownload = {
+                    // Bildirim izni tam BURADA anlam kazanıyor: indirme arka
+                    // planda sürecek ve ilerleme/iptal yalnız bildirimde
+                    // görünecek. İstek indirmeyi beklemez — reddedilse bile
+                    // indirme sürer, yalnız bildirim çıkmaz.
+                    requestNotificationPermission()
+                    vm.local.startDownload(it.spec, vm.settings.hfToken)
+                },
                 onCancelDownload = { vm.local.cancelDownload(it.spec) },
                 onDelete = { vm.local.deleteModel(it.spec) },
                 onVerify = { vm.local.verifyModel(it.spec) },

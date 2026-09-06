@@ -30,6 +30,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
+import com.nova.agent.llm.local.ModelDownloadJob
 import com.nova.agent.llm.local.ModelDownloadWorker
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -211,11 +212,14 @@ class LocalLlmController(
         val request = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
             .setInputData(
                 workDataOf(
-                    ModelDownloadWorker.KEY_MODEL_ID to spec.id,
-                    ModelDownloadWorker.KEY_HF_TOKEN to hfToken,
+                    ModelDownloadJob.KEY_MODEL_ID to spec.id,
+                    ModelDownloadJob.KEY_HF_TOKEN to hfToken,
                 ),
             )
-            .addTag(ModelDownloadWorker.TAG)
+            .addTag(ModelDownloadJob.TAG)
+            // İptal edilen işte progress temizlenir ve outputData boştur;
+            // model kimliği yalnız etiketten geri okunabilir.
+            .addTag(ModelDownloadJob.modelTag(spec.id))
             .setConstraints(
                 Constraints.Builder()
                     .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -225,14 +229,14 @@ class LocalLlmController(
             )
             .build()
         workManager.enqueueUniqueWork(
-            ModelDownloadWorker.uniqueName(spec.id),
+            ModelDownloadJob.uniqueName(spec.id),
             ExistingWorkPolicy.KEEP,
             request,
         )
     }
 
     fun cancelDownload(spec: LocalModelSpec) {
-        workManager.cancelUniqueWork(ModelDownloadWorker.uniqueName(spec.id))
+        workManager.cancelUniqueWork(ModelDownloadJob.uniqueName(spec.id))
     }
 
     /**
@@ -244,15 +248,19 @@ class LocalLlmController(
      */
     private fun observeDownloads() {
         scope.launch {
-            workManager.getWorkInfosByTagFlow(ModelDownloadWorker.TAG).collect { infos ->
+            workManager.getWorkInfosByTagFlow(ModelDownloadJob.TAG).collect { infos ->
                 infos.forEach { applyWorkInfo(it) }
             }
         }
     }
 
     private fun applyWorkInfo(info: WorkInfo) {
-        val modelId = info.progress.getString(ModelDownloadWorker.KEY_MODEL_ID)
-            ?: info.outputData.getString(ModelDownloadWorker.KEY_MODEL_ID)
+        // Etiket ÖNCE gelir: iş ömrü boyunca değişmez. progress uçtaki durumda
+        // temizlenir, iptal edilen işin outputData'sı boştur — ikisi de
+        // CANCELLED'da null döndürüp satırı "indiriliyor"da asılı bırakıyordu.
+        val modelId = ModelDownloadJob.modelIdFromTags(info.tags)
+            ?: info.progress.getString(ModelDownloadJob.KEY_MODEL_ID)
+            ?: info.outputData.getString(ModelDownloadJob.KEY_MODEL_ID)
             ?: return
         val spec = LocalModelCatalog.byId(modelId) ?: return
         when (info.state) {
@@ -260,7 +268,7 @@ class LocalLlmController(
                 onMain { update(modelId) { it.copy(downloading = true, error = null) } }
 
             WorkInfo.State.RUNNING -> {
-                val bytes = info.progress.getLong(ModelDownloadWorker.KEY_BYTES, -1L)
+                val bytes = info.progress.getLong(ModelDownloadJob.KEY_BYTES, -1L)
                 onMain {
                     update(modelId) {
                         it.copy(
@@ -273,7 +281,7 @@ class LocalLlmController(
             }
 
             WorkInfo.State.SUCCEEDED -> {
-                val cancelled = info.outputData.getBoolean(ModelDownloadWorker.KEY_CANCELLED, false)
+                val cancelled = info.outputData.getBoolean(ModelDownloadJob.KEY_CANCELLED, false)
                 onMain {
                     update(modelId) {
                         it.copy(downloading = false, disk = store.diskState(spec), error = null)
@@ -285,7 +293,7 @@ class LocalLlmController(
             }
 
             WorkInfo.State.FAILED -> {
-                val message = info.outputData.getString(ModelDownloadWorker.KEY_ERROR)
+                val message = info.outputData.getString(ModelDownloadJob.KEY_ERROR)
                     ?: "İndirme başarısız oldu."
                 onMain {
                     update(modelId) {

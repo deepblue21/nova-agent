@@ -153,29 +153,35 @@ class ModelDownloadWorker(
         workDataOf(KEY_MODEL_ID to modelId, KEY_ERROR to message)
 
     companion object {
-        const val KEY_MODEL_ID = "model_id"
-        const val KEY_HF_TOKEN = "hf_token"
-        const val KEY_BYTES = "bytes"
-        const val KEY_ERROR = "error"
-        const val KEY_CANCELLED = "cancelled"
-
-        /** Tüm model indirme işleri bu etiketi taşır; arayüz bununla izler. */
-        const val TAG = "model-download"
+        // İşin kimliği ve anahtarları saf [ModelDownloadJob]'da yaşıyor; buradaki
+        // takma adlar yalnız çağrı yerlerini kısa tutuyor.
+        const val KEY_MODEL_ID = ModelDownloadJob.KEY_MODEL_ID
+        const val KEY_HF_TOKEN = ModelDownloadJob.KEY_HF_TOKEN
+        const val KEY_BYTES = ModelDownloadJob.KEY_BYTES
+        const val KEY_ERROR = ModelDownloadJob.KEY_ERROR
+        const val KEY_CANCELLED = ModelDownloadJob.KEY_CANCELLED
 
         private const val CHANNEL_ID = "nova_model_download"
         private const val NOTIFICATION_ID = 4201
         private const val PUBLISH_INTERVAL_NS = 1_500_000_000L // 1,5 sn
 
-        /** Model başına tek iş: aynı model iki kez indirilmeye çalışılamaz. */
-        fun uniqueName(modelId: String): String = "$TAG:$modelId"
-
         fun progressData(modelId: String, bytes: Long) =
             workDataOf(KEY_MODEL_ID to modelId, KEY_BYTES to bytes)
 
-        /** Bayt -> "3,4" gibi tek ondalıklı GB metni. */
+        /**
+         * Bayt -> "3,4" gibi tek ondalıklı GB metni.
+         *
+         * Ondalık ayırıcı, uygulamanın geri kalanıyla aynı olsun diye virgül:
+         * `LocalModelSpec.sizeLabel` de öyle biçimlendiriyor. Locale.ROOT tek
+         * başına nokta üretiyordu, yani bildirimde "3.4 GB / 3.7 GB" yazarken
+         * Modeller ekranında aynı model "3,7 GB" görünüyordu.
+         *
+         * Biçimlendirme cihaz diline BIRAKILMIYOR: kullanıcının yerel ayarı ne
+         * olursa olsun arayüzün tamamı Türkçe, karışık ayırıcı istemiyoruz.
+         */
         fun gb(bytes: Long): String {
             val value = bytes / 1_073_741_824.0
-            return String.format(java.util.Locale.ROOT, "%.1f", value)
+            return String.format(java.util.Locale.ROOT, "%.1f", value).replace('.', ',')
         }
     }
 }
