@@ -20,13 +20,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.ClipboardManager
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.password
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -55,8 +52,12 @@ fun NovaSecretField(
     readOnly: Boolean = false,
     revealTimeoutMillis: Long = 30_000L,
     testTag: String = "secret_field",
-    clipboard: ClipboardManager = LocalClipboardManager.current,
-    context: android.content.Context = androidx.compose.ui.platform.LocalContext.current,
+    /**
+     * Panoya yazma. Varsayılanı HASSAS kopyalar: değer tek çağrıda,
+     * `EXTRA_IS_SENSITIVE` işaretiyle yazılır (bkz. [rememberClipboardCopy]).
+     * Testler sade bir lambda geçer.
+     */
+    onCopy: (String) -> Unit = rememberClipboardCopy(sensitive = true),
 ) {
     var revealed by remember { mutableStateOf(false) }
     var copied by remember { mutableStateOf(false) }
@@ -119,10 +120,11 @@ fun NovaSecretField(
                 }
                 IconButton(
                     onClick = {
-                        clipboard.setText(AnnotatedString(value))
-                        // Android 13+ pano önizlemesi anahtarı düz metin
-                        // gösteriyordu; maskelemenin tüm anlamı kaçıyordu.
-                        markClipboardSensitive(context, "NOVA", value)
+                        // TEK yazma. Eskiden önce işaretsiz clip yazılıp
+                        // ardından işaretlisiyle üzerine yazılıyordu; ilk yazma
+                        // Android 13+ önizlemesini anahtar düz metinken zaten
+                        // tetikliyordu. Pencereyi daraltmak sızıntıyı kapatmaz.
+                        onCopy(value)
                         copied = true
                     },
                     enabled = hasValue,

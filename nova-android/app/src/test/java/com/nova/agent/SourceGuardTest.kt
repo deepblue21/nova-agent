@@ -1,6 +1,7 @@
 package com.nova.agent
 
 import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -452,7 +453,12 @@ class SourceGuardTest {
         assertTrue(
             "Android 13+ pano onizlemesi anahtari duz metin gosteriyordu; " +
                 "maskelemenin tum anlami kaciyordu",
-            text.contains("markClipboardSensitive"),
+            text.contains("rememberClipboardCopy(sensitive = true)"),
+        )
+        val chat = source("feature/chat/ChatScreen.kt")
+        assertFalse(
+            "sohbet metni gizli degil; hassas isaret sadece anahtar alanina ait",
+            chat.contains("rememberClipboardCopy(sensitive = true)"),
         )
     }
 
@@ -550,6 +556,42 @@ class SourceGuardTest {
             "bildirim sohbet alintisi tasiyor; sessiz yukleme 'istemler telefondan " +
                 "cikmaz' sozunu ve Data Safety beyanini cignerdi",
             store.contains("OkHttp") || store.contains("HttpUrl") || store.contains("Request("),
+        )
+    }
+
+    // ---------- pano: tek yazma ----------
+
+    @Test
+    fun `gizli deger panoya TEK cagriyla yazilir`() {
+        val field = source("ui/components/NovaSecretField.kt")
+        assertFalse(
+            "once isaretsiz yazip uzerine isaretlisini yazmak sizintiyi KAPATMAZ: " +
+                "ilk yazma Android 13+ onizlemesini anahtar duz metinken tetikler",
+            field.contains("setText(") || field.contains("markClipboardSensitive"),
+        )
+        assertTrue("kopyalama tek bir cagriya inmeli", field.contains("onCopy(value)"))
+
+        val helper = source("ui/components/SensitiveClipboard.kt")
+        assertEquals(
+            "yardimcida tek setPrimaryClip cagrisi olmali",
+            1,
+            Regex("""setPrimaryClip\(""").findAll(helper).count(),
+        )
+        assertTrue(helper.contains("EXTRA_IS_SENSITIVE"))
+    }
+
+    @Test
+    fun `kullanimdan kalkan Compose panosu kalmadi`() {
+        val root = listOf(File("src/main/java/com/nova/agent"), File("app/src/main/java/com/nova/agent"))
+            .first { it.exists() }
+        val offenders = root.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filter { stripComments(it.readText()).contains("LocalClipboardManager") }
+            .map { it.name }
+            .toList()
+        assertTrue(
+            "androidx.compose.ui.platform.ClipboardManager kullanimdan kaldirildi - ihlal: $offenders",
+            offenders.isEmpty(),
         )
     }
 

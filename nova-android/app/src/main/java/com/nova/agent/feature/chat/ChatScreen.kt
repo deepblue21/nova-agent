@@ -50,13 +50,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -76,6 +74,7 @@ import com.nova.agent.ui.theme.Surface2
 import com.nova.agent.ui.theme.TextMain
 import com.nova.agent.ui.theme.accentBrush
 import com.nova.agent.ui.brand.NovaBrandMark
+import com.nova.agent.ui.components.rememberClipboardCopy
 import com.nova.agent.ui.brand.NovaThinkingIndicator
 
 internal fun shouldShowNovaThinkingIndicator(message: ChatMessage): Boolean =
@@ -393,7 +392,7 @@ private fun ChatMessageRow(
     onReport: (ContentReportReason, String) -> Unit,
 ) {
     val isUser = message.role == "user"
-    val clipboard = LocalClipboardManager.current
+    val copyToClipboard = rememberClipboardCopy()
     var reporting by remember(message) { mutableStateOf(false) }
 
     if (reporting) {
@@ -452,7 +451,7 @@ private fun ChatMessageRow(
             Spacer(Modifier.height(5.dp))
             Row {
                 MessageAction(Icons.Filled.ContentCopy, "Kopyala") {
-                    clipboard.setText(AnnotatedString(message.content))
+                    copyToClipboard(message.content)
                 }
                 // Play B6: bildirim eylemi ÜRETİLEN İÇERİĞİN yanında durmalı.
                 // Ayarlar'a gömülü bir form "içeriği bildir" değil, "bir yerde
@@ -564,7 +563,7 @@ private fun ReportContentDialog(
 /** Asistan gövdesi: metin + her biri ayrı kartta, blok başına Kopyala'lı kod blokları. */
 @Composable
 private fun AssistantBody(content: String) {
-    val clipboard = LocalClipboardManager.current
+    val copyToClipboard = rememberClipboardCopy()
     val blocks = ChatMarkdown.splitBlocks(content)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         blocks.forEach { block ->
@@ -595,7 +594,7 @@ private fun AssistantBody(content: String) {
                                 modifier = Modifier.weight(1f),
                             )
                             MessageAction(Icons.Filled.ContentCopy, "Kopyala") {
-                                clipboard.setText(AnnotatedString(block.content))
+                                copyToClipboard(block.content)
                             }
                         }
                         Text(

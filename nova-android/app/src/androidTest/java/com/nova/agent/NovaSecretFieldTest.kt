@@ -5,9 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
@@ -72,23 +70,27 @@ class NovaSecretFieldTest {
             .assertCountEquals(0)
     }
 
-    /** Gerçek panoya dokunmadan setText çağrısını yakalayan sahte. */
-    private class FakeClipboard : ClipboardManager {
-        // Yedek alanin adi 'text' OLAMAZ: Kotlin ondan getText()/setText()
-        // uretir, bunlar ClipboardManager'in ayni JVM imzali uyeleriyle
-        // catisir ("platform declaration clash") ve :app:compileDebugAndroidTestKotlin
-        // 4 hatayla duser. Yani enstrumanli test kaynagi bugune kadar HIC
-        // derlenmiyordu -- push CI'i yalniz JVM testlerini kostugu ve
-        // enstrumanli workflow elle tetiklendigi icin fark edilmemis.
-        private var stored: AnnotatedString? = null
-        override fun setText(annotatedString: AnnotatedString) { stored = annotatedString }
-        override fun getText(): AnnotatedString? = stored
-        override fun hasText(): Boolean = !stored?.text.isNullOrEmpty()
+    /**
+     * Gerçek panoya dokunmadan kopyalama çağrısını yakalar.
+     *
+     * Eskiden burada `ClipboardManager`'ı taklit eden bir sınıf vardı ve
+     * derlenmiyordu: Kotlin, yedek alandan `getText()/setText()` üretiyor,
+     * bunlar arayüzün aynı JVM imzalı üyeleriyle çakışıyor ("platform
+     * declaration clash") ve `:app:compileDebugAndroidTestKotlin` dört hatayla
+     * düşüyordu. Yani enstrümanlı test kaynağı uzun süre HİÇ derlenmedi — push
+     * CI'ı yalnız JVM testlerini koştuğu için fark edilmemişti.
+     *
+     * Üretim kodu artık Android arayüzü yerine sade bir `(String) -> Unit`
+     * alıyor; taklit edilecek bir imza kalmadığı için tuzak da ortadan kalktı.
+     */
+    private class RecordingCopy : (String) -> Unit {
+        val copied = mutableListOf<String>()
+        override fun invoke(value: String) { copied += value }
     }
 
     @Test
     fun kopyalaDugmesiPanoyaYazar() {
-        val clipboard = FakeClipboard()
+        val clipboard = RecordingCopy()
         composeRule.setContent {
             NovaTheme {
                 NovaSecretField(
@@ -96,14 +98,18 @@ class NovaSecretFieldTest {
                     onValueChange = {},
                     label = "Erişim belirteci",
                     testTag = "secret",
-                    clipboard = clipboard,
+                    onCopy = clipboard,
                 )
             }
         }
 
         composeRule.onNodeWithTag("secret_copy").assertIsEnabled().performClick()
         composeRule.waitForIdle()
-        assertEquals("nv_ab12cd_gizli", clipboard.getText()?.text)
+        assertEquals(listOf("nv_ab12cd_gizli"), clipboard.copied)
+        // TEK yazma: eskiden once isaretsiz clip yaziliyor, ardindan
+        // isaretlisiyle uzerine yaziliyordu. Ilk yazma Android 13+ onizlemesini
+        // anahtar duz metinken tetikliyordu.
+        assertEquals(1, clipboard.copied.size)
     }
 
     @Test
