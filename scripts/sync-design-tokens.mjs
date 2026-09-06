@@ -514,7 +514,190 @@ object NovaApertureTokens {
   write("nova-android/app/src/main/java/com/nova/agent/ui/theme/NovaTokens.kt", kt);
 }
 
+/* ------------------------------ PLAY GÖRSELLERİ -------------------------- */
+
+/**
+ * Play Console'a yüklenecek grafikler — simge ve öne çıkan görsel.
+ *
+ * Neden burada: bu iki varlık marka işaretinin ta kendisi. Elde çizilirse
+ * `design/nova-tokens.json` değiştiğinde sessizce eskir ve mağazadaki NOVA,
+ * uygulamadaki NOVA'ya benzemez olur.
+ *
+ * SVG üretiliyor, PNG değil: bu depoda rasterleştirici yok. PNG'ler
+ * `design/play/` altında işlenmiş durumda; yeniden üretimi
+ * `docs/play/MAGAZA-METINLERI.md` anlatıyor.
+ *
+ * ### Play'in kuralları, tasarıma yansıdığı yerler
+ *
+ * - **Simge 512×512, alfa YOK, köşe yuvarlatma YOK.** Yuvarlak köşeyi ve
+ *   gölgeyi Play kendisi ekliyor; SVG'ye de koyarsak çift yuvarlatılmış, kenarı
+ *   kirli bir simge çıkar. Bu yüzden favicon'daki `rx` burada yok.
+ * - **Öne çıkan görsel 1024×500, alfa YOK.** Play bunu bazı yerleşimlerde
+ *   kırpıyor ve üstüne uygulama adını bindiriyor; metin ve işaret bu yüzden
+ *   kenarlardan ≥96 px içeride, orta bantta duruyor.
+ * - Cihaz çerçevesi, ekran görüntüsü ya da Play rozeti KOYMUYORUZ — üçü de
+ *   Play'in açık yasakları.
+ */
+function buildPlayAssets() {
+  const ap = tokens.brand.aperture;
+  const brandAccent = tokens.accents.find((a) => a.webDefault) || tokens.accents[0];
+  const c = brandAccent.aperture;
+  const bg = tokens.color.bg.hex;
+  const vb = ap.viewport;
+
+  /**
+   * Zeminin menekşe parlaması. Favicon'daki DÜZ dolgulu daire yerine yumuşak
+   * radyal geçiş: 16 px'lik sekme ikonunda görünmeyen sert daire kenarı, 512
+   * px'e çıkınca belirgin bir disk hâline geliyordu. Android'in
+   * `ic_launcher_background.xml`'i de zaten radyal geçiş kullanıyor; simge bu
+   * hâliyle telefondaki başlatıcı simgesiyle aynı görünüyor.
+   */
+  const bloomDefs = `
+    <radialGradient id="bloom" gradientUnits="userSpaceOnUse"
+      cx="${vb * 0.48}" cy="${vb * 0.44}" r="${vb * 0.34}">
+      <stop offset="0" stop-color="${c.mid}" stop-opacity="0.22"/>
+      <stop offset="0.58" stop-color="${c.deep}" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="${c.deep}" stop-opacity="0"/>
+    </radialGradient>`;
+
+  // Marka işaretinin ortak parçaları. `id`: aynı sayfada iki kez kullanıldığında
+  // gradyan kimlikleri çakışmasın.
+  const defs = (id) => `
+    <linearGradient id="body${id}" gradientUnits="userSpaceOnUse"
+      x1="${ap.bodyGradient.startX}" y1="${ap.bodyGradient.startY}"
+      x2="${ap.bodyGradient.endX}" y2="${ap.bodyGradient.endY}">
+      <stop offset="0" stop-color="${c.light}"/>
+      <stop offset="0.44" stop-color="${c.mid}"/>
+      <stop offset="1" stop-color="${c.deep}"/>
+    </linearGradient>
+    <linearGradient id="fold${id}" gradientUnits="userSpaceOnUse"
+      x1="${ap.foldGradient.startX}" y1="${ap.foldGradient.startY}"
+      x2="${ap.foldGradient.endX}" y2="${ap.foldGradient.endY}">
+      <stop offset="0" stop-color="${c.light}" stop-opacity="0.92"/>
+      <stop offset="0.55" stop-color="${c.mid}" stop-opacity="0.68"/>
+      <stop offset="1" stop-color="${c.deep}" stop-opacity="0.16"/>
+    </linearGradient>
+    <radialGradient id="coreGlow${id}" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="0.42" stop-color="${c.core}" stop-opacity="0.72"/>
+      <stop offset="1" stop-color="${c.light}" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="bodyClip${id}"><path d="${ap.bodyPath}"/></clipPath>`;
+
+  const mark = (id) => `
+    <path d="${ap.bodyPath}" fill="url(#body${id})"/>
+    <g clip-path="url(#bodyClip${id})">
+      <circle cx="247" cy="242" r="74" fill="${c.glow}" fill-opacity="0.48"/>
+      <circle cx="327" cy="316" r="92" fill="${c.deep}" fill-opacity="0.62"/>
+      <path d="${ap.foldPath}" fill="url(#fold${id})"/>
+    </g>
+    <path d="${ap.bodyPath}" fill="none" stroke="${c.light}" stroke-opacity="${ap.strokeAlpha}" stroke-width="1.5"/>
+    <circle cx="${ap.coreX}" cy="${ap.coreY}" r="${ap.coreGlowRadius}" fill="url(#coreGlow${id})"/>
+    <circle cx="${ap.coreX}" cy="${ap.coreY}" r="${ap.coreRadius}" fill="${c.core}"/>
+    <circle cx="${ap.highlightX}" cy="${ap.highlightY}" r="${ap.highlightRadius}" fill="#FFFFFF" fill-opacity="0.9"/>`;
+
+  /* --- 512×512 simge --- */
+  // Ölçek 1: işaretin yolu 560'lık tuvalin içinde KENDİ boşluğunu zaten
+  // taşıyor (her yandan ~%22), bu da kareyi %56 dolduruyor — mağaza simgesi
+  // için doğru ağırlık. Favicon ayrıca 0.13 pay ekliyor, çünkü o %22 köşe
+  // yarıçaplı bir karonun üstünde duruyor; Play'in maskesi daha yumuşak.
+  write(
+    "design/play/icon-512.svg",
+    `<?xml version="1.0" encoding="UTF-8"?>
+<!-- OTOMATİK ÜRETİLDİ — kaynak: design/nova-tokens.json · npm run tokens -->
+<!-- Play uygulama simgesi: 512x512, tam kanama, alfa yok; köşe yuvarlatma Play'in işi. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${vb} ${vb}" width="512" height="512">
+  <defs>
+    <linearGradient id="field" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#15162B"/>
+      <stop offset="0.54" stop-color="${bg}"/>
+      <stop offset="1" stop-color="#060711"/>
+    </linearGradient>${bloomDefs}${defs("Icon")}
+  </defs>
+
+  <rect width="${vb}" height="${vb}" fill="url(#field)"/>
+  <rect width="${vb}" height="${vb}" fill="url(#bloom)"/>
+
+  <g transform="translate(${vb / 2} ${vb / 2}) translate(${-ap.originX} ${-ap.originY})">${mark("Icon")}
+  </g>
+</svg>
+`,
+  );
+
+  /* --- 1024×500 öne çıkan görsel --- */
+  //
+  // Yerleşim ÖLÇÜLDÜ, tahmin edilmedi: ilk denemede punto büyüktü ve alt iki
+  // satır sağ kenardan taşıyordu. Metin x=396'da başlıyor ve en geniş satır
+  // x=968'i geçmiyor (Syne 800/96 "NOVA" 464 px, Sora 600/28 birinci satır TR
+  // 501 / EN 563 px, Sora 400/22 ikinci satır TR 456 / EN 466 px).
+  // Yazı tipi ya da metin değişirse punto YENİDEN ölçülmeli.
+  const W = 1024;
+  const H = 500;
+  const markBox = 330;
+  // İşaretin yolu 560'lık kutusunun içinde her yandan ~%22 boşluk taşıyor:
+  // GÖRÜNEN genişlik kutunun 0.561'i. 330'luk kutu 240'ta ortalanınca işaret
+  // 148..332 arasını kaplıyor — sol kenarda 148 px pay, metne 64 px mesafe.
+  const markCx = 240;
+  const textX = 396;
+
+  // Birinci satırın puntosu DİLE göre veriliyor: İngilizce cümle Türkçesinden
+  // ~%12 daha geniş ve 28 puntoda sağda yalnız 62 px pay kalıyordu. Play bazı
+  // yerleşimlerde kenardan kırpıyor, o kadar dar pay güvenli değil.
+  const feature = (lang, title, line1, line1Size, line2) =>
+    write(
+      `design/play/feature-1024x500${lang === "tr" ? "" : "-" + lang}.svg`,
+      `<?xml version="1.0" encoding="UTF-8"?>
+<!-- OTOMATİK ÜRETİLDİ — kaynak: design/nova-tokens.json · npm run tokens -->
+<!-- Play öne çıkan görsel: 1024x500, alfa yok. Metin kenarlardan uzak: Play kırpıyor. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
+  <defs>
+    <linearGradient id="field" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${W}" y2="${H}">
+      <stop offset="0" stop-color="#15162B"/>
+      <stop offset="0.54" stop-color="${bg}"/>
+      <stop offset="1" stop-color="#060711"/>
+    </linearGradient>
+    <radialGradient id="bloom" gradientUnits="userSpaceOnUse"
+      cx="${markCx}" cy="${H / 2}" r="${Math.round(H * 0.86)}">
+      <stop offset="0" stop-color="${c.mid}" stop-opacity="0.30"/>
+      <stop offset="0.55" stop-color="${c.deep}" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="${c.deep}" stop-opacity="0"/>
+    </radialGradient>${defs("Feat")}
+  </defs>
+
+  <rect width="${W}" height="${H}" fill="url(#field)"/>
+  <rect width="${W}" height="${H}" fill="url(#bloom)"/>
+
+  <g transform="translate(${markCx} ${H / 2}) scale(${(markBox / vb).toFixed(5)}) translate(${-ap.originX} ${-ap.originY})">${mark("Feat")}
+  </g>
+
+  <text x="${textX}" y="232" font-family="Syne, DejaVu Sans, sans-serif" font-weight="800"
+    font-size="96" letter-spacing="2" fill="#FFFFFF">${title}</text>
+  <text x="${textX}" y="288" font-family="Sora, DejaVu Sans, sans-serif" font-weight="600"
+    font-size="${line1Size}" fill="${c.light}">${line1}</text>
+  <text x="${textX}" y="336" font-family="Sora, DejaVu Sans, sans-serif" font-weight="400"
+    font-size="22" fill="#9EABC1">${line2}</text>
+</svg>
+`,
+    );
+
+  feature(
+    "tr",
+    "NOVA",
+    "Cihazda çalışan yapay zekâ asistanı",
+    28,
+    "İnternetsiz sohbet · Veriler telefonda kalır",
+  );
+  feature(
+    "en",
+    "NOVA",
+    "An AI assistant that runs on your device",
+    26,
+    "Offline chat · Your data stays on the phone",
+  );
+}
+
 console.log("NOVA tasarım token'ları üretiliyor…");
 buildWeb();
 buildAndroid();
+buildPlayAssets();
 console.log("Bitti.");

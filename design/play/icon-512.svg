@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- OTOMATİK ÜRETİLDİ — kaynak: design/nova-tokens.json · npm run tokens -->
+<!-- Play uygulama simgesi: 512x512, tam kanama, alfa yok; köşe yuvarlatma Play'in işi. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 560" width="512" height="512">
+  <defs>
+    <linearGradient id="field" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#15162B"/>
+      <stop offset="0.54" stop-color="#0A0E1A"/>
+      <stop offset="1" stop-color="#060711"/>
+    </linearGradient>
+    <radialGradient id="bloom" gradientUnits="userSpaceOnUse"
+      cx="268.8" cy="246.4" r="190.4">
+      <stop offset="0" stop-color="#7558FF" stop-opacity="0.22"/>
+      <stop offset="0.58" stop-color="#4525ED" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#4525ED" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bodyIcon" gradientUnits="userSpaceOnUse"
+      x1="138" y1="128"
+      x2="420" y2="428">
+      <stop offset="0" stop-color="#B7A7FF"/>
+      <stop offset="0.44" stop-color="#7558FF"/>
+      <stop offset="1" stop-color="#4525ED"/>
+    </linearGradient>
+    <linearGradient id="foldIcon" gradientUnits="userSpaceOnUse"
+      x1="174" y1="132"
+      x2="332" y2="420">
+      <stop offset="0" stop-color="#B7A7FF" stop-opacity="0.92"/>
+      <stop offset="0.55" stop-color="#7558FF" stop-opacity="0.68"/>
+      <stop offset="1" stop-color="#4525ED" stop-opacity="0.16"/>
+    </linearGradient>
+    <radialGradient id="coreGlowIcon" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="0.42" stop-color="#FFFAF1" stop-opacity="0.72"/>
+      <stop offset="1" stop-color="#B7A7FF" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="bodyClipIcon"><path d="M280,128 C319,128 319,205 354,226 C381,242 429,244 437,277 C445,311 390,323 361,342 C327,365 319,433 280,436 C241,433 233,365 199,342 C170,323 115,311 123,277 C131,244 179,242 206,226 C241,205 241,128 280,128Z"/></clipPath>
+  </defs>
+
+  <rect width="560" height="560" fill="url(#field)"/>
+  <rect width="560" height="560" fill="url(#bloom)"/>
+
+  <g transform="translate(280 280) translate(-280 -282)">
+    <path d="M280,128 C319,128 319,205 354,226 C381,242 429,244 437,277 C445,311 390,323 361,342 C327,365 319,433 280,436 C241,433 233,365 199,342 C170,323 115,311 123,277 C131,244 179,242 206,226 C241,205 241,128 280,128Z" fill="url(#bodyIcon)"/>
+    <g clip-path="url(#bodyClipIcon)">
+      <circle cx="247" cy="242" r="74" fill="#5EE8FF" fill-opacity="0.48"/>
+      <circle cx="327" cy="316" r="92" fill="#4525ED" fill-opacity="0.62"/>
+      <path d="M250,130 C285,178 324,198 316,239 C309,277 250,282 246,324 C243,359 286,386 294,434 C261,420 248,379 219,354 C188,327 153,319 126,297 C164,285 203,267 225,238 C249,207 242,165 250,130Z" fill="url(#foldIcon)"/>
+    </g>
+    <path d="M280,128 C319,128 319,205 354,226 C381,242 429,244 437,277 C445,311 390,323 361,342 C327,365 319,433 280,436 C241,433 233,365 199,342 C170,323 115,311 123,277 C131,244 179,242 206,226 C241,205 241,128 280,128Z" fill="none" stroke="#B7A7FF" stroke-opacity="0.42" stroke-width="1.5"/>
+    <circle cx="280" cy="286" r="58" fill="url(#coreGlowIcon)"/>
+    <circle cx="280" cy="286" r="22" fill="#FFFAF1"/>
+    <circle cx="273" cy="278" r="6.5" fill="#FFFFFF" fill-opacity="0.9"/>
+  </g>
+</svg>

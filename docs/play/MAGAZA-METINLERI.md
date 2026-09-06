@@ -136,13 +136,21 @@ Privacy policy: https://deepblue21.github.io/nova-agent/privacy/
 
 ---
 
-## Hâlâ eksik olan görseller
+## Görseller
 
 | Varlık | Gereklilik | Durum |
 |---|---|---|
-| Uygulama simgesi | 512×512 PNG, 32-bit, alfa yok | ✖ mevcut `ic_launcher`'dan üretilmeli |
-| Öne çıkan görsel | 1024×500 PNG/JPG | ✖ tasarım işi |
+| Uygulama simgesi | 512×512 PNG, 32-bit, alfa yok | ✔ `design/play/icon-512.png` |
+| Öne çıkan görsel (TR) | 1024×500 PNG/JPG, alfa yok | ✔ `design/play/feature-1024x500.png` |
+| Öne çıkan görsel (EN) | aynı | ✔ `design/play/feature-1024x500-en.png` |
 | Telefon ekran görüntüsü | en az 2, en fazla 8; 16:9–9:16, kenar 320–3840 px | ✖ emülatörden alınabilir |
+
+Simge ve öne çıkan görsel `design/nova-tokens.json`'dan **otomatik üretiliyor**
+(`npm run tokens`); PNG'ye çevirme adımı `design/play/README.md`'de. Elde
+düzenleme — üretici üzerine yazar.
+
+Simgeye köşe yuvarlatma **bilerek** konmadı: Play yuvarlak köşeyi ve gölgeyi
+kendisi ekliyor, SVG'de de olsa çift yuvarlatılmış kirli bir kenar çıkardı.
 
 **Ekran görüntüsü için öneri (4 kare):** Sohbet (yanıt görünür durumda) ·
 Modeller (indirme kartı) · Kontrol (yürütme politikası) · Ayarlar (gizlilik/veri).
