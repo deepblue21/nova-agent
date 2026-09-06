@@ -86,7 +86,9 @@ Formu senin doldurman gerekiyor; hesabına giremem.
 | İş | Kim | Not |
 |---|---|---|
 | Mağaza metinleri (başlık, kısa/uzun açıklama) | yazılabilir | henüz yazılmadı |
-| Ekran görüntüleri, uygulama simgesi, öne çıkan görsel | kısmen | emülatörden alınabilir; öne çıkan görsel (1024×500) tasarım işi |
+| Uygulama simgesi (512×512) | ✔ hazır | `design/play/icon-512.png` — token'lardan üretildi |
+| Öne çıkan görsel (1024×500, TR + EN) | ✔ hazır | `design/play/feature-1024x500*.png` |
+| Telefon ekran görüntüleri (en az 2) | ✖ açık | emülatörün fotoğraf makinesi düğmesiyle alınmalı |
 | Play Console hesabı + geliştirici doğrulaması | **sen** | 30 Eylül 2026 sınırı |
 | 12 test kullanıcısı / 14 gün kapalı test | **sen** | kişisel hesapta zorunlu |
 | Upload keystore + imzalı AAB | **sen** | `scripts/new-upload-keystore.ps1`; parolayı ben ne üretirim ne yazarım |
