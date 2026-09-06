@@ -929,3 +929,104 @@ kilitli; kutunun görsel akışı gerçek cihazda bir kez denenmeli.
 | Play Console hesabı + geliştirici doğrulaması | ✖ açık (30 Eylül 2026 sınırı) |
 | 12 test kullanıcısı / 14 gün | ✖ açık |
 | Upload keystore + imzalı AAB | ✖ açık — `scripts/new-upload-keystore.ps1` ile **senin** oluşturman gerekiyor |
+
+---
+
+# Tur 8 — kendi düzeltmemdeki hata, indirme görünürlüğü, araç sürümleri
+
+## P1 — "hassas pano" düzeltmesi sızıntıyı KAPATMIYORDU
+
+Turlardan birinde gizli değerin panoya `EXTRA_IS_SENSITIVE` işaretiyle
+yazılmasını sağlamıştım. Kodu yeniden okuyunca düzeltmenin işe yaramadığını
+gördüm: `NovaSecretField` panoya **iki kez** yazıyordu — önce Compose'un
+panosuyla (işaretsiz), hemen ardından işaretli clip'le üzerine.
+
+Android 13+ önizleme baloncuğu **ilk** `setPrimaryClip` çağrısında açılıyor.
+Yani `nv_…` anahtarı, ikinci yazma gelene kadar zaten düz metin olarak
+ekrandaydı. İkinci yazma baloncuğu tazeliyor, olan biteni geri almıyor.
+**Pencereyi daraltmak sızıntıyı kapatmaz.**
+
+Düzeltme: `SensitiveClipboard.kt` tek bir `copyToClipboard` fonksiyonuna
+indirildi — clip, işaret ÜZERİNDEYKEN tek çağrıyla yazılıyor; sistemin gördüğü
+ilk ve tek hâli maskelenmiş hâli.
+
+Bunun yan faydası olarak `NovaSecretField`'ın kancası `ClipboardManager`
+yerine sade bir `(String) -> Unit` oldu. Enstrumanlı testte
+`ClipboardManager`'ı taklit etmek Kotlin'in yedek alandan ürettiği
+`getText()/setText()` imzaları yüzünden "platform declaration clash" veriyordu;
+o kaynak bu yüzden uzun süre hiç derlenmemişti. Fonksiyon tipinde bu tuzak yok.
+Sohbetteki iki kopyalama da kullanımdan kalkan `LocalClipboardManager`'dan
+kurtarıldı.
+
+**Guard testi de yanlıştı:** eski `gizli deger panoya hassas isaretlenerek
+kopyalanir` testi `markClipboardSensitive` metnini arıyordu — yani sızıntıyı
+kapatmayan mekanizmanın VARLIĞINI doğruluyordu. Test artık gerçek güvenceye
+bakıyor: alanın varsayılan kancası `rememberClipboardCopy(sensitive = true)`
+olmalı ve sohbet metni (gizli değil) bu işareti taşımamalı.
+
+## P2 — iptal edilen indirme satırı "indiriliyor"da asılı kalıyordu
+
+WorkManager, iş uçtaki bir duruma geçince `progress`i **temizler**; iptal edilen
+bir işin `outputData`'sı da boştur (worker sonuç döndürmeye fırsat bulamaz).
+Gözlemci model kimliğini yalnız bu ikisinden okuduğu için `CANCELLED` durumunda
+`null` alıp `return` ediyordu — satır arayüzde sonsuza kadar "indiriliyor"
+kalıyor, kullanıcı ne iptali görüyor ne yeniden başlatabiliyordu.
+
+Model kimliği artık işin **etiketine** yazılıyor (`model-download/model=<id>`);
+etiketler iş ömrü boyunca değişmez, güvenilir kaynak onlar. Önek bilerek
+benzersiz iş adınınkinden (`model-download:`) farklı ki iş adı etiket kümesine
+sızarsa yanlışlıkla eşleşmesin.
+
+İşin kimliği ve anahtarları saf, Android'siz bir `ModelDownloadJob`'a taşındı:
+etiket biçimi gibi tamamen saf bir kural için birim testin WorkManager'a
+uzanması gerekmiyor (`DownloadPreflight`, `FirstRunGuide`, `MobileTaskReducer`
+de aynı ayrımı izliyor).
+
+## P3 — bildirim izni hiç istenmiyordu
+
+Model indirmesi WorkManager'a taşınırken manifest'e `POST_NOTIFICATIONS`
+eklenmiş ama çalışma zamanında **hiçbir yerde istenmemişti**. Android 13'ten
+beri bu izin varsayılan olarak reddedili; sonuç:
+
+- `setForeground` sessizce başarısız oluyordu,
+- kullanıcı 0,5–8,6 GB'lık bir indirme başlatıp **hiçbir ilerleme görmüyordu**,
+- bildirimdeki "İptal" düğmesi hiç var olmadığı için indirmeyi durdurmanın tek
+  yolu uygulamayı açık tutmaktı.
+
+İndirmeyi arka plana taşımanın kazandırdığının yarısı kayıptı. İzin artık
+"İndir"e basıldığı anda — yani bağlamında — isteniyor ve **beklenmiyor**:
+reddedilse bile indirme sürer, yalnız bildirim çıkmaz.
+
+## P4 — bildirimde "3.4 GB", Modeller ekranında "3,7 GB"
+
+`ModelDownloadWorker.gb()` `Locale.ROOT` ile nokta üretiyordu; `sizeLabel`
+virgül. Aynı model iki ekranda iki farklı ondalık ayırıcıyla görünüyordu.
+Biçimlendirme cihaz diline bırakılmadı — arayüzün tamamı Türkçe, karışık
+ayırıcı istemiyoruz.
+
+## Araç sürümleri — AGP 9.2.1 → 9.4.0, Gradle 9.4.1 → 9.6.0
+
+Bu **istenmiş bir değişiklik değildi**: Android Studio açılınca Upgrade
+Assistant kendiliğinden uyguladı. Geri almayı denerken yalnız Gradle sarmalayıcı
+geri alınabildi (çalışma dizini silme izni yok), AGP 9.4.0'da kaldı — AGP 9.4
+en az Gradle 9.6.0 istediği için build "minimum supported Gradle version"
+hatası verdi. **Hata bendendi.**
+
+İkisi tek bir karar olduğundan tutarlı hâle getirildi ve — testler bu sürümlerde
+de tamamen yeşil olduğu için — yükseltmede kalındı. Tuzak artık
+`libs.versions.toml`'da yazılı: `agp` ve `gradle-wrapper` **birlikte** değişir.
+
+## Doğrulama
+
+| | Sonuç |
+|---|---|
+| Birim testleri | ✔ **397/397 geçti** (3 sn 900 ms) |
+| Toolchain | ✔ AGP 9.4.0 + Gradle 9.6.0 üzerinde yeşil |
+
+389 → 397: 8 yeni test (2 pano guard'ı + 6 indirme etiketi). Guard testleri
+42 → 44; biri düzeltilmiş sayılmıyor, **yanlış olduğu için yeniden yazıldı**.
+
+**Dürüstlük notu:** P2, P3 ve P4 cihazda görsel olarak denenmedi — üçü de
+gerçek bir model indirmesi (GB'larca) gerektiriyor. Mantık testlerle kilitli,
+ama ilk gerçek indirmede bildirimin çıktığı ve iptal edilen satırın düzgün
+döndüğü bir kez gözle görülmeli.

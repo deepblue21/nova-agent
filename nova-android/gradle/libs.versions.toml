@@ -9,9 +9,19 @@
 [versions]
 
 # ——— Build araçları ———
-# AGP 9.2 en fazla API 37'yi destekliyor; compileSdk 37 bu tavanın tam sınırında.
-# Daha ileri bir compileSdk istenirse ÖNCE AGP yükseltilmeli.
-agp = "9.2.1"
+# AGP 9.4.0 — 2026-09-06'da Android Studio'nun Upgrade Assistant'ı 9.2.1'den
+# yükseltti; 397 birim testinin tamamı bu sürümde geçiyor.
+#
+# DİKKAT — agp ve gradle-wrapper BİRLİKTE değişir.
+# AGP 9.4 en az Gradle 9.6.0 istiyor. Yalnız birini geri almak
+# "Minimum supported Gradle version is 9.6.0" hatası verir; bu ikisi tek bir
+# karardır, iki ayrı sürüm değil. Gradle sarmalayıcısı:
+#   gradle/wrapper/gradle-wrapper.properties -> gradle-9.6.0-bin.zip
+#
+# Yükseltmenin amacı yeni API DEĞİL, yalnız araç sürümü: compileSdk 37 bilerek
+# olduğu yerde duruyor. Daha ileri bir compileSdk denenecekse önce AGP'nin o
+# API'yi desteklediği doğrulanmalı.
+agp = "9.4.0"
 
 # DİKKAT — Kotlin'i keyfi yükseltme.
 # litertlm-android (0.13.1 ve 0.14.0), Kotlin 2.3 metadata'sıyla derlendi. Kotlin 2.2.x
