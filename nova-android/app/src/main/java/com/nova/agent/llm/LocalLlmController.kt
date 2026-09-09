@@ -379,15 +379,48 @@ class LocalLlmController(
             // .litertlm `Engine.initialize()`'a gidiyordu. Oradaki native çökme
             // Kotlin tarafından yakalanamaz.
             val diskState = store.diskState(spec)
-            if (diskState !is LocalModelDiskState.Installed || !diskState.verified) {
-                onMain {
-                    cb.onError(
-                        "Model dosyası doğrulanmadı; bozuk olabilir ve bu hâliyle " +
-                            "çalıştırılmaz. Modeller sekmesinden \"Doğrula\", " +
-                            "başarısız olursa yeniden indir.",
-                    )
-                }
+            if (diskState !is LocalModelDiskState.Installed) {
+                onMain { cb.onError("Model dosyası eksik. Modeller sekmesinden indirin.") }
                 return@launch
+            }
+            // ÇIKMAZ YOLU KAPATIR.
+            //
+            // Buradaki kural ("doğrulanmamış dosya native motora verilmez")
+            // doğru, ama tek başına bir çıkmaz üretiyordu: YÖNLENDİRME
+            // (EngineRouter ← isInstalled ← diskState is Installed)
+            // doğrulanmamış dosyayı "kurulu" sayıp istemi buraya getiriyor,
+            // burası ise reddediyordu. Çevrimdışı modda devir kapalı olduğu
+            // için (allowsGatewayFallback = false) istem hiçbir yere
+            // gitmiyordu: kullanıcı "Doğrula"ya basana kadar model çalışmıyor.
+            //
+            // İşaretin eksik olması dosyanın bozuk olduğu anlamına GELMEZ.
+            // Bilinen iki sebep: (1) indirme bitip `renameTo` olduktan sonra
+            // işaret yazılmadan sürecin ölmesi, (2) diskin dolması yüzünden
+            // işaretin yazılamaması — ki bu tam da GB'larca model indirilirken
+            // olur. İkisinde de baytlar sağlam.
+            //
+            // Doğrulama YEREL bir işlem: SHA-256 hesaplamak ağ istemez, yani
+            // çevrimdışıyken de yapılabilir. Bu yüzden kullanıcıyı başka bir
+            // ekrana yollamak yerine burada doğruluyoruz. Yavaş (yüzlerce MB)
+            // ama zaten IO dispatcher'ındayız ve bir kereye mahsus.
+            // `store.verify` tutmazsa dosyayı DİSKTEN SİLER (Y2), dolayısıyla
+            // sonraki durum dürüsttür.
+            if (!diskState.verified) {
+                onMain {
+                    update(spec.id) { it.copy(verifying = true, error = null) }
+                    engineState = LocalEngineUi.Loading(spec.displayName)
+                }
+                val ok = store.verify(spec)
+                onMain { update(spec.id) { it.copy(verifying = false, disk = store.diskState(spec)) } }
+                if (!ok) {
+                    onMain {
+                        cb.onError(
+                            "Model dosyası bozuk çıktı ve silindi. " +
+                                "Modeller sekmesinden yeniden indirin.",
+                        )
+                    }
+                    return@launch
+                }
             }
             // Yol AYNI ama backend tercihi değiştiyse motor yeniden kurulur;
             // "zaten yüklü" kararı ikisine birden bakmalı, yoksa gerçek bir

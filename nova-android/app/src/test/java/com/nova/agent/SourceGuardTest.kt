@@ -463,6 +463,31 @@ class SourceGuardTest {
     }
 
     @Test
+    fun `dogrulanmamis model cikmaz yol degil`() {
+        val text = source("llm/LocalLlmController.kt")
+        assertTrue(
+            "yonlendirme dogrulanmamis dosyayi 'kurulu' sayip buraya getiriyor; " +
+                "uretim yolu reddedince cevrimdisi modda istem HICBIR yere gitmiyordu",
+            text.contains("store.verify(spec)"),
+        )
+        assertFalse(
+            "kullaniciyi baska ekrandaki 'Dogrula' dugmesine yollamak cozum degil: " +
+                "SHA-256 yerel bir islem, cevrimdisiyken de burada yapilabilir",
+            text.contains("Modeller sekmesinden \\\"Dogrula\\\""),
+        )
+    }
+
+    @Test
+    fun `dogrulama isareti sessizce yutulmaz`() {
+        val text = source("llm/local/LocalModelStore.kt")
+        assertTrue(
+            "isaret yazimi tipik olarak DISK DOLDUGU icin basarisiz olur - yani tam " +
+                "GB'larca model indirilirken; yutulan hata cevrimdisi sohbeti oldururdu",
+            text.contains("fun writeMarker(spec: LocalModelSpec): Boolean"),
+        )
+    }
+
+    @Test
     fun `gecmis aramasi yarisa karsi korumali`() {
         val text = source("NovaViewModel.kt")
         assertTrue(

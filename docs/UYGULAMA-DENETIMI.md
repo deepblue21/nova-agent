@@ -1030,3 +1030,95 @@ de tamamen yeşil olduğu için — yükseltmede kalındı. Tuzak artık
 gerçek bir model indirmesi (GB'larca) gerektiriyor. Mantık testlerle kilitli,
 ama ilk gerçek indirmede bildirimin çıktığı ve iptal edilen satırın düzgün
 döndüğü bir kez gözle görülmeli.
+
+---
+
+# Tur 9 — "bazı modeller çevrimdışı çalışmıyor"
+
+Salih'in bildirdiği hata. Üç adımda arandı: katalog verisi → durum mantığı →
+bağlam sınırları.
+
+## Katalog doğrulandı — sorun orada değil
+
+Kataloğun her satırı **elle girilmiş** bir boyut ve SHA-256 taşıyor.
+`LocalModelStore.diskState`, dosyayı ancak `length() == spec.sizeBytes` ise
+"kurulu" sayıyor; bu yüzden tek bir yanlış bayt sayısı o modeli **kalıcı olarak
+"yarım indirme"** durumunda bırakır ve model asla çalışmaz. Tam olarak "bazı
+modeller" belirtisi.
+
+18 kaydın tamamı Hugging Face'e karşı, **kataloğun sabitlediği revizyonda**
+kontrol edildi:
+
+| Sonuç | Sayı |
+|---|---|
+| Boyut bayt bayt doğru | 16 |
+| Kapılı — erişim reddedildi, kataloğun `gated = true` dediği ikisi | 2 |
+| Uyuşmazlık | **0** |
+
+**Bu arada bir yanlış alarm ürettim ve düzelttim:** ilk kontrolü `main` dalında
+yaptım; `Qwen3.5-0.8B` (8 Eylül) ve `gemma-4-12B` (4 Eylül) o gün yeniden
+yüklendiği için boyutlar farklı çıktı. Sabitlenmiş revizyonda ikisi de
+kataloğunkiyle aynı. Katalog haklı, dal ilerlemiş. Sabitleme tam bunun için
+var.
+
+Ayrıca ilk ayrıştırıcım iki `BASE` sabitini satıra bölünmüş oldukları için
+yanlış çözdü ve "revizyon eksik" gibi gösterdi — o da bendendi.
+
+## P5 — doğrulanmamış model dosyası bir ÇIKMAZ yoluydu
+
+Asıl neden. "Kurulu" tanımı **iki yerde farklı**:
+
+- **Yönlendirme**: `EngineRouter.decide` ← `isInstalled` ← `diskState is
+  Installed` — doğrulanmamış dosyayı **kabul eder**.
+- **Üretim**: `LocalLlmController.generate` — `Installed && verified` ister,
+  aksi hâlde reddeder.
+
+Sonuç: doğrulanmamış bir dosya istemi yerel motora **yönlendirir**, motor yolu
+onu **reddeder**. Çevrimdışı modda PC'ye devir kapalı olduğu için
+(`allowsGatewayFallback = false`) istem hiçbir yere gitmez. Kullanıcı Modeller
+sekmesine gidip "Doğrula"ya basmadıkça çevrimdışı sohbet ölü.
+
+İşaretin eksik olması dosyanın bozuk olduğu anlamına **gelmez**. Bilinen iki
+sebep, ikisinde de baytlar sağlam:
+
+1. İndirme bitip `renameTo` olduktan sonra, işaret yazılmadan sürecin ölmesi.
+2. **Diskin dolması** yüzünden işaretin yazılamaması — ki bu tam da GB'larca
+   model indirilirken olur. `writeMarker` sonucu `runCatching` ile
+   **yutuyordu**: indirme "başarılı" diyor, durum doğrulanmamış kalıyor.
+
+**Düzeltme.** SHA-256 hesaplamak yerel bir iş; ağ istemez, yani çevrimdışıyken
+de yapılabilir. Kullanıcıyı başka bir ekrandaki düğmeye yollamak yerine üretim
+yolu artık dosyayı **orada doğruluyor**. Tutarsa devam eder; tutmazsa
+`store.verify` dosyayı diskten siler (Y2 kararı) ve mesaj dürüst olur.
+`writeMarker` da artık başarısını döndürüyor.
+
+`LocalModelStore` `Context` yerine `filesDir` alıyor — çevrimdışı kullanımın
+kalbindeki bu mantık böylece JVM'de gerçek dosyalarla test edilebiliyor. Daha
+önce **hiç** test edilmiyordu.
+
+## Doğrulama
+
+| | Sonuç |
+|---|---|
+| Birim testleri | ✔ **411/411 geçti** |
+| Katalog ↔ HF (sabit revizyon) | ✔ 16/16 bayt bayt, 2 kapılı |
+
+397 → 411: 12 yeni `LocalModelStoreTest` (durum geçişleri, doğrulama, silme) +
+2 guard testi. Guard testleri 44 → 46.
+
+## Açık şüphe — henüz KANITLANMADI
+
+İki modelin dosya adı bağlam sınırını yazıyor: `granite-4.0-350m_q8_**ekv1280**`
+ve `mobile_actions_q8_**ekv1024**`. Uygulama konuşmayı turlar arası canlı
+tutuyor (KV önbelleği korunuyor) ve sistem istemi + çevrimdışı araç şeması
+bunun üstüne biniyor. 1024–1280 tokenlık bir bütçe birkaç turda dolar; büyük
+modellerde (ekv4096+) aynı sohbet sorunsuz sürer.
+
+Bu, "bazı modeller" belirtisinin **alt kümeye özgü** ikinci adayı ve P5'ten
+bağımsız. `LocalModelSpec`te bağlam uzunluğu alanı yok — uygulama bu tavanı
+bilmiyor.
+
+**Neden düzeltmiyorum:** diğer modellerin bağlam uzunluğunu bilmiyorum ve
+tahmin edilen değer katalogda yer almaz (bu dosyanın kendi kuralı). Doğru yol
+granite'i (468 MB, emülatöre iner) indirip birkaç tur konuşmak ve sınırı
+gerçekten görmek. Görmeden sayı yazmayacağım.

@@ -22,9 +22,17 @@ sealed interface LocalModelDiskState {
  *        filesDir/models/<dosya>.part       → sürdürülebilir yarım indirme
  *        filesDir/models/<dosya>.sha256.ok  → doğrulama işareti (içerik = özet)
  */
-class LocalModelStore(context: Context) {
+class LocalModelStore(filesDir: File) {
 
-    val modelsDir: File = File(context.filesDir, "models")
+    /**
+     * Android yapıcısı. Sınıfın gerçek bağımlılığı `filesDir`den ibaret;
+     * `Context` almayı bırakınca `diskState`/`verify`/`delete` mantığı JVM
+     * birim testinde gerçek dosyalarla koşturulabiliyor. Bu mantık çevrimdışı
+     * kullanımın kalbinde ve daha önce hiç test edilmiyordu.
+     */
+    constructor(context: Context) : this(context.filesDir)
+
+    val modelsDir: File = File(filesDir, "models")
 
     fun modelFile(spec: LocalModelSpec): File = File(modelsDir, spec.fileName)
     fun partFile(spec: LocalModelSpec): File = File(modelsDir, spec.fileName + ".part")
@@ -77,9 +85,20 @@ class LocalModelStore(context: Context) {
         return ok
     }
 
-    fun writeMarker(spec: LocalModelSpec) {
+    /**
+     * Doğrulama işaretini yazar. **Başarısını döndürür** — eskiden sonucu
+     * yutuyordu.
+     *
+     * Neden önemli: bunun tipik başarısızlık nedeni diskin dolması, ki bu tam
+     * olarak GB'larca modelin indirildiği anda olur. İşaret yazılamayınca
+     * indirme "başarılı" diyor, dosya diskte duruyor, ama durum
+     * `Installed(verified = false)` kalıyor — ve üretim yolu doğrulanmamış
+     * dosyayı çalıştırmayı reddettiği için çevrimdışı sohbet sessizce
+     * ölüyordu. Çağıran taraf artık bunu görebiliyor.
+     */
+    fun writeMarker(spec: LocalModelSpec): Boolean {
         modelsDir.mkdirs()
-        runCatching { markerFile(spec).writeText(spec.sha256) }
+        return runCatching { markerFile(spec).writeText(spec.sha256) }.isSuccess
     }
 
     companion object {
