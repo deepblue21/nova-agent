@@ -86,6 +86,8 @@ Formu senin doldurman gerekiyor; hesabına giremem.
 | İş | Kim | Not |
 |---|---|---|
 | Mağaza metinleri (başlık, kısa/uzun açıklama) | yazılabilir | henüz yazılmadı |
+| Marka kontrolü ("NOVA") | ✔ karar verildi | riski kabul ederek devam — gerekçe `MAGAZA-METINLERI.md` |
+| Gizlilik politikası URL'i | ⏳ push bekliyor | `main` yerelde hazır (`git push nova-upstream main`) + Settings → Pages |
 | Uygulama simgesi (512×512) | ✔ hazır | `design/play/icon-512.png` — token'lardan üretildi |
 | Öne çıkan görsel (1024×500, TR + EN) | ✔ hazır | `design/play/feature-1024x500*.png` |
 | Telefon ekran görüntüleri (en az 2) | ✖ açık | emülatörün fotoğraf makinesi düğmesiyle alınmalı |

@@ -16,10 +16,38 @@ NOVA — Cihazda AI Asistan
 ```
 25 karakter.
 
-> ⚠ **Marka kontrolü gerekli.** Play'de "Nova" adını taşıyan tanınmış
-> uygulamalar var (örn. Nova Launcher). Ad çakışması ret ya da sonradan
-> kaldırma sebebi olabilir. Yayından önce Play'de ve TÜRKPATENT'te arama yap;
-> gerekirse `NOVA Agent` ya da özgün bir ada geç.
+### Marka kontrolü — yapıldı, karar verildi (2026-09-09)
+
+**Karar: NOVA adıyla devam, risk bilinerek kabul edildi.** Kararı Salih verdi;
+gerekçesi ve bulgular aşağıda, sonradan "bilinmiyordu" denmesin diye.
+
+Bulgular:
+
+- **Play'de aynı kategoride aynı ad kullanımda.** AI Chatbot - Nova
+  (`com.scaleup.chatai`, MWM), Nova AI: Chatbot Assistant (`com.nova.ai.app`),
+  Nova: AI Chatbot (`com.apporigins.NovaAI`), Nova: AI Planner, Nova AI Friend.
+  Hepsi yapay zekâ sohbet asistanı.
+- **"NOVA AI" markası bir Türk şirketi tarafından talep edilmiş.** USPTO
+  97845770 — HUBX Yazılım Hizmetleri A.Ş., sınıf 9 (mobil uygulama yazılımı) ve
+  42 (SaaS), 18.03.2023, o kayıtta "beklemede".
+- **Play IP politikası:** *"identical or similar trademark in a way that is
+  likely to cause confusion as to the source"* → askıya alma sebebi.
+- Alternatif olarak bakılan **Horus** da temiz değil (Play'de `HorusAI`
+  geliştiricisi, horusai.net, pulsrhorus.com).
+
+Kapsanmayanlar — **karar bunlara bakılmadan verildi**: TÜRKPATENT araması
+yapılmadı (buradan erişilemiyor) ve bu bir hukuki görüş değil.
+
+**Kabul edilen iki sonuç:**
+
+1. Şikâyet gelirse süreç kaldırma + itiraz şeklinde işler.
+2. Görünürlük: "Nova AI" araması doygun; organik keşif zayıf olacak, mağaza
+   metnindeki *cihazda/çevrimdışı* farkı öne çıkarılarak telafi edilmeye
+   çalışılıyor.
+
+**Neden bu kararın zamanı geçti sayılmaz ama geri dönüşü pahalı:**
+`applicationId = "com.nova.agent"` Play'e ilk yüklemeden sonra **asla
+değiştirilemez**. Sonradan marka değişirse paket adı "nova" olarak kalır.
 
 ---
 
