@@ -4,7 +4,7 @@ Tarih: 2026-07-16 (güncellendi 2026-08-09) · Dal: `codex/phase1-local-first`
 
 ## Tamamlanan fazlar (özet)
 
-Faz 1–9 ve 10A kod olarak tamamlandı; **288 birim + 122 enstrümanlı test** yazıldı.
+Faz 1–9 ve 10A kod olarak tamamlandı; **411 birim + 122 enstrümanlı test** yazıldı.
 Detaylar aşağıdaki bölümlerde.
 
 **Android derleme durumu:** ✅ **2026-08-10'da emülatörde doğrulandı** —
