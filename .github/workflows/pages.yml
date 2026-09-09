@@ -1,0 +1,51 @@
+name: Pages (gizlilik politikası)
+
+# Play, uygulama kaydında ZORUNLU bir gizlilik politikası URL'i istiyor.
+# Bu iş akışı YALNIZ `site/` klasörünü yayımlar.
+#
+# Neden `docs/` değil: `docs/` çalışma belgelerini tutuyor — aralarında
+# uygulamanın bulunan her kusurunu tek tek anlatan denetim raporu var. GitHub
+# Pages'i o klasöre bağlamak raporun tamamını herkese açık hâle getirirdi.
+# Yayımlanan şey açıkça seçilmiş olmalı, "klasörde ne varsa" değil.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'site/**'
+      - '.github/workflows/pages.yml'
+  # Ana dala geçmeden önce elle çalıştırabilmek için.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Yayın sırası korunur; eşzamanlı iki dağıtım birbirini ezmesin.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sayfa gerçekten var mı
+        # Sessizce boş site yayımlamaktansa burada patlaması iyidir: Play'e
+        # verilen URL 404 dönerse uygulama incelemede reddedilir.
+        run: test -f site/privacy/index.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

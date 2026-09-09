@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NOVA — Gizlilik Politikası / Privacy Policy</title>
+<meta name="description" content="NOVA (com.nova.agent) gizlilik politikası. Uygulama varsayılan olarak telefonda çalışır; geliştiriciye veri gönderilmez.">
+<style>
+  :root{
+    --bg:#ffffff; --fg:#16161a; --muted:#5b5f6b; --line:#e3e5ea;
+    --card:#f7f8fa; --accent:#5b3df5; --accent-soft:#ece8ff;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0e0f13; --fg:#eceef3; --muted:#a2a7b4; --line:#242732;
+      --card:#161821; --accent:#9d8bff; --accent-soft:#1e1a35;
+      color-scheme: dark;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:760px; margin:0 auto; padding:32px 20px 80px}
+  header{border-bottom:1px solid var(--line); padding-bottom:20px; margin-bottom:28px}
+  .app{display:flex; align-items:center; gap:12px}
+  .mark{
+    width:40px;height:40px;border-radius:11px;flex:0 0 auto;
+    background:linear-gradient(135deg,var(--accent),#c084fc);
+  }
+  h1{font-size:22px; margin:0; letter-spacing:-.01em}
+  .sub{color:var(--muted); font-size:13px; margin-top:2px}
+  .langs{display:flex; gap:8px; margin-top:18px}
+  .langs button{
+    font:inherit; font-size:13px; cursor:pointer; padding:6px 14px;
+    border-radius:999px; border:1px solid var(--line);
+    background:transparent; color:var(--muted);
+  }
+  .langs button[aria-selected="true"]{
+    background:var(--accent-soft); border-color:var(--accent); color:var(--accent); font-weight:600;
+  }
+  h2{font-size:17px; margin:32px 0 10px; letter-spacing:-.01em}
+  h3{font-size:15px; margin:22px 0 6px}
+  p,li{color:var(--fg)}
+  .muted{color:var(--muted)}
+  .lede{
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:16px 18px; margin:0 0 8px;
+  }
+  table{border-collapse:collapse; width:100%; margin:12px 0; font-size:14px; display:block; overflow-x:auto}
+  th,td{border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top}
+  th{background:var(--card); font-weight:600}
+  code{
+    background:var(--card); border:1px solid var(--line); border-radius:5px;
+    padding:1px 5px; font-size:.88em;
+  }
+  a{color:var(--accent)}
+  footer{margin-top:48px; padding-top:18px; border-top:1px solid var(--line); color:var(--muted); font-size:13px}
+  [hidden]{display:none !important}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="app">
+      <div class="mark" aria-hidden="true"></div>
+      <div>
+        <h1>NOVA — Gizlilik Politikası</h1>
+        <div class="sub"><code>com.nova.agent</code> · Son güncelleme: 29 Ağustos 2026</div>
+      </div>
+    </div>
+    <div class="langs" role="tablist" aria-label="Dil / Language">
+      <button role="tab" id="tab-tr" aria-selected="true" aria-controls="panel-tr">Türkçe</button>
+      <button role="tab" id="tab-en" aria-selected="false" aria-controls="panel-en">English</button>
+    </div>
+  </header>
+
+  <!-- ============================ TÜRKÇE ============================ -->
+  <section id="panel-tr" role="tabpanel" aria-labelledby="tab-tr">
+
+    <p class="lede">
+      <strong>Kısaca:</strong> NOVA varsayılan olarak <strong>telefonunda</strong> çalışır.
+      Cihaza indirdiğin bir dil modeliyle sohbet edersin ve istemlerin telefondan çıkmaz.
+      İstersen kendi bilgisayarındaki Gateway'e bağlanırsın; o durumda istemler
+      <strong>senin kurduğun</strong> sunucuya gider.
+      Geliştiriciye ait bir sunucu <strong>yoktur</strong>; uygulamada analitik, reklam veya
+      çökme raporlama bileşeni <strong>yoktur</strong>.
+    </p>
+
+    <h2>Toplanan veriler</h2>
+    <p><strong>Geliştirici olarak hiçbir veri toplamıyoruz.</strong> Uygulamanın bize veri
+    gönderdiği hiçbir yol yok.</p>
+    <p>Aşağıdakiler yalnız telefonunda, uygulamanın özel depolama alanında tutulur:</p>
+    <table>
+      <tr><th>Veri</th><th>Neden</th></tr>
+      <tr><td>Sohbet geçmişi</td><td>Sohbetlerine geri dönebilmen için</td></tr>
+      <tr><td>Notlar</td><td>Çevrimdışı not aracıyla kaydettiklerin</td></tr>
+      <tr><td>Ayarlar (tema, model seçimi, kişilik metni)</td><td>Tercihlerinin korunması</td></tr>
+      <tr><td>Gateway adresi ve erişim anahtarı</td><td>Kendi bilgisayarına bağlanabilmen için</td></tr>
+      <tr><td>Hugging Face erişim belirteci (girdiysen)</td><td>Lisans onayı isteyen modelleri indirebilmen için</td></tr>
+      <tr><td>İndirilen model dosyaları</td><td>Çevrimdışı çalışabilmen için</td></tr>
+      <tr><td>İçerik bildirimleri</td><td>Sakıncalı bulduğun yanıtları işaretleyebilmen için</td></tr>
+      <tr><td>Model başarım ölçümleri</td><td>Hangi modelin cihazına uyduğunu görmen için</td></tr>
+    </table>
+    <p>Tamamını <strong>Ayarlar → Veri yönetimi → Yerel veriyi temizle</strong> ile silebilirsin.
+    Uygulamayı kaldırmak da hepsini siler.</p>
+
+    <h2>Verinin cihaz dışına çıktığı durumlar</h2>
+    <p class="muted">Üçü de senin başlattığın eylemlerdir; hiçbiri arka planda olmaz.</p>
+
+    <h3>1. Kendi bilgisayarına bağlanmayı seçtiğinde</h3>
+    <p>Yürütme politikasını <em>PC / Gateway</em> veya <em>Hibrit</em> yaptığında — ya da telefon
+    modeli hata verip sen açıkça onayladığında — istemin ve sohbet bağlamın <strong>senin
+    kurduğun</strong> Gateway sunucusuna gider. Bu sunucu senin bilgisayarında çalışır, adresini
+    sen girersin. Oradan bir bulut sağlayıcısına yönlendirilip yönlendirilmediğini
+    <strong>senin Gateway yapılandırman</strong> belirler; bu NOVA'nın kontrolünde değildir ve o
+    sağlayıcının gizlilik politikası geçerli olur.</p>
+    <p><em>Çevrimdışı</em> politikasında bu yol tümüyle kapalıdır. Hassas görünen içerikte
+    (kart numarası, IBAN, kimlik, parola gibi) otomatik devir yapılmaz; her seferinde açık
+    onayın istenir.</p>
+
+    <h3>2. Model indirirken</h3>
+    <p>Model dosyaları <code>huggingface.co</code> üzerinden indirilir. Lisans onayı isteyen
+    ("kapılı") modeller için girdiğin Hugging Face belirteci <strong>yalnız bu adrese</strong> ve
+    yalnız indirme sırasında gönderilir. Başka hiçbir yere gönderilmez.</p>
+
+    <h3>3. Sesle konuşma kullandığında</h3>
+    <p>Mikrofonu açtığında konuşmayı <strong>Android'in kendi konuşma tanıma servisi</strong>
+    çözer. Cihazında çevrimdışı Türkçe ses paketi kuruluysa işlem telefonda kalır; kurulu
+    değilse Android bunu üreticinin veya Google'ın servisine gönderebilir. Bu, NOVA'nın değil
+    işletim sisteminin davranışıdır — telefonda çalışan politikalarda NOVA çevrimdışı tanımayı
+    tercih eder. Ses kaydı NOVA tarafından saklanmaz; yalnız çözülen metin sohbete girer.</p>
+
+    <h2>İzinler</h2>
+    <table>
+      <tr><th>İzin</th><th>Neden</th></tr>
+      <tr><td><code>INTERNET</code></td><td>Model indirme ve (seçtiysen) Gateway bağlantısı</td></tr>
+      <tr><td><code>ACCESS_NETWORK_STATE</code></td><td>Bağlantı var mı diye bakmak</td></tr>
+      <tr><td><code>RECORD_AUDIO</code></td><td>Yalnız sesle konuşma kullandığında; mikrofona basmadan açılmaz</td></tr>
+      <tr><td><code>POST_NOTIFICATIONS</code></td><td>Model indirme ilerlemesini göstermek</td></tr>
+      <tr><td><code>FOREGROUND_SERVICE</code>, <code>FOREGROUND_SERVICE_DATA_SYNC</code></td><td>İndirme, ekran kapansa da sürsün diye</td></tr>
+    </table>
+    <p>Konum, rehber, SMS, çağrı kaydı ve dosya erişimi izinleri <strong>istenmez</strong>.</p>
+
+    <h2>Yapay zekâ ile üretilen içerik</h2>
+    <p>NOVA'nın yanıtları yapay zekâ tarafından üretilir ve <strong>yanlış olabilir</strong>.
+    Tıbbi, hukuki ve finansal konularda uzmanına danış.</p>
+    <p>Sakıncalı bir yanıt görürsen, yanıtın altındaki bayrak simgesiyle bildirebilirsin.
+    Bildirim telefonunda kaydedilir. Bize göndermek istersen
+    <strong>Ayarlar → İçerik bildirimleri</strong>'nden paylaşırsın — ne gönderileceğini
+    önce görürsün. Gönderilmedikçe bildirim cihazdan çıkmaz.</p>
+
+    <h2>Çocuklar</h2>
+    <p>NOVA 13 yaşın altındaki çocuklara yönelik değildir ve onlardan bilerek veri toplamaz.</p>
+
+    <h2>Yedekleme</h2>
+    <p>Android'in otomatik yedeklemesi devrededir, ancak <strong>erişim anahtarların, Hugging
+    Face belirtecin ve model dosyaların yedeğe dâhil edilmez</strong>. Sohbet geçmişin ve notların
+    yedeklenebilir; bu yedek senin Google hesabındadır, bizde değil. Cihazdan cihaza aktarımda
+    anahtarların korunur ki yeni telefonda baştan eşleme yapmak zorunda kalmayasın.</p>
+
+    <h2>Değişiklikler</h2>
+    <p>Bu politika değişirse yukarıdaki tarih güncellenir. Kayda değer bir değişiklik olursa
+    uygulama içinde bildirilir.</p>
+
+    <h2>İletişim</h2>
+    <p>Soru ve talepler için: <a href="mailto:salihsrc42@gmail.com">salihsrc42@gmail.com</a></p>
+  </section>
+
+  <!-- ============================ ENGLISH ============================ -->
+  <section id="panel-en" role="tabpanel" aria-labelledby="tab-en" hidden>
+
+    <p class="lede">
+      <strong>In short:</strong> NOVA runs <strong>on your phone</strong> by default. You chat with
+      a language model you downloaded to the device, and your prompts never leave the phone.
+      If you choose to, you can connect to a Gateway running on <strong>your own computer</strong>;
+      prompts then go to <strong>the server you set up</strong>.
+      There is <strong>no developer-operated server</strong>, and the app contains
+      <strong>no</strong> analytics, advertising or crash-reporting components.
+    </p>
+
+    <h2>Data we collect</h2>
+    <p><strong>We collect nothing.</strong> There is no path by which the app sends data to us.</p>
+    <p>The following is stored only on your phone, in the app's private storage:</p>
+    <table>
+      <tr><th>Data</th><th>Why</th></tr>
+      <tr><td>Chat history</td><td>So you can return to your conversations</td></tr>
+      <tr><td>Notes</td><td>What you save with the offline note tool</td></tr>
+      <tr><td>Settings (theme, model choice, persona text)</td><td>To keep your preferences</td></tr>
+      <tr><td>Gateway address and access key</td><td>To connect to your own computer</td></tr>
+      <tr><td>Hugging Face access token (if entered)</td><td>To download models that require licence acceptance</td></tr>
+      <tr><td>Downloaded model files</td><td>To work offline</td></tr>
+      <tr><td>Content reports</td><td>So you can flag responses you find objectionable</td></tr>
+      <tr><td>Model performance measurements</td><td>To see which model suits your device</td></tr>
+    </table>
+    <p>You can delete all of it with <strong>Settings → Data management → Clear local data</strong>.
+    Uninstalling the app also deletes everything.</p>
+
+    <h2>When data leaves the device</h2>
+    <p class="muted">All three are actions you initiate; none happen in the background.</p>
+
+    <h3>1. When you choose to connect to your own computer</h3>
+    <p>When you set the execution policy to <em>PC / Gateway</em> or <em>Hybrid</em> — or when the
+    on-device model fails and you explicitly approve the handoff — your prompt and conversation
+    context go to the Gateway server <strong>you set up</strong>. That server runs on your computer
+    and you enter its address. Whether it forwards to a cloud provider is determined by
+    <strong>your Gateway configuration</strong>; that is outside NOVA's control and that provider's
+    privacy policy applies.</p>
+    <p>Under the <em>Offline</em> policy this path is fully disabled. Content that looks sensitive
+    (card numbers, IBAN, ID numbers, passwords) is never handed off automatically; your explicit
+    approval is requested every time.</p>
+
+    <h3>2. When downloading a model</h3>
+    <p>Model files are downloaded from <code>huggingface.co</code>. The Hugging Face token you enter
+    for "gated" models is sent <strong>only to that host</strong>, and only during the download.
+    It is sent nowhere else.</p>
+
+    <h3>3. When you use voice input</h3>
+    <p>When you open the microphone, <strong>Android's own speech recognition service</strong>
+    transcribes your speech. If an offline language pack is installed on your device the work stays
+    on the phone; if not, Android may send it to the manufacturer's or Google's service. This is
+    the operating system's behaviour, not NOVA's — under on-device policies NOVA requests offline
+    recognition. NOVA does not store audio; only the transcribed text enters the chat.</p>
+
+    <h2>Permissions</h2>
+    <table>
+      <tr><th>Permission</th><th>Why</th></tr>
+      <tr><td><code>INTERNET</code></td><td>Model downloads and, if you chose it, the Gateway connection</td></tr>
+      <tr><td><code>ACCESS_NETWORK_STATE</code></td><td>To check whether a connection exists</td></tr>
+      <tr><td><code>RECORD_AUDIO</code></td><td>Only when you use voice input; never without you pressing the microphone</td></tr>
+      <tr><td><code>POST_NOTIFICATIONS</code></td><td>To show model download progress</td></tr>
+      <tr><td><code>FOREGROUND_SERVICE</code>, <code>FOREGROUND_SERVICE_DATA_SYNC</code></td><td>So downloads continue when the screen is off</td></tr>
+    </table>
+    <p>Location, contacts, SMS, call logs and file access permissions are <strong>never requested</strong>.</p>
+
+    <h2>AI-generated content</h2>
+    <p>NOVA's responses are generated by AI and <strong>may be wrong</strong>. Consult a qualified
+    professional for medical, legal and financial matters.</p>
+    <p>If you see an objectionable response, you can report it with the flag icon beneath it.
+    The report is saved on your phone. If you want to send it to us, you share it from
+    <strong>Settings → Content reports</strong> — and you see exactly what will be sent first.
+    Until you send it, the report never leaves the device.</p>
+
+    <h2>Children</h2>
+    <p>NOVA is not directed at children under 13 and does not knowingly collect data from them.</p>
+
+    <h2>Backup</h2>
+    <p>Android's automatic backup is enabled, but <strong>your access keys, Hugging Face token and
+    model files are excluded</strong>. Your chat history and notes may be backed up; that backup
+    lives in your Google account, not with us. Keys are preserved on device-to-device transfer so
+    you do not have to pair again on a new phone.</p>
+
+    <h2>Changes</h2>
+    <p>If this policy changes, the date above is updated. Material changes are announced in the app.</p>
+
+    <h2>Contact</h2>
+    <p>Questions and requests: <a href="mailto:salihsrc42@gmail.com">salihsrc42@gmail.com</a></p>
+  </section>
+
+  <footer>
+    NOVA · <code>com.nova.agent</code> — Salih Sürücü ·
+    <a href="mailto:salihsrc42@gmail.com">salihsrc42@gmail.com</a>
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var tabs = { tr: document.getElementById('tab-tr'), en: document.getElementById('tab-en') };
+    var panels = { tr: document.getElementById('panel-tr'), en: document.getElementById('panel-en') };
+    function show(lang) {
+      Object.keys(panels).forEach(function (k) {
+        panels[k].hidden = k !== lang;
+        tabs[k].setAttribute('aria-selected', String(k === lang));
+      });
+      document.documentElement.lang = lang;
+      // Hash bilerek panel id'lerinden FARKLI ('#en' ile 'panel-en'): eşit
+      // olsaydı tarayıcı onu çapa sayıp sayfayı kaydırır, başlık ve dil
+      // seçici ekran dışında kalırdı.
+      try { history.replaceState(null, '', '#' + lang); } catch (e) {}
+    }
+    tabs.tr.addEventListener('click', function () { show('tr'); });
+    tabs.en.addEventListener('click', function () { show('en'); });
+    // Tarayıcı dili İngilizce ise İngilizce aç; bağlantıdaki #en her zaman kazanır.
+    var wanted = location.hash === '#en' ? 'en'
+      : location.hash === '#tr' ? 'tr'
+      : ((navigator.language || 'tr').toLowerCase().indexOf('tr') === 0 ? 'tr' : 'en');
+    show(wanted);
+  })();
+</script>
+</body>
+</html>
