@@ -1265,7 +1265,8 @@ uydurmaz.
 | Gateway testleri | ✔ **229/229 geçti** (226 → 229, yerelde koşturuldu) |
 | `docs-check` | ✔ geçti (429 birim + 122 enstrümanlı) |
 | Saf Faz 11 mantığı | ✔ **30/30** — kotlinc 2.2.21 ile derlenip koşturuldu |
-| Android birim testleri | ⏳ CI'da koşacak (yerelde derlenemiyor, aşağıya bakın) |
+| Android birim testleri | ✔ **429/429 geçti** — CI (`android-unit`, 0867daf) |
+| Android release derlemesi | ✔ `lintRelease` + `bundleRelease` geçti — CI (`android-release`) |
 
 **Saf mantığı gerçekten koşturdum.** Bu turda VM'e JDK 21 kurdum ve `PcHandoffFeed`
 + `PcAgentRun`'ı projenin **tam** Kotlin sürümüyle (2.2.21) derleyip 30 iddiayı
@@ -1274,8 +1275,16 @@ geçti. Bu, "testleri yazdım" ile "testler geçiyor" arasındaki farkı kapatı
 
 **Yapamadığım:** tam Android derlemesi yerelde koşmuyor. Cihazdaki VM'in ağ izni
 yalnız github.com'a açık — `services.gradle.org`, `dl.google.com` ve
-`repo1.maven.org` 403 dönüyor; Android SDK ve Gradle 9.6.0 indirilemiyor. Yani
-Compose kartının ve istemcinin **derlendiğini CI söyleyecek**, ben değil. Bunu
-"geçti" diye yazmıyorum.
+`repo1.maven.org` 403 dönüyor; Android SDK ve Gradle 9.6.0 indirilemiyor. Compose
+kartının ve istemcinin derlendiğini bu yüzden CI'a bıraktım — **ve CI cevap verdi:**
+`0867daf` üzerinde altı işin altısı da yeşil (`android-unit` 429/429, `android-release`
+lint + AAB). Bu, bu dalın **ilk tam yeşil koşusu**; bir önceki `a6a3938` kırmızıydı.
+
+**Push'la ilgili gerçek bir sorun ortaya çıktı:** `e1176e7` ve `f877c6d` GitHub'a hiç
+ulaşmamıştı. `git ls-remote` ile bakınca uzak dalın hâlâ `a6a3938`'de olduğu görüldü;
+yani CI'ın bulduğu iki şeyi düzelten commit aylardır değil ama günlerdir yüklenmemiş
+duruyordu ve GitHub'daki CI kırmızı kalmıştı. Ders: "push ettim" ile "uzakta var"
+aynı şey değil — `git status`'ün "ahead" sayısı yalnız son fetch'e göre doğrudur,
+kesin cevap `git ls-remote`'tadır.
 
 Testler: 412 → 429 birim (13 yeni `PcHandoffFeedTest` + 4 yeni guard; guard 47 → 51).
