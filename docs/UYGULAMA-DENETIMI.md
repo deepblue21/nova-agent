@@ -1168,6 +1168,11 @@ korunuyor. Kütüphane topluca açılmadı — dosyanın kendi kuralı bu.
 
 411 → 412: proguard kuralını kilitleyen guard testi. Guard testleri 46 → 47.
 
+**Kendi ayağıma sıktım:** dokümanlardaki test sayısını 411'e güncelledim, sonra
+bu guard testini ekleyip 412 yaptım ve `docs-check`'i tekrar koşturmadım. CI ilk
+push'ta tam bunu yakaladı — yani bu turda eklediğim tetikleyici düzeltmesi daha
+ilk çalışmasında işini gördü.
+
 **Yapamadığım:** release derlemesini yerelde koşturamadım. Android Studio bana
 "click" seviyesinde veriliyor; koşum yapılandırması oluşturmak yazı gerektiriyor,
 `.run/` dosyalarını IDE yeniden başlatmadan almadı, `Build → Assemble Project`
