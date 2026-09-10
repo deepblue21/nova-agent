@@ -463,6 +463,20 @@ class SourceGuardTest {
     }
 
     @Test
+    fun `indirme worker'inin sinif adi R8'den korunuyor`() {
+        val rules = listOf(File("proguard-rules.pro"), File("app/proguard-rules.pro"))
+            .first { it.exists() }
+            .readText()
+        assertTrue(
+            "WorkManager worker'in TAM SINIF ADINI veritabanina yazip Class.forName ile " +
+                "cozuyor; R8'in urettigi ad derlemeler arasinda sabit degil. Kural olmadan " +
+                "surum N'de kuyruga girmis yarim indirme, surum N+1'de sessizce olur - " +
+                "ve bu YALNIZ release'de, yalnizca guncellemeden sonra gorulur",
+            rules.contains("-keep class com.nova.agent.llm.local.ModelDownloadWorker"),
+        )
+    }
+
+    @Test
     fun `dogrulanmamis model cikmaz yol degil`() {
         val text = source("llm/LocalLlmController.kt")
         assertTrue(

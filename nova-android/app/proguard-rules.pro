@@ -41,6 +41,28 @@
 -dontwarn kotlinx.coroutines.**
 
 # ——————————————————————————————————————————————————————————————
+# WorkManager — indirme işinin SINIF ADI · ZORUNLU
+# ——————————————————————————————————————————————————————————————
+# WorkManager, iş kuyruğa girerken worker'ın TAM SINIF ADINI kendi
+# veritabanına yazar ve çalıştıracağı anda `Class.forName` ile çözer.
+# R8'in ürettiği ad derlemeler arasında SABİT DEĞİL.
+#
+# Sonuç: sürüm N'de kuyruğa girmiş yarım bir indirme, sürüm N+1'de artık
+# var olmayan bir ada bakar. Varsayılan WorkerFactory istisnayı yutup işi
+# "başarısız" işaretler — yani kullanıcının 8,6 GB'a kadar çıkabilen yarım
+# indirmesi, uygulama güncellenince sessizce ölür. Özel bir WorkerFactory
+# kullanılsaydı doğrudan ClassNotFoundException ile çökerdi.
+#
+# Debug'da minify kapalı olduğu için bu HİÇ görünmez; yalnız release'de,
+# üstelik yalnız GÜNCELLEMEDEN SONRA ortaya çıkar.
+#
+# Yalnız bu sınıf korunuyor: adı ve WorkManager'ın yansımayla çağırdığı
+# yapıcı. Kütüphaneyi topluca açmıyoruz.
+-keep class com.nova.agent.llm.local.ModelDownloadWorker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+}
+
+# ——————————————————————————————————————————————————————————————
 # Uygulama modelleri
 # ——————————————————————————————————————————————————————————————
 # Sohbet dışa aktarımı ve ayar göçü sınıf/alan adlarına bakmıyor

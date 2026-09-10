@@ -1122,3 +1122,57 @@ bilmiyor.
 tahmin edilen değer katalogda yer almaz (bu dosyanın kendi kuralı). Doğru yol
 granite'i (468 MB, emülatöre iner) indirip birkaç tur konuşmak ve sınırı
 gerçekten görmek. Görmeden sayı yazmayacağım.
+
+---
+
+# Tur 10 — release derlemesi: R8'in sessizce kıracağı şey
+
+Release yapılandırması bugüne kadar **hiç derlenmedi**; Play ise yalnız onu
+kabul ediyor. Debug'da `isMinifyEnabled = false`, release'de R8 + kaynak
+küçültme açık. Yani "debug'da çalışıyor" bu konuda hiçbir şey söylemiyor.
+
+Derlemeyi yerelde koşturamadım (aşağıda), o yüzden R8'in kırabileceği tek şeyi
+statik olarak aradım: **ada göre çözülen her şey.** Uygulama kodunda yansıma
+yok — `javaClass`, `Class.forName`, `simpleName` hiçbir yerde geçmiyor. İki yol
+kaldı:
+
+1. `object : MessageCallback` (LiteRT geri çağrısı) — arayüz zaten
+   `-keep class com.google.ai.edge.litertlm.**` ile korunuyor, uygulayan sınıf
+   yeniden adlandırılsa da metot adları arayüze bağlı kalır. **Güvenli.**
+2. `OneTimeWorkRequestBuilder<ModelDownloadWorker>()` — **güvenli değil.**
+
+## P6 — güncellemeden sonra ölen indirme
+
+WorkManager, iş kuyruğa girerken worker'ın **tam sınıf adını** kendi
+veritabanına yazar ve çalıştıracağı anda `Class.forName` ile çözer
+(doğrulandı). R8'in ürettiği ad derlemeler arasında **sabit değil** ve
+`proguard-rules.pro`'da bu sınıfı koruyan bir kural yoktu.
+
+Sonuç: sürüm N'de kuyruğa girmiş yarım bir indirme, sürüm N+1'de artık var
+olmayan bir ada bakar. Uygulama varsayılan `WorkerFactory`'yi kullandığı için
+istisna yutulur ve iş "başarısız" işaretlenir — yani **8,6 GB'a kadar
+çıkabilen yarım bir indirme, uygulama güncellenince sessizce ölür.** Özel bir
+fabrika kullanılsaydı doğrudan `ClassNotFoundException` ile çökerdi.
+
+Bu hata debug'da **hiç** görünmez: yalnız release'de, üstelik yalnız
+**güncellemeden sonra** ortaya çıkar. Yani ilk yayında değil, ikinci yayında.
+
+Düzeltme: yalnız o sınıfın adı ve WorkManager'ın yansımayla çağırdığı yapıcı
+korunuyor. Kütüphane topluca açılmadı — dosyanın kendi kuralı bu.
+
+## Doğrulama
+
+| | Sonuç |
+|---|---|
+| Birim testleri | ✔ **412/412 geçti** |
+
+411 → 412: proguard kuralını kilitleyen guard testi. Guard testleri 46 → 47.
+
+**Yapamadığım:** release derlemesini yerelde koşturamadım. Android Studio bana
+"click" seviyesinde veriliyor; koşum yapılandırması oluşturmak yazı gerektiriyor,
+`.run/` dosyalarını IDE yeniden başlatmadan almadı, `Build → Assemble Project`
+ise yalnız **aktif türü** (debug) derliyor — release'e hiç girmedi, `outputs/`
+altında tek bir release çıktısı oluşmadı. Bu yüzden doğrulamayı CI'a taşıdım
+(`android-release` işi): `lintRelease` + `bundleRelease` koşuyor ve lint raporu
+ile R8'in `usage.txt`'sini artifact olarak yüklüyor. **Bir sonraki push cevabı
+verecek.**
