@@ -1181,3 +1181,101 @@ altında tek bir release çıktısı oluşmadı. Bu yüzden doğrulamayı CI'a t
 (`android-release` işi): `lintRelease` + `bundleRelease` koşuyor ve lint raporu
 ile R8'in `usage.txt`'sini artifact olarak yüklüyor. **Bir sonraki push cevabı
 verecek.**
+
+---
+
+# Tur 11 — Faz 11A: telefondan devredilen işin izi yoktu (2026-09-10)
+
+Play'e yükleme durduruldu; kullanıcı "biraz daha geliştirelim" dedi. Seçilen iş:
+**Faz 11 — telefon ↔ PC görev devri.** Kod yazmadan önce mevcut durumu haritaladım
+ve ilk bulgu inşa planını değiştirdi.
+
+## P7 — Kod kendi hakkında yanlış konuşuyordu (gerçek, kritik)
+
+`NovaViewModel.handoffToPcAgent()` KDoc'u şunu yazıyordu:
+
+> *"Koşu, Gateway'in ajan geçmişine (/v1/agent/runs) otomatik kaydolur."*
+
+**Kaydolmuyordu.** Zincir:
+
+1. Telefon devirde `model = "openclaw/default"` gönderiyor ve `agenticForModel()`
+   katalogdaki `tools: true` yüzünden `agent: true` ekliyor. *(Doğrulandı.)*
+2. `gateway.mjs:592` ajan dalı: `if (agent && provider === "ollama" && …)`.
+3. `lib/model_catalog.mjs:236` — `openclaw/default` → `provider: "openclaw"`.
+4. Yani dal **atlanıyor**, istek `viaOpenClaw`'a düşüyor ve tek
+   `recordRun(mode:"agent")` çağrısına (`gateway.mjs:647`) hiç ulaşılmıyor.
+5. Uygulama da `/v1/agent/runs`'ı zaten hiç okumuyordu.
+
+Sonuç: devir çalışıyor, yanıt sohbet balonuna geliyor, uygulama kapanınca **hiçbir
+iz kalmıyor.** Ne sunucuda, ne telefonda.
+
+**Yanlış yorum eksik yorumdan kötüdür.** Yorum olmasaydı bu boşluk ilk denemede
+görülürdü. Yorum, olmayan bir güvence verdiği için kimse bakmadı — ben de bu turda
+"ekrandan önce doğrula" demeseydim, varsayıma dayalı bir ekran yapacaktım.
+
+### Düzeltme
+
+**Gateway.** `agent_runs_store.mjs` içine saf `openclawRunFromCompletion()` eklendi;
+`gateway.mjs` düz tamamlama yolunda çağırıyor. Kural bilerek **dar**: yalnız
+`provider === "openclaw"`. `agent: true` gönderilmiş bir bulut modeli ajan koşumu
+**değildir** — araç döngüsü hiç çalışmadı — ve onu geçmişe yazmak ilk yalanı
+düzeltirken ikinci bir yalan üretirdi. Araç izi boş bırakılıyor: OpenClaw yanıtı düz
+metin olarak röle ediliyor, gateway hangi araçların çağrıldığını **görmüyor**;
+uydurmaktansa boş.
+
+**Android.** `GET /v1/agent/runs` istemcisi + saf `parseAgentRuns`. Kontrol ekranına
+"PC KOŞUMLARI" kartı; tüm sunum kararları `PcHandoffFeed` içinde (saf, JVM'de testli)
+— Compose'a gömülseydi yalnız cihazda doğrulanabilirdi ve bu projede cihaz testleri
+hiç koşmadı.
+
+Kartın üç ayrı cümlesi var, çünkü üç ayrı durum: *okunuyor* / *okunamadı* /
+*henüz koşum yok*. İkincisiyle üçüncüsünü aynı cümleye koymak kullanıcıya işini
+kaybettiğini düşündürür. Aynı gerekçeyle ağ hatasında (`null`) eldeki liste
+**silinmiyor**.
+
+Yanlış KDoc, kodun gerçekte yaptığını anlatacak şekilde yeniden yazıldı ve neden
+yanlış olduğu orada kayıtlı.
+
+## P8 — Devir sonrası tazeleme yarışı (kendi eklediğim hatayı yakaladım)
+
+İlk hâlde devir bitince (`finish()`) geçmişi bir kez tazeliyordum. Diff'i tekrar
+okurken sıralamayı fark ettim: gateway koşum satırını **yanıt kapandıktan sonra**
+yazıyor — akış `finish(res)` ile bitiyor, `recordRun` ondan sonra geliyor. Telefonun
+`onDone` anındaki tek sorgusu, kendi az önce yarattığı satırı ıskalayabilir.
+Kullanıcının göreceği şey: *"devrettim ama listede yok."*
+
+İki taraftan birden kapatıldı: gateway'de kayıt artık `await` ediliyor (yanıt zaten
+bittiği için istemciye gecikme eklemez ama satırın istek bitmeden yazılmasını
+garantiler) ve telefon devirden sonra bir de 1,5 sn sonra soruyor. Guard testi ikisini
+birden kilitliyor.
+
+## Doğrulanan ön koşul
+
+`agent_runs` tablosu ve `/v1/agent/runs` rotası **yalnız `MULTI_USER` modunda**
+var (`gateway.mjs:187` — `DATABASE_URL` set **ve** `MULTI_USER !== "0"`). Bunu
+varsaymadım: `docker-compose.yml:63` gateway servisine `DATABASE_URL`'i koşulsuz
+veriyor ve `gateway/.env` `MULTI_USER`'ı kapatmıyor → yığın multi-user modunda.
+Eski/tek-kullanıcı bir gateway'de kart "Geçmiş okunamadı" der; uygulama koşum
+uydurmaz.
+
+## Doğrulama
+
+| | Sonuç |
+|---|---|
+| Gateway testleri | ✔ **229/229 geçti** (226 → 229, yerelde koşturuldu) |
+| `docs-check` | ✔ geçti (429 birim + 122 enstrümanlı) |
+| Saf Faz 11 mantığı | ✔ **30/30** — kotlinc 2.2.21 ile derlenip koşturuldu |
+| Android birim testleri | ⏳ CI'da koşacak (yerelde derlenemiyor, aşağıya bakın) |
+
+**Saf mantığı gerçekten koşturdum.** Bu turda VM'e JDK 21 kurdum ve `PcHandoffFeed`
++ `PcAgentRun`'ı projenin **tam** Kotlin sürümüyle (2.2.21) derleyip 30 iddiayı
+çalıştırdım — göreli zaman eşikleri, sıralama, kesme, boş-durum cümleleri. Hepsi
+geçti. Bu, "testleri yazdım" ile "testler geçiyor" arasındaki farkı kapatıyor.
+
+**Yapamadığım:** tam Android derlemesi yerelde koşmuyor. Cihazdaki VM'in ağ izni
+yalnız github.com'a açık — `services.gradle.org`, `dl.google.com` ve
+`repo1.maven.org` 403 dönüyor; Android SDK ve Gradle 9.6.0 indirilemiyor. Yani
+Compose kartının ve istemcinin **derlendiğini CI söyleyecek**, ben değil. Bunu
+"geçti" diye yazmıyorum.
+
+Testler: 412 → 429 birim (13 yeni `PcHandoffFeedTest` + 4 yeni guard; guard 47 → 51).

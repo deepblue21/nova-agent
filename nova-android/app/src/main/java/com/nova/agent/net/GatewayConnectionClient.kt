@@ -2,6 +2,7 @@ package com.nova.agent.net
 
 import com.nova.agent.data.GatewayCatalog
 import com.nova.agent.data.ModelOption
+import com.nova.agent.data.PcAgentRun
 import com.nova.agent.util.str
 import java.io.IOException
 import java.net.ConnectException
@@ -125,6 +126,32 @@ class GatewayConnectionClient(
         }
     }
 
+    /**
+     * PC'ye devredilen işlerin geçmişini çeker — Faz 11.
+     *
+     * Hata durumunda `null` döner: "geçmiş yok" ile "geçmişe ulaşılamadı"
+     * BAŞKA şeylerdir; boş liste döndürmek ikincisini birincisi gibi
+     * gösterirdi ve kullanıcı işini kaybettiğini sanırdı.
+     */
+    fun fetchAgentRuns(
+        baseUrl: String,
+        token: String,
+        callback: (List<PcAgentRun>?) -> Unit,
+    ): Call? {
+        val url = agentRunsUrl(baseUrl) ?: run { callback(null); return null }
+        val builder = Request.Builder().url(url).get()
+        if (token.isNotBlank()) builder.header("Authorization", "Bearer ${token.trim()}")
+        return client.newCall(builder.build()).also { call ->
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) = callback(null)
+                override fun onResponse(call: Call, response: Response) = response.use {
+                    if (it.code != 200) return@use callback(null)
+                    callback(parseAgentRuns(it.body?.string().orEmpty()))
+                }
+            })
+        }
+    }
+
     companion object {
         /**
          * Ağ hatasını katmanına göre sınıflar ve kullanıcıya nedene özel,
@@ -235,6 +262,44 @@ class GatewayConnectionClient(
 
         fun modelsUrl(baseUrl: String): HttpUrl? {
             return canonicalBaseUrl(baseUrl)?.newBuilder()?.addPathSegment("models")?.build()
+        }
+
+        /** `<base>/v1/agent/runs` — aynı politika boğazından geçer. */
+        fun agentRunsUrl(baseUrl: String): HttpUrl? = canonicalBaseUrl(baseUrl)
+            ?.newBuilder()?.addPathSegment("agent")?.addPathSegment("runs")?.build()
+
+        /**
+         * `GET /v1/agent/runs` yanıtını ayrıştırır — saf, JVM'de test edilebilir.
+         *
+         * Bozuk gövdede `null` (= ulaşılamadı), gövde geçerli ama liste boşsa
+         * boş liste (= gerçekten koşum yok) döner. Kimliksiz satır atlanır:
+         * silme çağrısı kimliğe dayanır, kimliksiz satır silinemez bir hayalet
+         * olurdu.
+         */
+        fun parseAgentRuns(body: String): List<PcAgentRun>? {
+            if (body.isBlank()) return null
+            return try {
+                val arr = org.json.JSONObject(body).optJSONArray("data") ?: return null
+                buildList {
+                    for (i in 0 until arr.length()) {
+                        val o = arr.optJSONObject(i) ?: continue
+                        val id = o.str("id").takeIf { it.isNotBlank() } ?: continue
+                        add(
+                            PcAgentRun(
+                                id = id,
+                                mode = o.str("mode"),
+                                model = o.str("model"),
+                                prompt = o.str("prompt"),
+                                tools = o.str("tools"),
+                                result = o.str("result"),
+                                createdAt = o.optLong("created_at", 0L).coerceAtLeast(0L),
+                            ),
+                        )
+                    }
+                }
+            } catch (_: Exception) {
+                null
+            }
         }
     }
 }

@@ -26,6 +26,7 @@ import com.nova.agent.data.ContentReport
 import com.nova.agent.data.ContentReportReason
 import com.nova.agent.data.ContentReportStore
 import com.nova.agent.data.FallbackKind
+import com.nova.agent.data.PcAgentRun
 import com.nova.agent.data.PendingFallback
 import com.nova.agent.data.SettingsStore
 import com.nova.agent.data.ToolStep
@@ -54,6 +55,7 @@ import com.nova.agent.voice.SpeechManager
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Call
@@ -63,6 +65,13 @@ private const val DEFAULT_SUB = "Konuşmak için mikrofona dokun"
 
 /** PC'deki ajan koşusu için Gateway model kimliği (görev devri hedefi). */
 private const val PC_AGENT_MODEL = "openclaw/default"
+
+/**
+ * Devir bitişinden sonraki güvence tazelemesinin gecikmesi (ms) — Faz 11.
+ * Gateway koşum satırını yanıt kapandıktan sonra yazıyor; tek bir anlık
+ * sorgu kendi kaydını ıskalayabilir.
+ */
+private const val HANDOFF_RUNS_RECHECK_MS = 1_500L
 
 internal class LatestConnectionProbe {
     private var generation = 0L
@@ -149,9 +158,20 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     /** Yerel hata sonrası bekleyen izinli PC devri; onaysız istem dışarı çıkmaz. */
     var pendingFallback by mutableStateOf<PendingFallback?>(null); private set
 
+    /**
+     * PC'ye devredilen işlerin geçmişi (Faz 11). `null` = henüz okunmadı ya da
+     * gateway'e ulaşılamadı; boş liste = gerçekten koşum yok. İkisi farklı
+     * mesaj gösterir, çünkü farklı şeylerdir.
+     */
+    var pcRuns by mutableStateOf<List<PcAgentRun>?>(null); private set
+    var pcRunsLoading by mutableStateOf(false); private set
+
     private var es: EventSource? = null
     private var connectionCall: Call? = null
     private var modelsCall: Call? = null
+    private var runsCall: Call? = null
+    /** Devir tamamlanınca geçmişi bir kez tazele. */
+    private var refreshRunsWhenDone = false
     private val sb = StringBuilder()
     private val thoughtBuf = StringBuilder()
     private var activeLocal = false
@@ -481,7 +501,13 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
                             result.hint,
                         )
                     }
-                    if (result == GatewayConnectionResult.Ready) refreshGatewayModels(baseUrl, token)
+                    if (result == GatewayConnectionResult.Ready) {
+                        refreshGatewayModels(baseUrl, token)
+                        // Faz 11: bağlantı kurulur kurulmaz PC'ye devredilmiş
+                        // işlerin geçmişi de gelsin — Kontrol ekranı açıldığında
+                        // hazır olsun diye.
+                        refreshPcRuns(baseUrl, token)
+                    }
                 }
             }
         }
@@ -510,6 +536,47 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * PC'ye devredilen işlerin geçmişini tazeler — Faz 11.
+     *
+     * Bağlantı hazır değilken çağrı yapılmaz: kurulmamış bir bağlantı için ağ
+     * hatası üretip kullanıcıya "geçmişe ulaşılamadı" demek yanlış olurdu.
+     */
+    fun refreshPcRuns(baseUrl: String = settings.baseUrl, token: String = settings.token) {
+        if (connectionState.status != GatewayConnectionStatus.READY) return
+        if (baseUrl.isBlank() || token.isBlank()) return
+        runsCall?.cancel()
+        pcRunsLoading = true
+        runsCall = connectionClient.fetchAgentRuns(baseUrl, token) { runs ->
+            onMain {
+                pcRunsLoading = false
+                // null (ulaşılamadı) gelirse ELDEKİ listeyi silme: kullanıcı
+                // ağ dalgalanmasında geçmişinin uçtuğunu sanmasın.
+                if (runs != null) pcRuns = runs
+            }
+        }
+    }
+
+    /**
+     * Devir bitişinde geçmişi tazeler — İKİ kez, bilerek.
+     *
+     * Yarış durumu gerçek: gateway koşum satırını **yanıt bittikten sonra**
+     * yazıyor (akış `finish(res)` ile kapanıyor, kayıt ondan sonra geliyor).
+     * Telefon `onDone` anında tek sefer sorarsa kendi az önce yarattığı satırı
+     * ıskalayabilir ve kullanıcı "devrettim ama listede yok" görür.
+     *
+     * İlk çağrı hızlı yol (çoğu zaman yeter), ikincisi güvence. Gateway
+     * tarafında kayıt artık `await` ediliyor; bu gecikme onun ağ turunu
+     * karşılıyor.
+     */
+    private fun refreshPcRunsAfterHandoff() {
+        refreshPcRuns()
+        viewModelScope.launch {
+            delay(HANDOFF_RUNS_RECHECK_MS)
+            refreshPcRuns()
         }
     }
 
@@ -678,7 +745,18 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
      * Faz 3 D2 — görev devri: son kullanıcı sorusunu tüm bağlamla birlikte
      * PC'deki OpenClaw ajanına gönderir (mevcut Gateway akış yolu, model
      * override). Kullanıcı dokunuşu = açık rıza; Çevrimdışı modda kapalıdır.
-     * Koşu, Gateway'in ajan geçmişine (/v1/agent/runs) otomatik kaydolur.
+     *
+     * Faz 11 — koşum kaydı. Buradaki yorum eskiden "koşu ajan geçmişine
+     * otomatik kaydolur" diyordu ve bu YANLIŞTI: gateway'in ajan dalı
+     * `provider === "ollama"` ile sınırlı, OpenClaw ise `provider: "openclaw"`
+     * ile kayıtlı. Yani devredilen iş `agent_runs`'a hiç yazılmıyordu —
+     * telefondan gönderilen işin hiçbir izi kalmıyordu. Kayıt gateway
+     * tarafında `openclawRunFromCompletion` ile eklendi; burada da bitişte
+     * geçmiş tazelenir ki devir Kontrol ekranında görünsün.
+     *
+     * Not: kayıt GATEWAY sürümüne bağlıdır. Eski bir gateway'e bağlıyken devir
+     * yine çalışır ama geçmişte görünmez; liste boş kalır, uygulama koşum
+     * uydurmaz.
      */
     fun handoffToPcAgent() {
         if (busy) return
@@ -688,6 +766,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         }
         if (messages.none { it.role == "user" }) return
         pendingFallback = null
+        refreshRunsWhenDone = true
         complete(messages.toList(), speakWhenDone = false, modelOverride = PC_AGENT_MODEL)
     }
 
@@ -826,6 +905,9 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
                     val body = if (partial.isBlank()) "⚠️ $message" else "$partial\n\n⚠️ $message"
                     updateLast { it.copy(content = body, thoughts = thoughts, streaming = false) }
                     busy = false
+                    // Devir hata verdiyse gateway koşumu kaydetmedi; tazeleme
+                    // yapmıyoruz ki liste "yeni bir şey oldu" izlenimi vermesin.
+                    refreshRunsWhenDone = false
                     if (speakWhenDone) { voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB }
                     // V2: hata da bir bitiş; akış ortasında ağ düşerse soru ve
                     // kısmi yanıt diske yazılmadan kaybolmasın.
@@ -845,6 +927,8 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         busy = false
         es = null
         saveCurrent()
+        // Faz 11: devir bittiyse PC koşum geçmişini tazele.
+        if (refreshRunsWhenDone) { refreshRunsWhenDone = false; refreshPcRunsAfterHandoff() }
         if (speak) {
             voiceState = VoiceState.SPEAKING
             voiceSub = text.take(160)
@@ -962,6 +1046,8 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         // Model kataloğu çağrısı da iptal edilmeli; edilmediği için ViewModel
         // yıkıldıktan sonra da yanıt bekleyip onu canlı tutuyordu.
         modelsCall?.cancel()
+        // Aynı gerekçe koşum geçmişi çağrısı için de geçerli (Faz 11).
+        runsCall?.cancel()
         client.cancelStream(es)
         local.shutdown()
         // mDNS taraması ve süren takas çağrısı ViewModel'den uzun yaşamamalı.

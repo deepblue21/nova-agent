@@ -132,6 +132,9 @@ fun NovaApp(
                 recommendedName = vm.local.recommended.displayName,
                 recommendedSize = vm.local.recommended.sizeLabel,
                 onDismissFirstRunGuide = vm::dismissFirstRunGuide,
+                pcRuns = vm.pcRuns,
+                pcRunsLoading = vm.pcRunsLoading,
+                onRefreshPcRuns = { vm.refreshPcRuns() },
             )
 
             Mode.TASKS -> MobileTaskScreen(

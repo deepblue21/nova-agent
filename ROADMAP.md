@@ -4,7 +4,7 @@ Tarih: 2026-07-16 (güncellendi 2026-08-09) · Dal: `codex/phase1-local-first`
 
 ## Tamamlanan fazlar (özet)
 
-Faz 1–9 ve 10A kod olarak tamamlandı; **412 birim + 122 enstrümanlı test** yazıldı.
+Faz 1–9 ve 10A kod olarak tamamlandı; **429 birim + 122 enstrümanlı test** yazıldı.
 Detaylar aşağıdaki bölümlerde.
 
 **Android derleme durumu:** ✅ **2026-08-10'da emülatörde doğrulandı** —
@@ -409,6 +409,36 @@ sonda yalnız **belirteç de varsa** atılır, çünkü gerçek bir Gateway bağ
 Düzeltme aynı emülatörde yeniden derlenip **doğrulandı**: üst çubuk artık
 hata değil bilgi gösteriyor.
 
+## Faz 11A — Devir izlenebilirliği: sessiz devrin sonu (2026-09-10)
+
+**Bulunan hata: kod kendi hakkında yanlış konuşuyordu.** `NovaViewModel.handoffToPcAgent()`
+KDoc'u "Koşu, Gateway'in ajan geçmişine (`/v1/agent/runs`) otomatik kaydolur" diyordu.
+Kaydolmuyordu. Gateway'in ajan dalı `if (agent && provider === "ollama" && …)` ile
+sınırlı; OpenClaw ise katalogda `provider: "openclaw"` olarak kayıtlı, dolayısıyla o dala
+**hiç girmiyor** ve tek `recordRun(mode:"agent")` çağrısına ulaşılmıyordu. Sonuç: telefondan
+PC'ye devredilen iş çalışıyor ama **hiçbir iz bırakmıyordu** — ne `agent_runs` tablosunda,
+ne uygulamada. Uygulama zaten `/v1/agent/runs`'ı hiç okumuyordu.
+
+Bu, "yanlış yorum eksik yorumdan kötüdür" örneğidir: yorum olmasaydı eksiklik ilk denemede
+görülürdü; yorum, olmayan bir güvence verdiği için kimse bakmadı.
+
+**Yapılanlar:**
+
+| Katman | Değişiklik |
+|---|---|
+| Gateway | `openclawRunFromCompletion()` (saf, testli) + düz tamamlama yolunda `recordRun`. Kural **dar**: yalnız `provider === "openclaw"`. `agent:true` gönderilmiş bir bulut modeli ajan koşumu değildir (araç döngüsü çalışmadı); onu yazmak ilk yalanı düzeltirken ikincisini üretirdi. |
+| Android | `GET /v1/agent/runs` istemcisi + `parseAgentRuns` (saf). `null` = ulaşılamadı, boş liste = koşum yok — iki ayrı cümle. Ağ hatasında eldeki liste **silinmez**. |
+| Android | Kontrol ekranına "PC KOŞUMLARI" kartı; `PcHandoffFeed` (saf sunum mantığı). Telefondan devredilenler "telefondan" rozetiyle ayrışır. |
+| Android | Yanlış KDoc düzeltildi; devir bitince geçmiş kendiliğinden tazelenir. |
+| Web | Ayarlar'daki geçmiş açıklaması üçüncü türü de sayıyor. |
+
+**Ön koşul (belgelenmeli):** `agent_runs` ve `/v1/agent/runs` yalnız `MULTI_USER`
+modunda vardır (`DATABASE_URL` set + `MULTI_USER !== "0"`). Salih'in compose yığını bu
+modda çalışıyor (doğrulandı). Eski/tek-kullanıcı bir gateway'e bağlıyken devir yine
+çalışır ama kart "Geçmiş okunamadı" der — uygulama koşum **uydurmaz**.
+
+Testler: 412 → 429 birim (13 yeni `PcHandoffFeedTest`, 4 yeni guard), gateway 226 → 229.
+
 ## Gelecek yol haritası (Faz 10B+)
 
 **Faz 10B — iroh taşıma katmanı (CGNAT arkası, VPN'siz).** Faz 10A aynı Wi-Fi'yi
@@ -419,8 +449,12 @@ resmî Node bindingi var. **Dikkat: Android'de resmî destek yalnız aarch64/arm
 Ayrıntı ve kabul edilmesi gereken bedeller `docs/BAGLANTI-ANALIZI.md` §10.3'te.
 
 **Faz 11 — Görev devri derinleştirme (telefon ↔ PC).** Telefonda başlayan işin PC'de sürmesi;
-Gateway ajan koşusu köprüsü, canlı ilerleme (SSE) ve İşler ekranında birleşik takip. Hibrit
-vizyonunun "PC entegrasyonu" yarısını tamamlar.
+Gateway ajan koşusu köprüsü, canlı ilerleme (SSE) ve birleşik takip. Hibrit vizyonunun
+"PC entegrasyonu" yarısını tamamlar.
+
+- **11A — devir izlenebilirliği: tamamlandı (2026-09-10).** Aşağıya bakın.
+- Kalan: canlı ilerleme (SSE ile koşum durumu), devredilen işi telefondan iptal etme,
+  koşum ayrıntısı (tam sonuç metni) ve telefondan silme.
 
 **Faz 12 — Çok-modluluk (cihaz-üstü).** Gemma 3n benzeri modelle telefonda görsel/ses girişi
 (LiteRT-LM vision/audio backend). Sohbete görsel ekleme, çevrimdışı görüntü/ses anlama.

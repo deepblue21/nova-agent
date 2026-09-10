@@ -348,7 +348,7 @@ with `ROUTE_FAST` / `ROUTE_BALANCED` / `ROUTE_DEEP` / `ROUTE_MAX` in `.env`.
 | `POST` | `/v1/eval` | run one prompt against several models; returns output + latency/tokens/cost | token |
 | `GET/POST/DELETE` | `/v1/memory` | personal long-term memory notes (auto-recalled into the system prompt) | token |
 | `GET/POST/PATCH/DELETE` | `/v1/workspaces[...]` | workspaces + RBAC (admin/editor/viewer) + member management | token |
-| `GET/DELETE` | `/v1/agent/runs` | agent/team run history | token |
+| `GET/DELETE` | `/v1/agent/runs` | agent / team / PC-handoff run history | token |
 | `GET` | `/v1/mcp/tools` | configured MCP servers + discovered tools | token |
 | `GET/POST/PATCH/DELETE` | `/v1/scheduled` | scheduled/automated agent tasks | token |
 | `GET/POST/DELETE` | `/v1/knowledge` | RAG knowledge base (upload/list/delete) | token |

@@ -660,6 +660,17 @@ app.post("/v1/chat/completions", async (req, res) => {
       res.json({ choices: [{ message: { role: "assistant", content: assistantText } }] });
     }
     await recordChatCompletion(req, { route: full, model, messages, assistantText, usage });
+    // Faz 11 — telefondan PC'ye devredilen iş burada biter (openclaw sağlayıcısı
+    // yukarıdaki ajan dalına girmez). Kaydı olmadan devir izsiz kalıyordu.
+    const openclawRun = agentRunStore.openclawRunFromCompletion({
+      provider, model: full, prompt: messageText(messages[messages.length - 1]) || "", result: assistantText,
+    });
+    // `await`: yanıt zaten bitti, istemciye gecikme eklemez — ama satırın
+    // istek bitmeden yazılmasını garantiler. Telefon devir biter bitmez
+    // geçmişi tazeliyor; ateşle-unut bırakılırsa kendi kaydını ıskalayabilir.
+    if (req.principal && openclawRun) {
+      await agentRunStore.recordRun(req.principal.userId, openclawRun).catch(() => {});
+    }
     return;
   } catch (e) {
     if (e && e.name === "AbortError") { if (!res.writableEnded) { try { res.end(); } catch {} } return; }

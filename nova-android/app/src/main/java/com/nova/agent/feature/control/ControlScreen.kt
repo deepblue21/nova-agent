@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -43,6 +44,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nova.agent.data.FirstRunGuide
+import com.nova.agent.data.PcAgentRun
+import com.nova.agent.data.PcHandoffFeed
 import com.nova.agent.feature.tasks.MobileTask
 import com.nova.agent.feature.tasks.MobileTaskStatus
 import com.nova.agent.feature.tasks.userLabel
@@ -84,6 +87,11 @@ fun ControlScreen(
     recommendedName: String = "",
     recommendedSize: String = "",
     onDismissFirstRunGuide: () -> Unit = {},
+    /** PC'ye devredilmiş işler (Faz 11). null = okunamadı, boş = koşum yok. */
+    pcRuns: List<PcAgentRun>? = null,
+    pcRunsLoading: Boolean = false,
+    onRefreshPcRuns: () -> Unit = {},
+    nowMillis: Long = System.currentTimeMillis(),
 ) {
     Column(
         modifier = Modifier
@@ -125,6 +133,79 @@ fun ControlScreen(
 
         SectionLabel("AKTİF İŞ")
         ActiveWorkCard(activeTask, chatBusy, engineState)
+
+        // Faz 11 — devir görünür olsun. Devredilen iş PC'de çalışıyor ve yanıtı
+        // sohbet balonunda kalıyordu; uygulama kapanınca devrin izi yok oluyordu.
+        if (PcHandoffFeed.shouldShow(gatewayRelevant = policy != ExecutionPolicy.LOCAL_ONLY)) {
+            SectionLabel(PcHandoffFeed.TITLE)
+            PcRunsCard(
+                runs = pcRuns,
+                loading = pcRunsLoading,
+                nowMillis = nowMillis,
+                onRefresh = onRefreshPcRuns,
+            )
+        }
+    }
+}
+
+/**
+ * PC koşum geçmişi kartı — çizim yalnız; tüm kararlar [PcHandoffFeed] içinde
+ * (saf ve JVM'de testli).
+ */
+@Composable
+private fun PcRunsCard(
+    runs: List<PcAgentRun>?,
+    loading: Boolean,
+    nowMillis: Long,
+    onRefresh: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Surface1)
+            .border(1.dp, Line, RoundedCornerShape(16.dp))
+            .padding(14.dp)
+            .testTag("pc_runs_card"),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        val empty = PcHandoffFeed.emptyMessage(runs, loading)
+        if (empty != null) {
+            Text(empty, color = Muted2, fontSize = 13.sp)
+        } else {
+            PcHandoffFeed.visibleRuns(runs.orEmpty()).forEach { run ->
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(
+                        PcHandoffFeed.title(run),
+                        color = TextMain,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            PcHandoffFeed.badge(run),
+                            color = if (run.fromPhone) MaterialTheme.colorScheme.primary else Muted,
+                            fontSize = 12.sp,
+                        )
+                        val time = PcHandoffFeed.relativeTime(run.createdAt, nowMillis)
+                        if (time.isNotEmpty()) {
+                            Spacer(Modifier.width(8.dp))
+                            Text(time, color = Muted2, fontSize = 12.sp)
+                        }
+                        if (run.tools.isNotBlank()) {
+                            Spacer(Modifier.width(8.dp))
+                            Text(run.tools, color = Muted, fontSize = 12.sp, maxLines = 1)
+                        }
+                    }
+                }
+            }
+        }
+        TextButton(onClick = onRefresh, enabled = !loading) {
+            Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(if (loading) "Yenileniyor…" else "Yenile")
+        }
     }
 }
 

@@ -349,7 +349,7 @@ toplam bağlam uzunluğuna göre seçer, mevcut provider key'lerini tercih eder.
 | `POST` | `/v1/eval` | bir promptu birden çok modele koşar; çıktı + gecikme/token/maliyet | token |
 | `GET/POST/DELETE` | `/v1/memory` | kişisel uzun-dönem hafıza notları (sistem prompt'una oto-hatırlama) | token |
 | `GET/POST/PATCH/DELETE` | `/v1/workspaces[...]` | workspace + RBAC (admin/editör/izleyici) + üye yönetimi | token |
-| `GET/DELETE` | `/v1/agent/runs` | ajan/team çalışma geçmişi | token |
+| `GET/DELETE` | `/v1/agent/runs` | ajan / takım / PC devri çalışma geçmişi | token |
 | `GET` | `/v1/mcp/tools` | yapılandırılan MCP sunucuları + keşfedilen araçlar | token |
 | `GET/POST/PATCH/DELETE` | `/v1/scheduled` | zamanlanmış/otomatik ajan görevleri | token |
 | `GET/POST/DELETE` | `/v1/knowledge` | RAG bilgi tabanı (yükle/listele/sil) | token |

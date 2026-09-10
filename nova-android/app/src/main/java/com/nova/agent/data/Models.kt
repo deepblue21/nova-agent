@@ -89,6 +89,30 @@ val FALLBACK_MODELS = listOf(
     ModelOption("openclaw", "OpenClaw Ajanı", "openclaw/default", "Ajan"),
 )
 
+/**
+ * PC'ye devredilmiş bir işin kaydı — Faz 11.
+ *
+ * Kaynak: `GET /v1/agent/runs`. Telefondan "PC'ye devret" denince istem PC'deki
+ * OpenClaw ajanına gidiyor, ama telefon o işin ne olduğunu bir daha göremiyordu:
+ * yanıt sohbet balonunda kalıyor, uygulama kapanınca devir izi yok oluyordu.
+ *
+ * [mode] gateway'in koşum türü: "openclaw" (telefondan devir), "agent"
+ * (PC'de araç döngüsü), "team" (çok ajanlı). Uydurulmaz, olduğu gibi gösterilir.
+ */
+data class PcAgentRun(
+    val id: String,
+    val mode: String,
+    val model: String,
+    val prompt: String,
+    val tools: String,
+    val result: String,
+    /** Unix ms; 0 = gateway tarih vermedi (göreli zaman gösterilmez). */
+    val createdAt: Long,
+) {
+    /** Bu koşum telefondan mı devredildi. */
+    val fromPhone: Boolean get() = mode == "openclaw"
+}
+
 /** Gateway'den gelen canlı model kataloğu. */
 data class GatewayCatalog(
     val models: List<ModelOption> = emptyList(),

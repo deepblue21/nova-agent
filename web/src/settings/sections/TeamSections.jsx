@@ -171,7 +171,8 @@ export function AgentRunsSection({ runs, onDelete }) {
   return (
     <Accordion icon={Icons.agent} title="Ajan Çalışma Geçmişi" desc={`${runs.length} koşum`}>
       <div className="hint" style={{ marginBottom: 9 }}>
-        Geçmiş <b>Ajan</b> ve <b>Takım</b> koşumları — kullanılan araçlar ve sonuç özeti.
+        Geçmiş <b>Ajan</b>, <b>Takım</b> ve <b>PC devri</b> koşumları — kullanılan araçlar ve sonuç özeti.
+        <code className="md-ic">openclaw</code> satırları telefondan devredilen işlerdir.
       </div>
       <div className="list">
         {runs.map((run) => (

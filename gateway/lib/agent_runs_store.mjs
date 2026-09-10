@@ -15,6 +15,35 @@ export function formatRunTools(toolsUsed) {
   return [...counts.entries()].map(([n, c]) => (c > 1 ? `${n}×${c}` : n)).join(", ");
 }
 
+/**
+ * PC devri (OpenClaw) bir ajan koşumudur — Faz 11.
+ *
+ * Neden ayrı bir yardımcı: `/v1/chat/completions` içindeki ajan döngüsü
+ * `provider === "ollama"` ile sınırlı. OpenClaw `provider: "openclaw"` ile
+ * kayıtlı olduğu için o dala HİÇ girmiyor, dolayısıyla telefondan devredilen
+ * iş `agent_runs`'a yazılmıyordu. Android tarafındaki KDoc ise "otomatik
+ * kaydolur" diyordu; yani kod kendi hakkında yanlış konuşuyordu.
+ *
+ * Kural dar tutuldu: SADECE openclaw. `agent: true` gönderilmiş bir bulut
+ * modeli ajan koşumu DEĞİLDİR (araç döngüsü çalışmadı), onu geçmişe yazmak
+ * ilkini düzeltirken ikinci bir yalan üretirdi.
+ *
+ * @returns kaydedilecek koşum nesnesi ya da null (kayıt yok).
+ */
+export function openclawRunFromCompletion({ provider, model, prompt, result } = {}) {
+  if (provider !== "openclaw") return null;
+  return {
+    mode: "openclaw",
+    model: model || null,
+    prompt: String(prompt || ""),
+    // Araç izi yok: OpenClaw yanıtı düz metin olarak röle ediliyor, hangi
+    // araçları çağırdığını gateway görmüyor. Uydurmak yerine boş bırakılır.
+    tools: "",
+    result: String(result || ""),
+    rounds: 0,
+  };
+}
+
 export async function recordRun(userId, { mode, model, prompt, tools, result, rounds }) {
   if (!userId) return;
   await q(

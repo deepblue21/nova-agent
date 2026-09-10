@@ -36,6 +36,28 @@ class SourceGuardTest {
     }
 
     /**
+     * Depo kökünden bir dosya okur — Android modülünün DIŞINDAKİ kuralları
+     * (gateway, betikler) da sınayabilmek için.
+     *
+     * Faz 11'de gerekti: telefondan devredilen işin izlenebilirliği tek bir
+     * tarafta durmuyor; kaydı gateway atıyor, gösterimi uygulama yapıyor.
+     * Yalnız birini test etmek, diğeri sessizce kaybolduğunda yeşil kalırdı.
+     */
+    private fun repoFile(relative: String): String {
+        val candidates = listOf(
+            File("../../$relative"),   // nova-android/app/ (Gradle)
+            File("../$relative"),
+            File(relative),
+        )
+        val file = candidates.firstOrNull { it.exists() }
+        assertTrue(
+            "depo dosyasi bulunamadi: $relative (calisma dizini=${File(".").absolutePath})",
+            file != null,
+        )
+        return stripComments(file!!.readText())
+    }
+
+    /**
      * Yorumları çıkarır — guard'lar KODU denetlemeli, yorumu değil.
      *
      * İlk koşuda iki test tam bu yüzden kırmızıya döndü: düzeltmelerin
@@ -631,6 +653,68 @@ class SourceGuardTest {
         assertTrue(
             "androidx.compose.ui.platform.ClipboardManager kullanimdan kaldirildi - ihlal: $offenders",
             offenders.isEmpty(),
+        )
+    }
+
+    // ---------- Faz 11: devir izlenebilirliği ----------
+
+    @Test
+    fun `PC devri kosum olarak kaydediliyor`() {
+        // Gateway'in ajan dalı `provider === "ollama"` ile sınırlı; OpenClaw o
+        // dala hiç girmiyor. Kayıt bu yüzden düz tamamlama yolunda yapılmalı.
+        // Bu çağrı silinirse telefondan devredilen iş yeniden izsiz kalır.
+        val gateway = repoFile("gateway/gateway.mjs")
+        assertTrue(
+            "openclaw devri agent_runs'a yazilmali",
+            gateway.contains("openclawRunFromCompletion"),
+        )
+        val store = repoFile("gateway/lib/agent_runs_store.mjs")
+        assertTrue(
+            "kural dar kalmali: yalniz openclaw kosum sayilir",
+            store.contains("""if (provider !== "openclaw") return null;"""),
+        )
+    }
+
+    @Test
+    fun `devir yorumu kodun yaptigini anlatiyor`() {
+        // Bu yorum bir tur boyunca YANLIŞTI: "koşu ajan geçmişine otomatik
+        // kaydolur" diyordu ama hiçbir kayıt oluşmuyordu. Yanlış yorum,
+        // olmayan bir güvence verdiği için eksik yorumdan daha kötüdür.
+        val vm = source("NovaViewModel.kt")
+        val handoff = vm.substringAfter("fun handoffToPcAgent")
+        assertTrue(
+            "devir bitince kosum gecmisi tazelenmeli",
+            vm.contains("refreshRunsWhenDone = true") && vm.contains("refreshPcRuns()"),
+        )
+        assertTrue("devir hala PC modeline yonlenmeli", handoff.contains("PC_AGENT_MODEL"))
+    }
+
+    @Test
+    fun `devir sonrasi tazeleme yarisi kapali`() {
+        // Gateway koşum satırını yanıt KAPANDIKTAN sonra yazıyor. Telefon
+        // `onDone` anında tek sefer sorarsa kendi az önce yarattığı satırı
+        // ıskalar ve kullanıcı "devrettim ama listede yok" görür.
+        // İki taraf birden gerekli: sunucuda await, telefonda ikinci sorgu.
+        val gateway = repoFile("gateway/gateway.mjs")
+        assertTrue(
+            "kosum kaydi istek bitmeden yazilmali",
+            gateway.contains("await agentRunStore.recordRun("),
+        )
+        val vm = source("NovaViewModel.kt")
+        assertTrue(
+            "devir sonrasi guvence tazelemesi olmali",
+            vm.contains("refreshPcRunsAfterHandoff()") && vm.contains("HANDOFF_RUNS_RECHECK_MS"),
+        )
+    }
+
+    @Test
+    fun `kosum gecmisi okunamadiginda eldeki liste silinmez`() {
+        // null = "ulaşılamadı"; boş liste = "koşum yok". İkisini birleştirmek
+        // kullanıcıya geçmişini kaybettirdiğini düşündürür.
+        val vm = source("NovaViewModel.kt")
+        assertTrue(
+            "null yanit eldeki gecmisi silmemeli",
+            vm.contains("if (runs != null) pcRuns = runs"),
         )
     }
 
