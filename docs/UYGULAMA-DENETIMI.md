@@ -1439,8 +1439,27 @@ riski önce ölçüyor; 12B arayüzü CI yeşil dönünce geliyor.
 | Gateway testleri | ✔ **233/233** (231 → 233, yerelde koşturuldu) |
 | Saf yetenek mantığı | ✔ **14/14** — kotlinc 2.2.21 ile derlenip koşturuldu |
 | `familySupportsVision` | ✔ 10 ad üzerinde elle doğrulandı + 2 test |
-| `docs-check` | ✔ geçti (451 birim + 122 enstrümanlı) |
+| `docs-check` | ✔ geçti (453 birim + 122 enstrümanlı) |
 | Android birim + release | ⏳ CI — bu turun ASIL sorusu burada cevaplanacak |
 
-Testler: 437 → 451 birim (11 yeni `VisionSupportTest` + 3 yeni guard; guard 54 → 57),
+Testler: 437 → 453 birim (11 yeni `VisionSupportTest` + 5 yeni guard; guard 54 → 59),
 gateway 231 → 233.
+
+## Kendi kodumu gözden geçirince çıkan iki şey
+
+Push bekleyen commit'i tekrar okudum (CI'a gidemediği için boş beklemektense) ve
+iki kusur buldum — ikisi de kendi yazdığım Faz 12A kodunda.
+
+**P10 — sessiz düşme kapısı yoktu (gerçek).** `generate()` KDoc'u "görsel
+verilirse motorun görü backend'iyle yüklenmiş olması ŞARTTIR" diyordu, ama
+hiçbir şey bunu zorlamıyordu. Metin için kurulmuş bir motora görsel gelirse
+görüntü ya hata verir ya da **sessizce yok sayılır** — ve ikincisi bu projedeki
+en kötü sonuç: kullanıcı resmi eklediğini görür, model resmi hiç almamıştır,
+yanıt kibar bir uydurmadır. Tam da bu turda bir yetenek katmanı yazarak
+engellemeye çalıştığım şeyi, kendi kodumda yorumla "garanti" etmişim.
+**Yorumla güvence vermek yetmez.** Kural artık kodda: görü açık değilken görsel
+gönderilmez, kullanıcıya açık hata döner. Guard testi ikisini de kilitliyor.
+
+**Gereksiz risk.** Metin yolunu da `Contents`'e çevirmiştim. Bugün sorunsuz
+çalışan %100'lük yolu sıfır kazanç için değiştirmek olurdu; düz `String` aşırı
+yüklemesine geri alındı. Yeni risk yalnız görsel yoluyla sınırlı.

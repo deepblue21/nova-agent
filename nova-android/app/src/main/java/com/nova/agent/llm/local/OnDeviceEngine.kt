@@ -204,6 +204,17 @@ class OnDeviceEngine(private val appContext: Context) {
             cb.onError("Model yüklü değil")
             return
         }
+        // Faz 12A — sessiz düşmeye karşı KAPI. KDoc "görü açık olmalı" diyordu
+        // ama hiçbir şey bunu zorlamıyordu: metin için kurulmuş bir motora
+        // görsel gelirse görüntü ya hata verir ya da SESSİZCE yok sayılır.
+        // İkincisi bu projedeki en kötü sonuç: kullanıcı resmi eklediğini
+        // görür, model resmi hiç almamıştır ve yanıt kibar bir uydurma olur.
+        // Yorumla güvence vermek yetmez; kural burada uygulanır.
+        val visionReady = synchronized(lock) { loadedVision }
+        if (imageJpeg != null && !visionReady) {
+            cb.onError("Görsel gönderilemedi: model görü desteğiyle yüklenmemiş.")
+            return
+        }
         cancelled = false
         val system = systemInstruction.trim()
         val wantTools = tools.isNotEmpty()
@@ -217,15 +228,12 @@ class OnDeviceEngine(private val appContext: Context) {
             // Faz 12A: görsel varsa mesaj çok parçalı gider. Sıra bilinçli —
             // görsel önce, metin sonra: model kartlarındaki örnek de böyle ve
             // "şu resmi açıkla" istemi resmi zaten görmüş olarak okunur.
-            val outgoing = if (imageJpeg == null) {
-                Contents.of(prompt)
-            } else {
-                Contents.of(Content.ImageBytes(imageJpeg), Content.Text(prompt))
-            }
-
-            conversation.sendMessageAsync(
-                outgoing,
-                object : MessageCallback {
+            //
+            // Metin yolu BİLEREK eski çağrısında bırakıldı (düz String aşırı
+            // yüklemesi). Her mesajı Contents'e çevirmek, bugün sorunsuz
+            // çalışan %100'lük yolu sıfır kazanç için değiştirmek olurdu;
+            // yeni risk yalnız görsel yoluyla sınırlı kalsın.
+            val callback = object : MessageCallback {
                     override fun onMessage(message: Message) {
                         if (cancelled) return
                         // 0.13.1 API: metin, Message.contents içindeki Content.Text parçalarındadır.
@@ -264,9 +272,18 @@ class OnDeviceEngine(private val appContext: Context) {
                         markSessionBroken()
                         cb.onError(describeError(throwable))
                     }
-                },
-                mapOf("enable_thinking" to thinking),
-            )
+                }
+
+            val extra = mapOf("enable_thinking" to thinking)
+            if (imageJpeg == null) {
+                conversation.sendMessageAsync(prompt, callback, extra)
+            } else {
+                conversation.sendMessageAsync(
+                    Contents.of(Content.ImageBytes(imageJpeg), Content.Text(prompt)),
+                    callback,
+                    extra,
+                )
+            }
         } catch (t: Throwable) {
             markSessionBroken()
             cb.onError(describeError(t))

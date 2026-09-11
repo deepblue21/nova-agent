@@ -775,6 +775,36 @@ class SourceGuardTest {
     }
 
     @Test
+    fun `goru acik degilken gorsel gonderilmez`() {
+        // Kendi kodumda bulduğum kusur: KDoc "motor görü ile yüklü OLMALI"
+        // diyordu ama hiçbir şey bunu zorlamıyordu. Metin için kurulmuş bir
+        // motora görsel gelirse görüntü SESSİZCE yok sayılabilir — kullanıcı
+        // resmi eklediğini görür, model hiç almamıştır, yanıt uydurmadır.
+        // Yorumla güvence vermek yetmez; kural kodda uygulanmalı.
+        val engine = source("llm/local/OnDeviceEngine.kt")
+        assertTrue(
+            "gorsel yolu loadedVision kontrolunden gecmeli",
+            engine.contains("if (imageJpeg != null && !visionReady)"),
+        )
+        assertTrue(
+            "kullaniciya acik hata donmeli",
+            engine.contains("Görsel gönderilemedi: model görü desteğiyle yüklenmemiş."),
+        )
+    }
+
+    @Test
+    fun `metin yolu eski cagrisinda birakildi`() {
+        // Görsel yokken bugün sorunsuz çalışan String aşırı yüklemesi kullanılır.
+        // Her mesajı Contents'e çevirmek, %100'lük yolu sıfır kazanç için
+        // değiştirmek olurdu; yeni risk yalnız görsel yoluyla sınırlı kalsın.
+        val engine = source("llm/local/OnDeviceEngine.kt")
+        assertTrue(
+            "gorselsiz yol duz prompt ile gitmeli",
+            engine.contains("conversation.sendMessageAsync(prompt, callback, extra)"),
+        )
+    }
+
+    @Test
     fun `goru destegi uydurulmuyor`() {
         // İki tarafta da kural aynı: emin olunmayan model görü desteklemiyor
         // sayılır. Yanlış "evet", görseli hiç görmeyen bir modelden kibar bir
