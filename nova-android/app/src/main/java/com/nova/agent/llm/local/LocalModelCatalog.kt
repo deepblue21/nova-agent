@@ -25,6 +25,15 @@ data class LocalModelSpec(
     val recommendedRamGb: Int,
     /** Qwen3 şablonundaki gerçek enable_thinking değişkenini destekliyor mu. */
     val supportsThinkingToggle: Boolean,
+    /**
+     * Model görsel girdi alabiliyor mu — Faz 12A.
+     *
+     * Varsayılan `false` ve bilerek: bu bayrak yalnız model kartından
+     * DOĞRULANMIŞ modellerde açılır. Yanlış açmak, görseli hiç görmeyen bir
+     * modelden kibar bir uydurma yanıt almak demektir — kullanıcı da resmin
+     * okunduğunu sanır. Emin olunmayan model `false` kalır.
+     */
+    val supportsVision: Boolean = false,
     /** HF'te kapılı (lisans onayı + token gerekli) mi. */
     val gated: Boolean = false,
     /** Büyük modeller için dürüst uyarı (indirme süresi, RAM baskısı). */
@@ -210,6 +219,8 @@ object LocalModelCatalog {
             licenseUrl = "https://huggingface.co/google/gemma-4-E2B-it",
             recommendedRamGb = 6,
             supportsThinkingToggle = true,
+            // Model kartı: "The vision and audio models are loaded as needed."
+            supportsVision = true,
             note = "2B etkin parametre; telefon için optimize edilmiş uç-cihaz " +
                 "sürümü. E4B'nin küçük kardeşi — 8 GB'a çıkamayan cihazlarda " +
                 "Gemma 4 kalitesine en yakın seçenek. Lisans onayı gerektirmez.",
@@ -308,6 +319,8 @@ object LocalModelCatalog {
             licenseUrl = "https://huggingface.co/google/gemma-4-E4B-it",
             recommendedRamGb = 8,
             supportsThinkingToggle = true,
+            // Model kartı: "The vision and audio models are loaded as needed."
+            supportsVision = true,
             note = "4B etkin parametre; telefon için optimize edilmiş uç-cihaz sürümü.",
         ),
         LocalModelSpec(

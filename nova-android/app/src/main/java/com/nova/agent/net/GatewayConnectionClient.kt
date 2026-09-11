@@ -209,6 +209,7 @@ class GatewayConnectionClient(
                                 reason = o.str("reason"),
                                 tools = o.optBoolean("tools", false),
                                 toolsSource = o.str("toolsSource"),
+                                vision = o.optBoolean("vision", false),
                             ),
                         )
                     }

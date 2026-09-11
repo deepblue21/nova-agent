@@ -1365,3 +1365,82 @@ efekt devir bitince iptal oluyor — boşta dönen sayaç bırakılmadı.
 
 Testler: 429 → 437 birim (5 yeni `PcHandoffFeedTest` + 3 yeni guard; guard 51 → 54),
 gateway 229 → 231.
+
+---
+
+# Tur 13 — Faz 12A: telefon görsel görebilir mi? (2026-09-11)
+
+Faz 12 "çok-modluluk" diyor. Kod yazmadan önce cevaplanması gereken üç soru
+vardı ve üçünü de **varsaymak yerine doğruladım**.
+
+## Doğrulananlar
+
+| Soru | Cevap | Kaynak |
+|---|---|---|
+| litertlm **0.14.0** çok-modlu girdi alıyor mu? | Evet: `Content.ImageBytes`, `ImageFile`, `AudioBytes`, `AudioFile` | Depo `v0.14.0-alpha.0` etiketi, `docs/api/kotlin/getting_started.md` |
+| Görü nasıl açılıyor? | `EngineConfig(visionBackend = …)` — yani **motor kurulurken** | aynı belge, §5 |
+| Katalogdaki model görüyü içeriyor mu? | E2B/E4B: evet, "vision and audio models are loaded as needed" | HF model kartları (E2B sabit revizyonda) |
+
+Üçüncüsü kritikti: API'nin desteklemesi, **indirilen dosyanın** görü ağırlıklarını
+içerdiği anlamına gelmiyor. Model kartları bunu açıkça yazıyor.
+
+`visionBackend`'in bir kurulum parametresi olması tasarımı belirledi: metin için
+kurulmuş bir motora sonradan görsel gönderilemez, sessizce başarısız olurdu.
+Bu yüzden "görü açık" artık **yüklü-durumun parçası** (`loadedVision`) ve
+gerekirse motor yeniden kuruluyor. Ters yön kasıtlı: görü açık bir motor metin
+isteği için yeniden KURULMAZ — her mesajda motor kurmak saniyeler kaybettirirdi.
+
+## Tek kural: uydurma yok
+
+Bu turun tamamı tek bir kuralın etrafında: **görsel, onu gerçekten görebilen bir
+yere gider ya da hiç gitmez.** Sessizce düşürülmesi en kötü sonuç olurdu —
+kullanıcı ekranda küçük resmi görür, model resmi hiç almamıştır, gelen yanıt
+kibar bir uydurmadır. Bu, Faz 11'de bulduğum "devir kaydolur" yalanının aynısı.
+
+Kural iki tarafta da aynı biçimde yazıldı:
+
+- **Telefon:** `LocalModelSpec.supportsVision` varsayılanı `false`. Yalnız model
+  kartından doğrulanmış E2B ve E4B açık. Gemma 4 12B **kapalı** — tam Gemma 4'ün
+  çok-modlu olması muhtemel ama `.litertlm` paketini doğrulamadım.
+- **Gateway:** yeni `familySupportsVision()` (saf, testli) ve katalogda `vision`
+  bayrağı — `tools` bayrağının tam karşılığı. `auto` için `true`, çünkü görsel
+  içeren istek `routeModel()` tarafından zaten `VISION_MODEL`'e yönlendiriliyor.
+  OpenClaw için **`false`**: altta hangi modelin koştuğunu gateway görmüyor.
+- **Telefon, gateway'i okurken:** `vision` alanı gelmiyorsa (eski gateway)
+  `false`. Bilmediğimizi "evet" saymak yok.
+
+### Yakaladığım kendi hatam
+
+`familySupportsVision`'ın ilk hâli `gemma[34]` + `(n|e2b|e4b|vision|multimodal)`
+idi. Tek harflik `n` ölçütü, **"gemma4:12b-instruct"** adındaki *instruct*'ın
+n'si yüzünden görü desteği uyduruyordu. Ölçüt `3n|4n|e2b|e4b|…` olarak
+daraltıldı; test tam bu adı sınıyor.
+
+## Çevrimdışı bir gizlilik sözüdür
+
+`VisionSupport.decide` içinde Çevrimdışı dalı, model görsel göremiyorsa
+**PC'yi önermez** — `Unsupported` döner ve çözüm olarak model indirmeyi
+gösterir. Kullanıcı Çevrimdışı'yı seçtiyse bu bir söz; "model göremiyor, PC'ye
+gönderelim mi?" diye sormak o sözü bozardı. Bir guard testi o dalın
+`Target.Gateway` döndürmediğini kontrol ediyor.
+
+## Arayüz neden bu commit'te yok
+
+Bilerek. Cihazda Android derlemesi koşamıyorum (VM'in ağ izni SDK'ya kapalı), bu
+yüzden litertlm API kullanımını — `visionBackend` parametresi ve
+`Content.ImageBytes` — **CI'ın doğrulaması** gerekiyor. API beklediğim gibi
+değilse, üstüne 300 satır foto-seçici arayüzü yazmış olmak istemiyorum. Sıralama
+riski önce ölçüyor; 12B arayüzü CI yeşil dönünce geliyor.
+
+## Doğrulama
+
+| | Sonuç |
+|---|---|
+| Gateway testleri | ✔ **233/233** (231 → 233, yerelde koşturuldu) |
+| Saf yetenek mantığı | ✔ **14/14** — kotlinc 2.2.21 ile derlenip koşturuldu |
+| `familySupportsVision` | ✔ 10 ad üzerinde elle doğrulandı + 2 test |
+| `docs-check` | ✔ geçti (451 birim + 122 enstrümanlı) |
+| Android birim + release | ⏳ CI — bu turun ASIL sorusu burada cevaplanacak |
+
+Testler: 437 → 451 birim (11 yeni `VisionSupportTest` + 3 yeni guard; guard 54 → 57),
+gateway 231 → 233.

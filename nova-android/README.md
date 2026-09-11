@@ -27,7 +27,7 @@ Kotlin + Jetpack Compose.
 | 9 | **Basit/Gelişmiş arayüz modu** + cihaz motoru hızlandırması (Otomatik/CPU/GPU/NPU) ve örnekleme ayarları |
 | 10A | **VPN'siz LAN bağlantısı** — mDNS ile PC keşfi, 8 karakterlik kod veya QR bağlantısıyla eşleme |
 
-Test kapsamı: **437 birim + 122 enstrümanlı test.**
+Test kapsamı: **451 birim + 122 enstrümanlı test.**
 
 **Derleme durumu:** ✅ **2026-08-10'da emülatörde doğrulandı** — Pixel 10 Pro XL
 (API 37) üzerinde derlendi, kuruldu, çalıştı. LiteRT-LM 0.14.0, compileSdk 37 ve

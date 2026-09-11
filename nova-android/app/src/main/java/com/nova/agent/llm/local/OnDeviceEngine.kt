@@ -46,6 +46,8 @@ class OnDeviceEngine(private val appContext: Context) {
     private var engine: Engine? = null
     private var loadedPath: String? = null
     private var loadedPreference: BackendPreference? = null
+    /** Motor görü backend'i AÇIK kurulmuş mu (Faz 12A). */
+    private var loadedVision: Boolean = false
     private var activeConversation: Conversation? = null
 
     /** Motorun gerçekten yüklendiği backend; tercih değil, ölçülen sonuç. */
@@ -77,9 +79,26 @@ class OnDeviceEngine(private val appContext: Context) {
      * taraf yükleme süresini bu yüzden yalnız yola bakarak 0 sayamaz, yoksa
      * Modeller ekranındaki yükleme metriği yalan söylerdi.
      */
-    fun isLoadedWith(modelPath: String, preference: BackendPreference): Boolean =
+    /**
+     * [vision] anahtarı da kimliğin parçası — Faz 12A.
+     *
+     * Görü backend'i `EngineConfig` içinde, yani MOTOR KURULURKEN veriliyor;
+     * sonradan açılamıyor. Metin için kurulmuş bir motora görsel göndermek
+     * sessizce başarısız olurdu. Bu yüzden "görü açık" ayrı bir yüklü-durum
+     * sayılır ve gerektiğinde motor yeniden kurulur.
+     *
+     * Ters yön de kasıtlı: görü açık bir motor metin isteği için YENİDEN
+     * kurulmaz (`vision = false` çağrısı, görü açık motoru kabul eder) —
+     * her mesajda motor yeniden kurmak saniyeler kaybettirirdi.
+     */
+    fun isLoadedWith(
+        modelPath: String,
+        preference: BackendPreference,
+        vision: Boolean = false,
+    ): Boolean =
         synchronized(lock) {
-            engine != null && loadedPath == modelPath && loadedPreference == preference
+            engine != null && loadedPath == modelPath && loadedPreference == preference &&
+                (loadedVision || !vision)
         }
 
     /**
@@ -97,9 +116,11 @@ class OnDeviceEngine(private val appContext: Context) {
     fun ensureLoaded(
         modelPath: String,
         preference: BackendPreference = BackendPreference.AUTO,
+        /** Görsel gönderilecekse true: motor görü backend'iyle kurulur (Faz 12A). */
+        vision: Boolean = false,
     ): kotlin.Result<ActiveBackend> {
-        // Aynı model + aynı tercih zaten yüklüyse yeniden kurma.
-        if (isLoadedWith(modelPath, preference)) return kotlin.Result.success(activeBackend)
+        // Aynı model + aynı tercih (+ gereken görü) zaten yüklüyse yeniden kurma.
+        if (isLoadedWith(modelPath, preference, vision)) return kotlin.Result.success(activeBackend)
         unload()
 
         var lastError: Throwable? = null
@@ -112,6 +133,11 @@ class OnDeviceEngine(private val appContext: Context) {
                         backend = nativeBackend(candidate),
                         // Yazılabilir önbellek 2. yüklemeyi belirgin hızlandırır.
                         cacheDir = appContext.cacheDir.absolutePath,
+                        // Görü backend'i metin backend'iyle AYNI seçilir: GPU
+                        // denenip CPU'ya düşülen bir cihazda görüyü GPU'da
+                        // bırakmak, az önce başarısız olan yolu tekrar denemek
+                        // olurdu. null = görü hiç kurulmaz (bugünkü davranış).
+                        visionBackend = if (vision) nativeBackend(candidate) else null,
                     ),
                 )
                 attempt.initialize()
@@ -128,6 +154,7 @@ class OnDeviceEngine(private val appContext: Context) {
                 engine = created
                 loadedPath = modelPath
                 loadedPreference = preference
+                loadedVision = vision
                 activeBackend = candidate
             }
             return kotlin.Result.success(candidate)
@@ -165,6 +192,11 @@ class OnDeviceEngine(private val appContext: Context) {
         systemInstruction: String = "",
         /** null = motora samplerConfig verilme; model kendi varsayılanıyla çalışsın. */
         sampler: SamplerSettings? = null,
+        /**
+         * JPEG baytları; null = görsel yok (Faz 12A). Dolu verilirse motorun
+         * görü backend'iyle yüklenmiş olması ŞARTTIR — bkz. [ensureLoaded].
+         */
+        imageJpeg: ByteArray? = null,
         cb: Callbacks,
     ) {
         val current = synchronized(lock) { engine }
@@ -182,8 +214,17 @@ class OnDeviceEngine(private val appContext: Context) {
                 obtainConversation(current, cleanHistory, system, wantTools, tools, sampler)
             val raw = StringBuilder()
 
+            // Faz 12A: görsel varsa mesaj çok parçalı gider. Sıra bilinçli —
+            // görsel önce, metin sonra: model kartlarındaki örnek de böyle ve
+            // "şu resmi açıkla" istemi resmi zaten görmüş olarak okunur.
+            val outgoing = if (imageJpeg == null) {
+                Contents.of(prompt)
+            } else {
+                Contents.of(Content.ImageBytes(imageJpeg), Content.Text(prompt))
+            }
+
             conversation.sendMessageAsync(
-                prompt,
+                outgoing,
                 object : MessageCallback {
                     override fun onMessage(message: Message) {
                         if (cancelled) return
@@ -202,6 +243,16 @@ class OnDeviceEngine(private val appContext: Context) {
                         // Konuşma canlı kalır (KV önbelleği). Kapatma YOK:
                         // native callback thread'inde close() kilitlenebilir.
                         synchronized(lock) {
+                            // Döküme görselin DEĞİL, gönderilen metnin kendisi yazılır.
+                            // Buradaki liste `obtainConversation` içinde çağıranın
+                            // geçmişiyle birebir karşılaştırılıyor; "[görsel] " gibi
+                            // bir önek eklemek o karşılaştırmayı her seferinde
+                            // bozar ve KV önbelleği boşuna atılırdı.
+                            //
+                            // BİLİNEN SINIR (Faz 12A): görsel yalnız eklendiği mesaj
+                            // için geçerlidir. Konuşma yeniden kurulursa (model
+                            // değişimi, oturum hatası) görü bağlamı geri gelmez;
+                            // geçmişte görsel taşımak ayrı bir iş.
                             transcript.add("user" to prompt)
                             transcript.add("assistant" to normalizeAssistantText(raw.toString()))
                         }
@@ -311,6 +362,7 @@ class OnDeviceEngine(private val appContext: Context) {
             engine = null
             loadedPath = null
             loadedPreference = null
+            loadedVision = false
             activeBackend = ActiveBackend.NONE
             sessionSampler = null
             e

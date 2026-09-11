@@ -170,6 +170,28 @@ export function humanSize(bytes) {
  * @param {string}   o.ollamaError   Ollama'ya ulaşılamadıysa dürüst mesaj
  * @param {boolean}  o.openclaw      ajan katmanı yapılandırılmış mı
  */
+/**
+ * Model görsel girdi alabiliyor mu — Faz 12A. SAF, testli.
+ *
+ * Telefon bunu BİLMEK zorunda: kullanıcı görsel eklediğinde, görmeyen bir
+ * modele sessizce göndermek yerine nedenini söyleyebilmeli. Bugüne kadar
+ * katalog `tools` bayrağını veriyordu ama görü için karşılığı yoktu.
+ *
+ * Kural bilerek dar ve isim tabanlı: EMİN OLMADIĞIMIZ model `false` döner.
+ * Yanlış `true`, görseli hiç görmeyen bir modelden kibar bir uydurma yanıt
+ * almak demektir — kullanıcı da resmin okunduğunu sanır.
+ */
+export function familySupportsVision(name = "") {
+  const n = String(name).toLowerCase();
+  // Yerel (Ollama) görü aileleri.
+  if (/(llava|bakllava|moondream|minicpm-v|llama3\.2-vision|qwen[\d.]*-?vl|qwen[\d.]*-omni)/.test(n)) return true;
+  // "n" tek başına eşleşme ölçütü OLAMAZ: "gemma4:12b-instruct" içindeki
+  // "instruct"un n'si yüzünden görü desteği uydururdu. Yalnız 3n/4n uç-cihaz
+  // kuşağı ve açık işaretler sayılır.
+  if (/gemma[\s-]?[34]/.test(n) && /(3n|4n|e2b|e4b|vision|multimodal)/.test(n)) return true;
+  return false;
+}
+
 export function buildCatalog({
   ollamaModels = [],
   keys = {},
@@ -189,6 +211,9 @@ export function buildCatalog({
     // Yönlendirici araç destekleyen bir modele düşürebilir.
     tools: true,
     toolsSource: "gateway",
+    // Görsel içeren istek routeModel() tarafından VISION_MODEL'e yönlendirilir,
+    // yani "auto" seçiliyken görsel her zaman görebilen bir modele gider.
+    vision: true,
   });
 
   for (const m of ollamaModels) {
@@ -207,6 +232,7 @@ export function buildCatalog({
       family: m.family,
       tools,
       toolsSource: m.toolsSource || (tools ? "family" : "unknown"),
+      vision: familySupportsVision(m.name),
     });
   }
 
@@ -224,6 +250,8 @@ export function buildCatalog({
         // Üç bulut sağlayıcının da güncel modelleri araç çağırmayı destekler.
         tools: true,
         toolsSource: "provider",
+        // …ve üçünün de bu kuşak modelleri görsel girdi alır.
+        vision: true,
       });
     }
   }
@@ -238,6 +266,9 @@ export function buildCatalog({
       available: true,
       tools: true,
       toolsSource: "agent",
+      // Altta hangi modelin koştuğunu gateway görmüyor; görsel alacağını
+      // varsaymak uydurma olurdu.
+      vision: false,
     });
   }
 

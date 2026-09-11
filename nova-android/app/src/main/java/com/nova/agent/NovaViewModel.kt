@@ -996,6 +996,16 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
      * yoksa gateway boş araç turu döndürür ya da model uydurur.
      * Katalog gelmediyse (yedek liste) ajan açılmaz; tahminle araç çalıştırmayız.
      */
+    /**
+     * Seçili PC modeli görsel alabiliyor mu — Faz 12A.
+     *
+     * Canlı katalog gelmediyse (eski gateway ya da bağlantı yok) `false`:
+     * bilmediğimizi "evet" saymak, görmeyen bir modele görsel gönderip
+     * uydurma yanıt almak olurdu.
+     */
+    fun gatewayModelSeesImages(): Boolean =
+        modelOptions().firstOrNull { it.id == settings.modelId }?.vision == true
+
     fun agenticForModel(model: String): Boolean =
         modelOptions().firstOrNull { it.model == model || it.id == model }?.tools == true
 

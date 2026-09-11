@@ -757,6 +757,51 @@ class SourceGuardTest {
         assertTrue("taninmayan olay null donmeli", providers.contains("return null;"))
     }
 
+    // ---------- Faz 12A: görsel girişi ----------
+
+    @Test
+    fun `goru motorun KURULUMUNDA aciliyor`() {
+        // `visionBackend` EngineConfig parametresi, yani motor kurulurken
+        // veriliyor; sonradan açılamıyor. Metin için kurulmuş bir motora
+        // görsel göndermek sessizce başarısız olurdu — bu yüzden "görü açık"
+        // yüklü-durumun parçası ve gerekirse motor yeniden kuruluyor.
+        val engine = source("llm/local/OnDeviceEngine.kt")
+        assertTrue("visionBackend EngineConfig'te verilmeli", engine.contains("visionBackend ="))
+        assertTrue("gorü yuklu-durumun parcasi olmali", engine.contains("loadedVision"))
+        assertTrue(
+            "gorsel Content.ImageBytes ile gitmeli",
+            engine.contains("Content.ImageBytes(imageJpeg)"),
+        )
+    }
+
+    @Test
+    fun `goru destegi uydurulmuyor`() {
+        // İki tarafta da kural aynı: emin olunmayan model görü desteklemiyor
+        // sayılır. Yanlış "evet", görseli hiç görmeyen bir modelden kibar bir
+        // uydurma yanıt almak demektir.
+        val spec = source("llm/local/LocalModelCatalog.kt")
+        assertTrue("varsayilan kapali olmali", spec.contains("val supportsVision: Boolean = false"))
+        val catalog = repoFile("gateway/lib/model_catalog.mjs")
+        assertTrue(
+            "gateway tarafinda da saf bir kural olmali",
+            catalog.contains("export function familySupportsVision(name"),
+        )
+        assertTrue("bilinmeyen model false donmeli", catalog.contains("return false;"))
+    }
+
+    @Test
+    fun `cevrimdisi modda gorsel PC'ye onerilmez`() {
+        // Kullanıcı Çevrimdışı'yı seçtiyse bu bir gizlilik sözü; "model
+        // göremiyor, PC'ye gönderelim mi?" demek o sözü bozardı.
+        val vision = source("llm/VisionSupport.kt")
+        val offlineBranch = vision.substringAfter("if (policy == ExecutionPolicy.LOCAL_ONLY)")
+            .substringBefore("if (policy.runsOnDevice")
+        assertFalse(
+            "cevrimdisi dal Gateway hedefini DONDURMEMELI",
+            offlineBranch.contains("Target.Gateway"),
+        )
+    }
+
     @Test
     fun `uretim kodunda log cagrisi yok`() {
         val root = listOf(File("src/main/java/com/nova/agent"), File("app/src/main/java/com/nova/agent"))

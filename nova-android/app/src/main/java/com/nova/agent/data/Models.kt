@@ -61,6 +61,13 @@ data class ModelOption(
     val tools: Boolean = false,
     /** "probe" (Ollama'ya soruldu) · "family" (aile tahmini) · "provider" · "gateway" · "agent" */
     val toolsSource: String = "",
+    /**
+     * Model görsel girdi alabiliyor mu — Faz 12A. Gateway `/v1/models` içinde
+     * bildiriyor. Varsayılan `false`: bayrak gelmiyorsa (eski gateway) görü
+     * VARSAYILMAZ — görmeyen bir modele görsel göndermek, kibar bir uydurma
+     * yanıt almak demektir.
+     */
+    val vision: Boolean = false,
 ) {
     /** Yetenek gerçekten ölçüldü mü, yoksa tahmin mi. */
     val toolsVerified: Boolean get() = toolsSource == "probe" || toolsSource == "provider"

@@ -4,7 +4,7 @@ Tarih: 2026-07-16 (güncellendi 2026-08-09) · Dal: `codex/phase1-local-first`
 
 ## Tamamlanan fazlar (özet)
 
-Faz 1–9 ve 10A kod olarak tamamlandı; **437 birim + 122 enstrümanlı test** yazıldı.
+Faz 1–9 ve 10A kod olarak tamamlandı; **451 birim + 122 enstrümanlı test** yazıldı.
 Detaylar aşağıdaki bölümlerde.
 
 **Android derleme durumu:** ✅ **2026-08-10'da emülatörde doğrulandı** —
@@ -465,6 +465,18 @@ Gateway ajan koşusu köprüsü, canlı ilerleme (SSE) ve birleşik takip. Hibri
 
 **Faz 12 — Çok-modluluk (cihaz-üstü).** Gemma 3n benzeri modelle telefonda görsel/ses girişi
 (LiteRT-LM vision/audio backend). Sohbete görsel ekleme, çevrimdışı görüntü/ses anlama.
+
+- **12A — görü altyapısı: tamamlandı (2026-09-11).** Yetenek modeli, motorun görü
+  backend'iyle kurulması, `Content.ImageBytes` yolu ve iki taraflı "uydurma yok"
+  kuralı. Doğrulananlar: litertlm 0.14.0'da `Content.ImageBytes/ImageFile/AudioBytes/
+  AudioFile` var ve `visionBackend` **EngineConfig** parametresi (depo v0.14.0-alpha.0
+  etiketinden okundu); katalogdaki Gemma 4 E2B/E4B paketleri görü ve ses modellerini
+  içeriyor ("loaded as needed" — model kartları).
+- **12B — sohbette görsel ekleme (sıradaki):** foto seçici, küçük resim, gateway
+  yolunda `image_url` içerik parçası, hedef göremiyorsa açık ret. Arayüz bilerek
+  SONRAYA bırakıldı: cihazda Android derlemesi koşamıyorum, bu yüzden önce CI'ın
+  litertlm API kullanımını (`visionBackend`, `Content.ImageBytes`) doğrulaması
+  gerekiyor — API yanlışsa üstüne 300 satır arayüz yazmış olmayayım.
 
 **Faz 13 — Model yaşam döngüsü.** Güncelleme bildirimi, delta/parça indirme, depolama baskısında
 otomatik boşaltma, düşük RAM'de otomatik quantization tercihi.

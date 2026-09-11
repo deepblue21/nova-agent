@@ -201,3 +201,25 @@ test("buildCatalog: yetenek alanını taşır; bulut ve ajan girdileri araç des
   assert.equal(by("anthropic/claude-opus-4-8").tools, true);
   assert.equal(by("openclaw/default").tools, true);
 });
+
+// Faz 12A — görü desteği bayrağı. Telefon bunu bilmek zorunda: kullanıcı görsel
+// eklediğinde, görmeyen bir modele sessizce göndermek yerine nedenini söylemeli.
+test("familySupportsVision: bilinen görü aileleri", async () => {
+  const { familySupportsVision } = await import("../lib/model_catalog.mjs");
+  for (const n of ["llava:13b", "bakllava", "moondream", "minicpm-v:8b",
+                   "llama3.2-vision:11b", "qwen3-vl:8b", "qwen3.5-omni:latest",
+                   "gemma3n:e4b", "gemma-4-E2B-it", "gemma-4-E4B-it"]) {
+    assert.equal(familySupportsVision(n), true, n);
+  }
+});
+
+test("familySupportsVision: emin olunmayan model görü UYDURMAZ", async () => {
+  const { familySupportsVision } = await import("../lib/model_catalog.mjs");
+  for (const n of ["qwen3:8b", "granite4:350m", "llama3.1:8b", "mistral", "", null, undefined]) {
+    assert.equal(familySupportsVision(n), false, String(n));
+  }
+  // "n" tek başına ölçüt olsaydı "instruct"un n'si görü desteği uydururdu.
+  assert.equal(familySupportsVision("gemma4:12b-instruct"), false);
+  assert.equal(familySupportsVision("gemma4:12b"), false);
+  assert.equal(familySupportsVision("qwen3:8b-instruct"), false);
+});
