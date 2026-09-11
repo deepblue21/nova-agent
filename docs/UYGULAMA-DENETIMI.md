@@ -1424,6 +1424,20 @@ gösterir. Kullanıcı Çevrimdışı'yı seçtiyse bu bir söz; "model göremiy
 gönderelim mi?" diye sormak o sözü bozardı. Bir guard testi o dalın
 `Target.Gateway` döndürmediğini kontrol ediyor.
 
+## CI cevabı verdi: litertlm API kullanımı doğru
+
+`8002f61` üzerinde koşu **başarılı**. Bu, bu turun asıl sorusunu cevaplıyor:
+`EngineConfig(visionBackend = …)`, `Content.ImageBytes(bytes)` ve
+`sendMessageAsync(Contents, callback, extraContext)` litertlm **0.14.0**'a karşı
+gerçekten derleniyor. Belgeden okuduğum API, kullandığım sürümde var.
+
+Sıralama işini gördü: yanlış bir API varsayımının üstüne foto-seçici arayüzü
+yazılmadı. 12B artık doğrulanmış bir temelin üstüne gelebilir.
+
+**Hâlâ doğrulanmayan:** derlenmek çalışmak değildir. Görselin gerçekten okunduğu,
+ancak modeli indirilmiş bir telefonda görülebilir. CI'ın söylediği "API doğru";
+"model resmi görüyor" değil.
+
 ## Arayüz neden bu commit'te yok
 
 Bilerek. Cihazda Android derlemesi koşamıyorum (VM'in ağ izni SDK'ya kapalı), bu
@@ -1440,7 +1454,7 @@ riski önce ölçüyor; 12B arayüzü CI yeşil dönünce geliyor.
 | Saf yetenek mantığı | ✔ **14/14** — kotlinc 2.2.21 ile derlenip koşturuldu |
 | `familySupportsVision` | ✔ 10 ad üzerinde elle doğrulandı + 2 test |
 | `docs-check` | ✔ geçti (453 birim + 122 enstrümanlı) |
-| Android birim + release | ⏳ CI — bu turun ASIL sorusu burada cevaplanacak |
+| Android birim + release | ✔ **geçti** — CI (`8002f61`), 3dk 53sn |
 
 Testler: 437 → 453 birim (11 yeni `VisionSupportTest` + 5 yeni guard; guard 54 → 59),
 gateway 231 → 233.
