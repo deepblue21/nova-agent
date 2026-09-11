@@ -115,6 +115,34 @@ function pickReply(d) {
          d?.choices?.[0]?.message?.content || (d ? JSON.stringify(d).slice(0, 800) : "");
 }
 
+/**
+ * OpenClaw akışındaki bir olaydan araç adımı çıkarır — Faz 11B. SAF, testli.
+ *
+ * Bu bir GEÇİŞ yoludur, ÜRETİM değil. `viaOpenClaw` bugüne kadar akıştan
+ * yalnız metin çekip geri kalan her alanı atıyordu; OpenClaw araç adımı
+ * gönderiyor olsa bile telefon bunu göremiyordu. Burada yalnızca gerçekten
+ * gelen bir adım geçirilir — gelmiyorsa `null` döner ve hiçbir şey değişmez.
+ * Gateway adım UYDURMAZ.
+ *
+ * Tanınan biçimler: gateway'in kendi `tool_step` şekli (doğrudan ya da
+ * `choices[0].delta` altında) ve adı olan `tool_call` / `tool_result` olayları.
+ * Tanınmayan her şey yok sayılır.
+ */
+export function openclawToolStep(o) {
+  if (!o || typeof o !== "object") return null;
+  const direct = o.tool_step || o.choices?.[0]?.delta?.tool_step;
+  if (direct && typeof direct === "object" && direct.name) return direct;
+  if ((o.type === "tool_call" || o.type === "tool_result") && o.name) {
+    return {
+      name: String(o.name),
+      ...(o.args ? { args: o.args } : {}),
+      ...(o.type === "tool_result" ? { done: true } : {}),
+      ...(Array.isArray(o.sources) ? { sources: o.sources } : {}),
+    };
+  }
+  return null;
+}
+
 async function relay(res, stream, body, lineToToken) {
   if (stream) sse(res);
   let full = "";
@@ -334,8 +362,16 @@ export function createProviderClient({
 
     const ct = (r.headers.get("content-type") || "").toLowerCase();
     if (ct.includes("event-stream")) {
-      return relay(res, stream, r.body, sseLine((o) =>
-        o?.delta?.content || o?.choices?.[0]?.delta?.content || o?.token || o?.text || ""));
+      return relay(res, stream, r.body, sseLine(
+        (o) => o?.delta?.content || o?.choices?.[0]?.delta?.content || o?.token || o?.text || "",
+        // Faz 11B: üst akış araç adımı gönderiyorsa telefona geçir. Göndermiyorsa
+        // bu satır hiçbir şey yapmaz — adım uydurulmaz.
+        (o) => {
+          if (!stream || !res) return;
+          const step = openclawToolStep(o);
+          if (step) res.write("data: " + JSON.stringify({ choices: [{ delta: { tool_step: step } }] }) + "\n\n");
+        },
+      ));
     }
     if (ct.includes("ndjson") || ct.includes("x-ndjson")) {
       return relay(res, stream, r.body, (line) => {

@@ -719,6 +719,45 @@ class SourceGuardTest {
     }
 
     @Test
+    fun `suren devir kontrol ekraninda ayri bir durum`() {
+        // Eskiden devir `chatBusy` dalına düşüyor ve "Sohbet yanıtı
+        // üretiliyor…" yazıyordu — iş sohbette değil PC'de çalışırken bu
+        // cümle yanlıştı. Durum ayrı taşınmazsa doğru cümle kurulamaz.
+        val vm = source("NovaViewModel.kt")
+        assertTrue("suren devir ayri durumda tutulmali", vm.contains("var pcHandoff by mutableStateOf"))
+        val screen = source("feature/control/ControlScreen.kt")
+        assertTrue(
+            "kart once suren devre bakmali",
+            screen.contains("pcHandoff != null ->"),
+        )
+    }
+
+    @Test
+    fun `suren devir her bitis yolunda temizlenir`() {
+        // Üç bitiş var: başarı, hata, durdurma. Biri unutulursa Kontrol
+        // ekranı bitmiş bir işi sonsuza kadar "çalışıyor" gösterir.
+        val vm = source("NovaViewModel.kt")
+        assertEquals(
+            "pcHandoff = null üç bitiş yolunda da olmali (finish, onError, stop)",
+            3,
+            Regex("""pcHandoff = null""").findAll(vm).count(),
+        )
+    }
+
+    @Test
+    fun `openclaw arac adimi uydurulmaz`() {
+        // Geçiş yolu yalnız GERÇEKTEN gelen adımı aktarır. Bir gün buraya
+        // "adım yoksa uyduralım" eklenirse bu test düşer.
+        val providers = repoFile("gateway/lib/providers.mjs")
+        assertTrue(
+            "arac adimi gecisi saf yardimciyla yapilmali",
+            providers.contains("export function openclawToolStep(o)") &&
+                providers.contains("const step = openclawToolStep(o);"),
+        )
+        assertTrue("taninmayan olay null donmeli", providers.contains("return null;"))
+    }
+
+    @Test
     fun `uretim kodunda log cagrisi yok`() {
         val root = listOf(File("src/main/java/com/nova/agent"), File("app/src/main/java/com/nova/agent"))
             .first { it.exists() }

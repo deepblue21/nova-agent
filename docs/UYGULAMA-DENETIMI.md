@@ -1288,3 +1288,80 @@ aynı şey değil — `git status`'ün "ahead" sayısı yalnız son fetch'e gör
 kesin cevap `git ls-remote`'tadır.
 
 Testler: 412 → 429 birim (13 yeni `PcHandoffFeedTest` + 4 yeni guard; guard 47 → 51).
+
+---
+
+# Tur 12 — Faz 11B: "gönderdim, ne oluyor?" sorusunun cevabı (2026-09-11)
+
+Faz 11A devri **kaydedilir** yaptı. 11B onu **izlenebilir** yapıyor: iş PC'de
+çalışırken kullanıcının ekranda gördüğü şey.
+
+## Önce inşa etmedim, ölçtüm
+
+Plan "canlı ilerleme (SSE)" diyordu. İkinci bir SSE kanalı yazmadan önce o
+kanalın ne taşıyacağına baktım ve cevap şuydu: **hiçbir yeni şey.** Sohbet
+akışının kendisi zaten SSE; devir sırasında metin canlı geliyor. Gateway'in
+OpenClaw'dan aldığı şey de düz metinden ibaret (`viaOpenClaw` akıştaki
+`delta.content` / `token` / `text` alanlarını çekip **geri kalan her şeyi
+atıyor**). İkinci bir kanal, var olmayan veriyi taşımak için kurulmuş boş bir
+makine olurdu.
+
+Gerçek boşluk başka yerdeydi.
+
+## P9 — Kontrol ekranı devir sırasında yanlış şey söylüyordu
+
+`ActiveWorkCard` üç dal biliyordu: mobil görev / `chatBusy` / boş. PC devri
+`chatBusy` dalına düşüyor ve ekranda şu yazıyordu:
+
+> *"Sohbet yanıtı üretiliyor…"*
+
+İş sohbette değil, **PC'de** çalışıyordu. Kullanıcının o anda sorduğu soru
+"gönderdim, ne oluyor?" ve ekranda bunun cevabı yoktu: hangi iş, nereye gitti,
+ne kadar oldu, PC aldı mı — hiçbiri.
+
+**Düzeltme.** Süren devir `pcHandoff` ile ayrı bir durum olarak taşınıyor ve
+Kontrol kartının İLK dalı oldu. Ekranda artık istemin kendisi, durum ve geçen
+süre var. `responding` alanı iki durumu ayırıyor: *PC'ye gönderildi, çalışıyor*
+ile *PC yanıt yazıyor*. Bu ayrım kullanıcının "takıldı mı?" sorusunun cevabı ve
+ilk parça geldiğinde kendiliğinden geçiyor.
+
+Süren iş ayrıca "PC KOŞUMLARI" kartının başında canlı satır olarak duruyor;
+bitince aynı iş gerçek koşum satırına dönüşüyor. Başlık kuralı ikisinde de aynı
+(`promptTitle`) — yoksa iş bitince ekrandaki metin sebepsiz değişirdi.
+
+### Durdurma: yapabildiğimizi söylüyoruz, fazlasını değil
+
+Düğme **"Dinlemeyi durdur"** diyor, "İptal et" değil. Telefon akışı kesiyor,
+gateway de `res.on("close")` ile PC'ye giden isteği abort ediyor — ama
+OpenClaw'ın isteği yarıda kesilince işi gerçekten bırakıp bırakmadığını gateway
+**görmüyor**. Altındaki not bunu olduğu gibi yazıyor. Bir guard testi metnin
+"İptal" demesini engelliyor.
+
+## Araç adımı: geçiş var, uydurma yok
+
+`viaOpenClaw` akıştaki her yapısal alanı atıyordu. Artık `openclawToolStep()`
+(saf, testli) üst akıştan **gerçekten gelen** bir araç adımını telefona
+geçiriyor. OpenClaw böyle bir olay göndermiyorsa hiçbir şey değişmez. Tanınmayan
+her şey `null` — gateway adım **üretmez**. Testlerin yarısı tam olarak bunu,
+"uydurmuyor mu?" sorusunu sınıyor.
+
+## Yoldan çıkan bir kusur
+
+Faz 11A'da `ControlScreen`'e `nowMillis: Long = System.currentTimeMillis()`
+diye bir parametre koymuştum. Compose varsayılan argümanları **her yeniden
+bileşimde** yeniden hesaplar; yani parametre hiçbir zaman kararlı olmuyor ve
+gereksiz yeniden bileşim tetikliyordu. Varsayılan `0L` yapıldı (0 = gerçek
+saat) ve saat `remember` içine alındı. Süren devir varken saniyede bir tik atan
+efekt devir bitince iptal oluyor — boşta dönen sayaç bırakılmadı.
+
+## Doğrulama
+
+| | Sonuç |
+|---|---|
+| Gateway testleri | ✔ **231/231** (229 → 231, yerelde koşturuldu) |
+| Saf Faz 11B mantığı | ✔ **13/13** — kotlinc 2.2.21 ile derlenip koşturuldu |
+| `docs-check` | ✔ geçti (437 birim + 122 enstrümanlı) |
+| Android birim + release | ⏳ CI (yerelde Android SDK indirilemiyor) |
+
+Testler: 429 → 437 birim (5 yeni `PcHandoffFeedTest` + 3 yeni guard; guard 51 → 54),
+gateway 229 → 231.

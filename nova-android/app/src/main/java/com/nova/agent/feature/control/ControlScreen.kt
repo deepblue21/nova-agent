@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -30,6 +31,12 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import com.nova.agent.data.FirstRunGuide
 import com.nova.agent.data.PcAgentRun
 import com.nova.agent.data.PcHandoffFeed
+import com.nova.agent.data.PcHandoffInFlight
 import com.nova.agent.feature.tasks.MobileTask
 import com.nova.agent.feature.tasks.MobileTaskStatus
 import com.nova.agent.feature.tasks.userLabel
@@ -91,8 +99,28 @@ fun ControlScreen(
     pcRuns: List<PcAgentRun>? = null,
     pcRunsLoading: Boolean = false,
     onRefreshPcRuns: () -> Unit = {},
-    nowMillis: Long = System.currentTimeMillis(),
+    /** Şu anda PC'de çalışan devir (Faz 11B); yoksa null. */
+    pcHandoff: PcHandoffInFlight? = null,
+    onStopPcHandoff: () -> Unit = {},
+    /**
+     * Sabit saat — yalnız test/önizleme için. 0 = gerçek saat.
+     *
+     * Eskiden varsayılanı `System.currentTimeMillis()` idi; Compose varsayılan
+     * argümanları HER yeniden bileşimde yeniden hesaplar, yani parametre asla
+     * kararlı olmuyor ve gereksiz yeniden bileşim tetikliyordu.
+     */
+    nowMillis: Long = 0L,
 ) {
+    // Süren devir varken saniyede bir tik: geçen süre ilerlesin. Devir bitince
+    // efekt iptal olur — boşta dönen bir sayaç bırakmıyoruz.
+    var now by remember { mutableStateOf(if (nowMillis > 0L) nowMillis else System.currentTimeMillis()) }
+    LaunchedEffect(pcHandoff?.startedAt, nowMillis) {
+        if (pcHandoff == null || nowMillis > 0L) return@LaunchedEffect
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(1_000)
+        }
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -132,7 +160,7 @@ fun ControlScreen(
         }
 
         SectionLabel("AKTİF İŞ")
-        ActiveWorkCard(activeTask, chatBusy, engineState)
+        ActiveWorkCard(activeTask, chatBusy, engineState, pcHandoff, now, onStopPcHandoff)
 
         // Faz 11 — devir görünür olsun. Devredilen iş PC'de çalışıyor ve yanıtı
         // sohbet balonunda kalıyordu; uygulama kapanınca devrin izi yok oluyordu.
@@ -141,7 +169,8 @@ fun ControlScreen(
             PcRunsCard(
                 runs = pcRuns,
                 loading = pcRunsLoading,
-                nowMillis = nowMillis,
+                nowMillis = now,
+                inFlight = pcHandoff,
                 onRefresh = onRefreshPcRuns,
             )
         }
@@ -157,6 +186,7 @@ private fun PcRunsCard(
     runs: List<PcAgentRun>?,
     loading: Boolean,
     nowMillis: Long,
+    inFlight: PcHandoffInFlight?,
     onRefresh: () -> Unit,
 ) {
     Column(
@@ -169,10 +199,35 @@ private fun PcRunsCard(
             .testTag("pc_runs_card"),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        // Süren devir listenin BAŞINDA canlı satır olarak durur; bitince
+        // gerçek koşum satırına dönüşür (aynı iş, iki farklı hâl).
+        if (inFlight != null) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    PcHandoffFeed.promptTitle(inFlight.prompt),
+                    color = TextMain,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        PcHandoffFeed.inFlightLabel(inFlight),
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 12.sp,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(PcHandoffFeed.elapsed(inFlight.startedAt, nowMillis), color = Muted2, fontSize = 12.sp)
+                }
+            }
+        }
+
         val empty = PcHandoffFeed.emptyMessage(runs, loading)
-        if (empty != null) {
+        // Süren iş varken "henüz koşum yok" demek yanlış olur: tam şu anda
+        // bir iş çalışıyor. O durumda boş mesaj bastırılır.
+        if (empty != null && inFlight == null) {
             Text(empty, color = Muted2, fontSize = 13.sp)
-        } else {
+        } else if (empty == null) {
             PcHandoffFeed.visibleRuns(runs.orEmpty()).forEach { run ->
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(
@@ -514,7 +569,14 @@ private fun HybridRulesCard(autoFallback: Boolean, onAutoFallback: (Boolean) -> 
 }
 
 @Composable
-private fun ActiveWorkCard(task: MobileTask?, chatBusy: Boolean, engineState: LocalEngineUi) {
+private fun ActiveWorkCard(
+    task: MobileTask?,
+    chatBusy: Boolean,
+    engineState: LocalEngineUi,
+    pcHandoff: PcHandoffInFlight?,
+    now: Long,
+    onStopPcHandoff: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -526,6 +588,37 @@ private fun ActiveWorkCard(task: MobileTask?, chatBusy: Boolean, engineState: Lo
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         when {
+            // Faz 11B: süren devir HER ŞEYDEN önce gelir. Eskiden bu durum
+            // `chatBusy` dalına düşüyor ve "Sohbet yanıtı üretiliyor…" yazıyordu
+            // — iş sohbette değil PC'de çalışırken bu cümle yanlıştı.
+            pcHandoff != null -> {
+                Text(
+                    PcHandoffFeed.promptTitle(pcHandoff.prompt),
+                    color = TextMain,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(PcHandoffFeed.inFlightLabel(pcHandoff), color = Muted, fontSize = 12.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Text(PcHandoffFeed.elapsed(pcHandoff.startedAt, now), color = Muted2, fontSize = 12.sp)
+                }
+                TextButton(onClick = onStopPcHandoff) {
+                    Icon(Icons.Filled.Stop, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(PcHandoffFeed.STOP_LABEL)
+                }
+                Text(PcHandoffFeed.STOP_NOTE, color = Muted2, fontSize = 11.sp)
+            }
+
             task != null -> {
                 Text(
                     task.prompt,

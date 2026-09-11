@@ -27,6 +27,7 @@ import com.nova.agent.data.ContentReportReason
 import com.nova.agent.data.ContentReportStore
 import com.nova.agent.data.FallbackKind
 import com.nova.agent.data.PcAgentRun
+import com.nova.agent.data.PcHandoffInFlight
 import com.nova.agent.data.PendingFallback
 import com.nova.agent.data.SettingsStore
 import com.nova.agent.data.ToolStep
@@ -165,6 +166,15 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
      */
     var pcRuns by mutableStateOf<List<PcAgentRun>?>(null); private set
     var pcRunsLoading by mutableStateOf(false); private set
+
+    /**
+     * Şu anda PC'de çalışan devir (Faz 11B); yoksa null.
+     *
+     * `busy` tek başına yetmiyordu: Kontrol ekranı devir sırasında "Sohbet
+     * yanıtı üretiliyor…" diyordu, oysa iş sohbette değil PC'de çalışıyor.
+     * Bu durum ayrı taşınmadan doğru cümle kurulamıyor.
+     */
+    var pcHandoff by mutableStateOf<PcHandoffInFlight?>(null); private set
 
     private var es: EventSource? = null
     private var connectionCall: Call? = null
@@ -614,6 +624,10 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     fun stop() {
         // M1: iptali istemci işaretler, yoksa "Gateway hatası (200)" yazılıyordu.
         client.cancelStream(es); es = null
+        // Faz 11B: devir dinlemesi de burada biter. Not: akışı kesmek PC'deki
+        // ajanı durdurmayı GARANTİ ETMEZ — düğme metni bunu açıkça söylüyor.
+        pcHandoff = null
+        refreshRunsWhenDone = false
         if (activeLocal) {
             activeLocal = false
             local.cancelGenerate()
@@ -767,6 +781,10 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         if (messages.none { it.role == "user" }) return
         pendingFallback = null
         refreshRunsWhenDone = true
+        pcHandoff = PcHandoffInFlight(
+            prompt = messages.last { it.role == "user" }.content,
+            startedAt = System.currentTimeMillis(),
+        )
         complete(messages.toList(), speakWhenDone = false, modelOverride = PC_AGENT_MODEL)
     }
 
@@ -890,6 +908,9 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
                 override fun onRoute(route: String) = onMain { updateLast { it.copy(route = route) } }
                 override fun onToken(text: String) = onMain {
                     sb.append(text)
+                    // Faz 11B: ilk parça geldiğinde "gönderildi" → "yanıt yazıyor".
+                    // Kullanıcının "takıldı mı?" sorusunun cevabı bu geçiş.
+                    pcHandoff?.takeIf { !it.responding }?.let { pcHandoff = it.copy(responding = true) }
                     val (thoughts, content) = renderStreamed()
                     updateLast { it.copy(content = content, thoughts = thoughts) }
                 }
@@ -908,6 +929,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
                     // Devir hata verdiyse gateway koşumu kaydetmedi; tazeleme
                     // yapmıyoruz ki liste "yeni bir şey oldu" izlenimi vermesin.
                     refreshRunsWhenDone = false
+                    pcHandoff = null
                     if (speakWhenDone) { voiceState = VoiceState.IDLE; voiceSub = DEFAULT_SUB }
                     // V2: hata da bir bitiş; akış ortasında ağ düşerse soru ve
                     // kısmi yanıt diske yazılmadan kaybolmasın.
@@ -927,6 +949,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         busy = false
         es = null
         saveCurrent()
+        pcHandoff = null
         // Faz 11: devir bittiyse PC koşum geçmişini tazele.
         if (refreshRunsWhenDone) { refreshRunsWhenDone = false; refreshPcRunsAfterHandoff() }
         if (speak) {

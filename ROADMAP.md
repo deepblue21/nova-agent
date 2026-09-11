@@ -4,7 +4,7 @@ Tarih: 2026-07-16 (güncellendi 2026-08-09) · Dal: `codex/phase1-local-first`
 
 ## Tamamlanan fazlar (özet)
 
-Faz 1–9 ve 10A kod olarak tamamlandı; **429 birim + 122 enstrümanlı test** yazıldı.
+Faz 1–9 ve 10A kod olarak tamamlandı; **437 birim + 122 enstrümanlı test** yazıldı.
 Detaylar aşağıdaki bölümlerde.
 
 **Android derleme durumu:** ✅ **2026-08-10'da emülatörde doğrulandı** —
@@ -453,8 +453,15 @@ Gateway ajan koşusu köprüsü, canlı ilerleme (SSE) ve birleşik takip. Hibri
 "PC entegrasyonu" yarısını tamamlar.
 
 - **11A — devir izlenebilirliği: tamamlandı (2026-09-10).** Aşağıya bakın.
-- Kalan: canlı ilerleme (SSE ile koşum durumu), devredilen işi telefondan iptal etme,
-  koşum ayrıntısı (tam sonuç metni) ve telefondan silme.
+- **11B — süren devrin görünürlüğü: tamamlandı (2026-09-11).** Kontrol ekranı devir
+  sırasında "Sohbet yanıtı üretiliyor…" diyordu; iş PC'de çalışırken bu yanlıştı.
+  Süren devir ayrı bir durum oldu (istem + durum + geçen süre + dinlemeyi durdurma),
+  koşum kartında canlı satır olarak duruyor. **İkinci bir SSE kanalı yazılmadı:**
+  sohbet akışı zaten SSE ve gateway OpenClaw'dan düz metinden başka bir şey almıyor;
+  ayrı bir kanal var olmayan veriyi taşıyan boş bir makine olurdu. Bunun yerine
+  `openclawToolStep()` ile üst akış araç adımı gönderiyorsa geçiriliyor — göndermiyorsa
+  hiçbir şey değişmiyor, adım uydurulmuyor.
+- Kalan: koşum ayrıntısı (satıra dokununca tam sonuç metni) ve telefondan koşum silme.
 
 **Faz 12 — Çok-modluluk (cihaz-üstü).** Gemma 3n benzeri modelle telefonda görsel/ses girişi
 (LiteRT-LM vision/audio backend). Sohbete görsel ekleme, çevrimdışı görüntü/ses anlama.

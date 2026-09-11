@@ -135,6 +135,8 @@ fun NovaApp(
                 pcRuns = vm.pcRuns,
                 pcRunsLoading = vm.pcRunsLoading,
                 onRefreshPcRuns = { vm.refreshPcRuns() },
+                pcHandoff = vm.pcHandoff,
+                onStopPcHandoff = { vm.stop() },
             )
 
             Mode.TASKS -> MobileTaskScreen(

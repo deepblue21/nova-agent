@@ -2,6 +2,7 @@ package com.nova.agent
 
 import com.nova.agent.data.PcAgentRun
 import com.nova.agent.data.PcHandoffFeed
+import com.nova.agent.data.PcHandoffInFlight
 import com.nova.agent.net.GatewayConnectionClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -100,6 +101,54 @@ class PcHandoffFeedTest {
         assertEquals("1 hafta", PcHandoffFeed.relativeTime(now - 7 * 86_400_000L, now))
         // Saat farkı yüzünden ileri tarihli damga "-3 dk" değil "az önce".
         assertEquals("az önce", PcHandoffFeed.relativeTime(now + 120_000L, now))
+    }
+
+    // ---------- Faz 11B: süren devir ----------
+
+    @Test
+    fun `gonderildi ile yanit yaziyor ayri cumlelerdir`() {
+        // "Takıldı mı?" sorusunun cevabı tam olarak bu geçiş. Tek cümleye
+        // indirilirse kullanıcı PC'nin istemi alıp almadığını bilemez.
+        val sent = PcHandoffInFlight(prompt = "özetle", startedAt = 100L)
+        assertEquals("PC'ye gönderildi, çalışıyor", PcHandoffFeed.inFlightLabel(sent))
+        assertEquals("PC yanıt yazıyor", PcHandoffFeed.inFlightLabel(sent.copy(responding = true)))
+    }
+
+    @Test
+    fun `suren is icin saniye cozunurlugu`() {
+        // Geçmiş koşumlar dakika/gün ile yazılır; SÜREN iş saniye ister —
+        // kullanıcı ilerlediğini ancak saniyeden görür.
+        assertEquals("0 sn", PcHandoffFeed.elapsed(1_000L, 1_000L))
+        assertEquals("3 sn", PcHandoffFeed.elapsed(1_000L, 4_000L))
+        assertEquals("59 sn", PcHandoffFeed.elapsed(0L + 1L, 59_001L))
+        assertEquals("1 dk", PcHandoffFeed.elapsed(1_000L, 61_000L))
+        assertEquals("1 dk 20 sn", PcHandoffFeed.elapsed(1_000L, 81_000L))
+        assertEquals("2 dk", PcHandoffFeed.elapsed(0L + 1L, 120_001L))
+    }
+
+    @Test
+    fun `saatsiz ya da ileri damga sureyi bozmaz`() {
+        assertEquals("", PcHandoffFeed.elapsed(0L, 5_000L))
+        // Saat ileri kayarsa negatif süre yazılmaz.
+        assertEquals("0 sn", PcHandoffFeed.elapsed(9_000L, 5_000L))
+    }
+
+    @Test
+    fun `suren devir icin de ayni baslik kurali`() {
+        // Süren devir henüz bir koşum satırı değil ama başlığı aynı olmalı;
+        // aksi hâlde iş bitince ekrandaki metin sebepsiz değişirdi.
+        val prompt = "  ilk satır\nikinci"
+        assertEquals(PcHandoffFeed.promptTitle(prompt), PcHandoffFeed.title(run(prompt = prompt)))
+        assertEquals("(boş istem)", PcHandoffFeed.promptTitle("  \n "))
+    }
+
+    @Test
+    fun `durdurma metni yapamadigi seyi vaat etmez`() {
+        // Telefon akışı keser, gateway üst isteği abort eder — ama PC'deki
+        // ajanın gerçekten durduğunu uygulama GÖREMEZ. "İptal et" demek
+        // bilmediğimiz bir şeyi vaat etmek olurdu.
+        assertFalse(PcHandoffFeed.STOP_LABEL.contains("İptal"))
+        assertTrue(PcHandoffFeed.STOP_NOTE.contains("göremez"))
     }
 
     // ---------- GET /v1/agent/runs ayrıştırma ----------

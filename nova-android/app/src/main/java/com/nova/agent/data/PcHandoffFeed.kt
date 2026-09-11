@@ -12,6 +12,22 @@ package com.nova.agent.data
  * PC'ye gidiyor, yanıt sohbet balonunda kalıyor ve uygulama kapanınca devrin
  * hiçbir izi kalmıyordu.
  */
+/**
+ * Şu anda PC'de çalışan devir — Faz 11B.
+ *
+ * Devir sırasında Kontrol ekranı "Sohbet yanıtı üretiliyor…" diyordu. Bu
+ * yanlıştı: iş sohbette değil, PC'de çalışıyor. Kullanıcının o anda sorduğu
+ * soru "gönderdim, ne oluyor?" ve ekranda bunun cevabı yoktu.
+ *
+ * [responding] ilk parça geldiğinde true olur: "PC aldı, düşünüyor" ile
+ * "PC yazmaya başladı" kullanıcı için farklı iki durumdur.
+ */
+data class PcHandoffInFlight(
+    val prompt: String,
+    val startedAt: Long,
+    val responding: Boolean = false,
+)
+
 object PcHandoffFeed {
 
     const val TITLE: String = "PC KOŞUMLARI"
@@ -62,11 +78,55 @@ object PcHandoffFeed {
      * Satır başlığı. Gateway istemi 2000 karaktere kadar saklıyor; kartta
      * tek satır yeter. Boş istem uydurulmaz, açıkça "(boş istem)" yazılır.
      */
-    fun title(run: PcAgentRun): String {
-        val line = run.prompt.trim().lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty()
+    fun title(run: PcAgentRun): String = promptTitle(run.prompt)
+
+    /**
+     * İstem metninden tek satırlık başlık. Süren devir henüz bir [PcAgentRun]
+     * değil (sunucuda satırı yok), ama aynı başlığı göstermeli — bu yüzden
+     * kural istemin kendisi üzerinden tanımlı.
+     */
+    fun promptTitle(prompt: String): String {
+        val line = prompt.trim().lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty()
         if (line.isEmpty()) return "(boş istem)"
         return if (line.length <= 72) line else line.take(71).trimEnd() + "…"
     }
+
+    /**
+     * Süren devrin durum cümlesi — Faz 11B.
+     *
+     * İki ayrı durum iki ayrı cümle: PC istemi aldı ama henüz bir şey
+     * yazmadı / PC yanıt yazmaya başladı. Aradaki fark, kullanıcının
+     * "takıldı mı?" sorusunun cevabıdır.
+     */
+    fun inFlightLabel(run: PcHandoffInFlight): String =
+        if (run.responding) "PC yanıt yazıyor" else "PC'ye gönderildi, çalışıyor"
+
+    /**
+     * Süren iş için geçen süre. Saniye çözünürlüğü: burada dakikalık
+     * yuvarlama bilgi vermez — kullanıcı işin ilerlediğini saniyeden görür.
+     * Geçmişteki koşumlar için [relativeTime] kullanılır, o ayrı bir soru.
+     */
+    fun elapsed(startedAt: Long, now: Long): String {
+        if (startedAt <= 0L) return ""
+        val seconds = ((now - startedAt).coerceAtLeast(0L)) / 1000L
+        if (seconds < 60L) return "$seconds sn"
+        val minutes = seconds / 60L
+        val rest = seconds % 60L
+        return if (rest == 0L) "$minutes dk" else "$minutes dk $rest sn"
+    }
+
+    /**
+     * Durdurma düğmesinin metni ve altındaki uyarı.
+     *
+     * DÜRÜSTLÜK: telefon akışı keser, gateway de PC'ye giden isteği abort
+     * eder — ama PC'deki ajanın gerçekten durduğu GARANTİ DEĞİLDİR; bu
+     * OpenClaw'ın isteği yarıda kesilince ne yaptığına bağlı ve gateway
+     * bunu bilmiyor. "İptal et" demek, bilmediğimiz bir şeyi vaat etmek olur.
+     */
+    const val STOP_LABEL: String = "Dinlemeyi durdur"
+    const val STOP_NOTE: String =
+        "Akış kesilir ve PC'ye giden istek iptal edilir. PC'deki ajanın işi " +
+            "gerçekten bırakıp bırakmadığını uygulama göremez."
 
     /**
      * Göreli zaman. [createdAt] 0 ise boş döner (uydurma tarih yazılmaz);
