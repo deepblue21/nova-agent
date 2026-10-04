@@ -1,6 +1,7 @@
 package com.nova.agent
 
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
@@ -112,8 +113,10 @@ class SettingsDataControlsTest {
             .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Password))
             .performTextReplacement("hf_verysecrettoken")
 
-        composeRule.onAllNodesWithText("hf_verysecrettoken", useUnmergedTree = true)
-            .assertCountEquals(0)
+        // Match rendered text, not Compose's underlying InputText value.
+        composeRule.onNodeWithTag("hf_token").assert(SemanticsMatcher.expectValue(
+            SemanticsProperties.EditableText, AnnotatedString("••••••••••••••••••"),
+        ))
 
         composeRule.onNodeWithText("HF token'ı kaydet").performScrollTo().performClick()
 

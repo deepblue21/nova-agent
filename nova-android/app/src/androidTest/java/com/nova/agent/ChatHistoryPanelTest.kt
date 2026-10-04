@@ -4,11 +4,13 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import com.nova.agent.data.ConversationSummary
 import com.nova.agent.feature.history.ChatHistoryPanel
 import com.nova.agent.ui.theme.NovaTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 
@@ -61,6 +63,8 @@ class ChatHistoryPanelTest {
         }
         composeRule.onNodeWithContentDescription("Sohbeti paylaş").performClick()
         composeRule.onNodeWithContentDescription("Sohbeti sil").performClick()
+        assertNull("Deletion requires confirmation", deleted)
+        composeRule.onNodeWithTag("history_delete_confirm_a").performClick()
         assertEquals("a", shared)
         assertEquals("a", deleted)
     }

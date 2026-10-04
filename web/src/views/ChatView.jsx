@@ -166,6 +166,7 @@ export function ChatView({
             <Plus size={18} />
           </button>
           <textarea
+            aria-label="Mesajınız"
             ref={taRef}
             rows={1}
             value={input}

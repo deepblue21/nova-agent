@@ -61,6 +61,8 @@ export const CHAT_CSS = `
   gap: var(--space-xxl); text-align: center; padding: 20px;
   animation: scaleIn var(--dur-reveal) var(--ease-emphasized);
 }
+.chat-view > .hero { min-height: 0; overflow-y: auto; justify-content: safe center; }
+.chat-view > .hero > * { flex-shrink: 0; }
 .hero .nova-badge { animation: markPulse 4s ease-in-out infinite, floatY 5s ease-in-out infinite; }
 .hero .hero-title {
   font-family: 'Syne', sans-serif; font-weight: 700; font-size: 33px; letter-spacing: .3px;
@@ -227,7 +229,7 @@ a.tt-source:hover { color: var(--accent); border-color: var(--line-bright); tran
 
 /* -------------------------------- kompozer ------------------------------- */
 
-.composer { padding: 14px 26px 10px; }
+.composer { padding: 14px 26px 10px; flex-shrink: 0; }
 .composer-inner {
   display: flex; align-items: flex-end; gap: 10px;
   background: var(--surface2); border: 1px solid var(--line);
@@ -238,7 +240,7 @@ a.tt-source:hover { color: var(--accent); border-color: var(--line-bright); tran
 }
 .composer-inner:focus-within { border-color: var(--line-bright); box-shadow: 0 12px 44px rgba(var(--accent-2-rgb), .18); }
 .composer textarea {
-  flex: 1; background: transparent; border: none; outline: none; color: var(--text);
+  flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: var(--text);
   font-size: 14.5px; font-family: inherit; resize: none; max-height: 120px; line-height: 1.5; padding: 8px 0;
 }
 .composer textarea::placeholder { color: var(--muted2); }
@@ -271,7 +273,7 @@ a.tt-source:hover { color: var(--accent); border-color: var(--line-bright); tran
 /* --------------------------------- dock ---------------------------------- */
 
 .dock {
-  position: relative; z-index: 10; display: flex; align-items: center; justify-content: center;
+  position: relative; z-index: 10; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   gap: var(--space-md); padding: 0 24px 20px; flex-wrap: wrap;
 }
 .dock-group {

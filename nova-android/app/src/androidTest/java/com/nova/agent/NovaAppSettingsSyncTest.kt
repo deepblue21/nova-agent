@@ -5,6 +5,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import com.nova.agent.data.AppSettings
 import com.nova.agent.data.UiMode
@@ -52,7 +53,7 @@ class NovaAppSettingsSyncTest {
             .performTextReplacement("  https://pc.example  ")
         composeRule.onNodeWithTag("gateway_token")
             .performTextReplacement("  new-token  ")
-        composeRule.onNodeWithText("Kaydet").performClick()
+        composeRule.onNodeWithText("Kaydet").performScrollTo().performClick()
 
         composeRule.runOnIdle {
             assertEquals(listOf("task", "assistant"), callbackOrder)
@@ -94,8 +95,8 @@ class NovaAppSettingsSyncTest {
             .performTextReplacement("https://draft.example/v1")
         composeRule.onNodeWithTag("gateway_token")
             .performTextReplacement("draft-token")
-        composeRule.onNodeWithText("Bağlantıyı test et").performClick()
-        composeRule.onNodeWithContentDescription("Ayarları kapat").performClick()
+        composeRule.onNodeWithText("Bağlantıyı test et").performScrollTo().performClick()
+        composeRule.onNodeWithContentDescription("Ayarları kapat").performScrollTo().performClick()
 
         composeRule.runOnIdle {
             assertEquals(
@@ -140,7 +141,7 @@ class NovaAppSettingsSyncTest {
 
         composeRule.onNodeWithTag("gateway_url").performTextReplacement("not a url")
         composeRule.onNodeWithTag("gateway_token").performTextReplacement("private-token")
-        composeRule.onNodeWithText("Kaydet").performClick()
+        composeRule.onNodeWithText("Kaydet").performScrollTo().performClick()
 
         composeRule.runOnIdle {
             assertEquals(listOf("not a url" to "private-token"), testedConnections)

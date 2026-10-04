@@ -38,9 +38,8 @@ object FirstRunGuide {
      * burada uydurulmaz — cihaz RAM'ine göre değişir.
      */
     fun body(recommendedName: String, recommendedSize: String): String =
-        "İnternet olmadan da yanıt alabilirsin: bir model indirdiğinde istemler " +
-            "telefonundan hiç çıkmaz. Cihazın için önerilen: $recommendedName " +
-            "($recommendedSize). PC'ye bağlanmak istiyorsan bu adım gerekmez."
+        "Bir model indir, internet olmadan sohbet et. Yerel sohbet telefonundan çıkmaz; " +
+            "PC kurulumu gerekmez.\nÖnerilen: $recommendedName ($recommendedSize)."
 
     const val PRIMARY_ACTION: String = "Modelleri aç"
     const val DISMISS_ACTION: String = "Şimdilik atla"

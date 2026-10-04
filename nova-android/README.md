@@ -27,7 +27,10 @@ Kotlin + Jetpack Compose.
 | 9 | **Basit/Gelişmiş arayüz modu** + cihaz motoru hızlandırması (Otomatik/CPU/GPU/NPU) ve örnekleme ayarları |
 | 10A | **VPN'siz LAN bağlantısı** — mDNS ile PC keşfi, 8 karakterlik kod veya QR bağlantısıyla eşleme |
 
-Test kapsamı: **453 birim + 122 enstrümanlı test.**
+Test kapsamı: **461 birim + 137 enstrümanlı test.**
+
+4 Ekim 2026: model satırları kompakt, özet ve işlemler açılır pencerede. 22 paketlik
+katalog ve LiteRT-LM 0.17.1 geçişinin kaynakları: [Ekim model kaydı](../docs/MODEL-KATALOG-EKIM-2026.md).
 
 **Derleme durumu:** ✅ **2026-08-10'da emülatörde doğrulandı** — Pixel 10 Pro XL
 (API 37) üzerinde derlendi, kuruldu, çalıştı. LiteRT-LM 0.14.0, compileSdk 37 ve
@@ -56,18 +59,18 @@ cd nova-android
 (Linux/macOS'ta `./gradlew …`.) Üretilen APK:
 `app/build/outputs/apk/debug/app-debug.apk`.
 
-Sürüm uyumu (tek kaynak `gradle/libs.versions.toml`): **AGP 9.2.1 · Kotlin 2.2.21 ·
-Gradle 9.4.1 · Compose BOM 2026.06.01 · compileSdk 37 · targetSdk 36 · minSdk 26 ·
-LiteRT-LM 0.14.0 · OkHttp 5.4.0.**
+Sürüm uyumu (tek kaynak `gradle/libs.versions.toml`): **AGP 9.4.0 · Kotlin 2.3.21 ·
+Gradle 9.6.0 · Compose BOM 2026.06.01 · compileSdk 37 · targetSdk 36 · minSdk 26 ·
+LiteRT-LM 0.17.1 · OkHttp 5.4.0.**
 
 `compileSdk` (37) ile `targetSdk` (36) **bilerek farklı**: androidx.core 1.19.0 ve
 lifecycle 2.11.0 `minCompileSdk=37` koyuyor, ama targetSdk'yı yükseltmek yeni çalışma
 zamanı davranışlarını üstlenmek demek olurdu. compileSdk 37 için derleme makinesinde
 SDK Platform 37 kurulu olmalı: `sdkmanager "platforms;android-37"`.
 
-Kotlin sürümü keyfi değiştirilmemeli: LiteRT-LM Kotlin 2.3 metadata'sıyla derlenmiştir,
-2.2.21 bunu okuyabilir. "was compiled with a newer Kotlin compiler" hatası alınırsa
-katalogdaki `kotlin` değerini `2.3.21` yapmak yeterlidir.
+LiteRT-LM 0.17.1 Kotlin 2.4 metadata'sıyla derlenmiştir. Kotlin 2.3.21 bunu
+okur; eski 2.2.21 derleyicisiyle bu motor sürümü derlenmez. Metadata kontrolünü
+atlayan derleyici bayrağı kullanılmaz.
 
 Enstrümanlı testler (cihaz/emülatör gerekir): `.\gradlew.bat connectedDebugAndroidTest`.
 
@@ -100,7 +103,7 @@ MainActivity (Compose)
 ```
 
 - **Akış:** OkHttp `EventSource` ile token token; `x-nova-route` rozeti hangi hedefin yanıtladığını gösterir.
-- **Yerel motor:** `com.google.ai.edge.litertlm:litertlm-android:0.14.0`. Hızlandırma seçilebilir
+- **Yerel motor:** `com.google.ai.edge.litertlm:litertlm-android:0.17.1`. Hızlandırma seçilebilir
   (Otomatik / CPU / GPU / NPU); Otomatik önce GPU dener, olmazsa CPU'ya düşer ve gerçekten çalışan
   backend Ayarlar'da yazar. İlk yükleme saniyeler
   sürebilir, arka planda yapılır. Her istek taze `Conversation` kurar → iptal edilen yarım yanıt

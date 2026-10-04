@@ -1,7 +1,7 @@
 // Ayarlar penceresi. Bölümler ayrı dosyalarda; burada yalnız kabuk ve
 // hangi bölümün ne zaman görüneceği kuralları var. Gateway oturumu
 // gerektiren bölümler oturum yokken hiç render edilmez (boş kutu gösterilmez).
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { Icons } from "../lib/icons.mjs";
 import { AppearanceSection, PersonaSection } from "./sections/AppearanceSection.jsx";
@@ -11,15 +11,39 @@ import { WorkspacesSection, ScheduledSection, AgentRunsSection, McpSection } fro
 import { ProvidersSection, VoiceSection, AgentLayerSection } from "./sections/ConnectionSections.jsx";
 
 export function SettingsModal({ onClose, signedIn, ...p }) {
+  const dialogRef = useRef(null);
+  const closeRef = useRef(null);
+  useEffect(() => {
+    const opener = document.activeElement;
+    const dialog = dialogRef.current;
+    dialog.showModal();
+    closeRef.current?.focus();
+    return () => {
+      dialog.close();
+      if (opener?.isConnected) opener.focus();
+    };
+  }, []);
+  const keepFocus = (event) => {
+    if (event.key !== "Tab") return;
+    const controls = [...dialogRef.current.querySelectorAll("button, input, select, textarea, a[href], [tabindex]")]
+      .filter(el => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length && getComputedStyle(el).visibility !== "hidden");
+    const first = controls[0], last = controls[controls.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault(); last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault(); first?.focus();
+    }
+  };
   return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Ayarlar">
+    <dialog ref={dialogRef} className="overlay" aria-label="Ayarlar" aria-modal="true"
+      onKeyDown={keepFocus} onCancel={(e) => { e.preventDefault(); onClose(); }} onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div>
             <h2><Icons.settings size={19} color="var(--accent)" /> Ayarlar</h2>
             <div className="m-sub">Görünüm, persona, sağlayıcılar, bilgi tabanı ve takım ayarları.</div>
           </div>
-          <button className="icon-btn" onClick={onClose} aria-label="Kapat"><X size={18} /></button>
+          <button ref={closeRef} className="icon-btn" onClick={onClose} aria-label="Kapat"><X size={18} /></button>
         </div>
 
         <div className="m-section">
@@ -104,6 +128,6 @@ export function SettingsModal({ onClose, signedIn, ...p }) {
           />
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }

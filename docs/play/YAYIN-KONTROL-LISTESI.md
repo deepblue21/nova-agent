@@ -1,7 +1,43 @@
 # Play yayını — kontrol listesi
 
-Kod tarafı bitti (**389/389 test**, denetim listesinde açık kusur yok).
-Kalanlar hesap/mağaza işleri.
+## Güncel hedef — 25 Eylül 2026
+
+Kullanıcı kararı: **Google Play odaklı yayın**. İlk teslim hedefi imzalı AAB ile
+Play dahili test; ardından hesaba uygulanan kapalı test ve üretim başvurusu.
+Kod ve cihaz doğrulaması bitmiş sayılmaz. Güncel teknik kanıt:
+[25 Eylül yayın raporu](../RELEASE-READINESS-2026-09-25.md).
+
+| Kapı | Mevcut durum / yapılacak iş |
+|---|---|
+| Firebase eşlemesi | Kullanıcı bağlantıyı yaptığını belirtti. Bu çalışma ağacında `google-services.json`, Google Services eklentisi ve Firebase SDK bağımlılığı bulunmadı. Konsoldaki proje/Android uygulaması eşleşmesi henüz doğrulanmadı; yeniden proje oluşturma. |
+| Paket kimliği | Mevcut `com.nova.agent`; Firebase ve Play kaydıyla eşleştir. Play'deki son versionCode görülmeden sürüm numarası seçme. |
+| Upload imzası | Gradle desteği var; yerel `keystore.properties` yok. Mevcut upload anahtarının olup olmadığını doğrula; varsa koru, rastgele yenisiyle değiştirme. |
+| Release cihaz testi | İmzalı release sürümünde ilk açılış, model indirme/iptal/devam, çevrimdışı sohbet, mikrofon, veri silme, isteğe bağlı PC eşleme ve içerik bildirimini fiziksel cihazda sına. Debug/emülatör başarısı yerine geçmez. |
+| SDK ve Data Safety | Gerçekte kullanılan Firebase ürünlerini belirle. Analytics/Crashlytics/Auth eklenirse veri envanteri ve gizlilik beyanını yeniden değerlendir; eski “veri toplanmıyor” metnini otomatik kullanma. |
+| Gizlilik ve mağaza | Mevcut politika/metin/görselleri güncel release davranışıyla karşılaştır; herkese açık politika URL'sini ve ekran görüntülerini doğrula. |
+| İçerik bildirimi | Mevcut bildirimler cihazda tutuluyor. İnceleme/işleme sürecinin ve mağaza beyanının yeterliliğini ayrıca doğrula; yalnız düğmenin varlığı tamamlanma kanıtı değil. |
+| Play test kanalı | Play App Signing, imzalı AAB yükleme, pre-launch report ve ilgili cihaz hataları kontrol edilmeli. Hesabın doğrulama/üretime erişim durumu konsoldan teyit edilmeli. |
+
+Firebase projesinin bağlanması tek başına Android SDK entegrasyonunun veya
+Play Console yayınının tamamlandığını göstermez. Firebase'i yalnız doğrulanmış
+ürün ihtiyacına göre ekle; Analytics ve Crashlytics kendiliğinden açılmamalı.
+
+Mevcut ürün kararına göre ilk Play sürümü cihaz-üstü kullanım ve isteğe bağlı
+LAN bağlantısını hedefler. Uzak bulut hizmeti ilk sürümde sunulmayacaksa VPS,
+Keycloak ve sunucu veritabanı kurulumu Play adayının zorunlu bağımlılığı değildir.
+Sunucu özellikleri açılırsa ilgili güvenlik ve E2E kapıları yeniden kapsam içindedir.
+
+13 Kasım 2023 sonrasında açılan kişisel geliştirici hesaplarında üretime erişim
+için en az 12 kişinin kesintisiz 14 gün katıldığı kapalı test gerekir; dahili
+test bunun yerine geçmez. Hesabın türü/tarihi bu oturumda doğrulanmadı.
+[Google Play test koşulları](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en),
+[Firebase Android kurulumu](https://firebase.google.com/docs/android/setup).
+
+## Önceki oturum notları — tarihsel kayıt
+
+Aşağıdaki test sayıları, hesap durumu, takvim ve Git komutları güncel yayın
+talimatı değildir. Eski commit/branch komutları mevcut çalışma ağacında
+doğrulanmadan uygulanmamalıdır. Yukarıdaki kontrol listesi önceliklidir.
 
 ---
 

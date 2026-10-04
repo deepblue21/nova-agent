@@ -116,6 +116,7 @@ const OLLAMA  = process.env.OLLAMA_URL    || "http://localhost:11434";
 const DEFAULT = process.env.DEFAULT_MODEL || "ollama/qwen3:14b";
 const VISION_MODEL = process.env.VISION_MODEL || "ollama/qwen3.5-omni:latest";
 const PORT    = process.env.PORT          || 8088;
+const BIND    = process.env.GATEWAY_BIND?.trim() || "127.0.0.1";
 
 // OpenClaw agent layer (its own API — token-protected rooms/agents)
 const OPENCLAW_URL   = process.env.OPENCLAW_URL   || "http://localhost:3000";
@@ -186,6 +187,13 @@ const RATE_WINDOW_MS = parseInt(process.env.RATE_WINDOW_MS || "60000", 10);
 const RATE_MAX       = parseInt(process.env.RATE_MAX || "120", 10);   // 0 disables
 const MULTI_USER     = !!process.env.DATABASE_URL && process.env.MULTI_USER !== "0";
 const BILLING_FLUSH_MS = parseInt(process.env.BILLING_FLUSH_MS || "3600000", 10);
+
+// Only numeric loopback addresses may run without authentication. Hostnames
+// are not trusted as loopback: DNS resolution may point outside this machine.
+if (!["127.0.0.1", "::1"].includes(BIND) && !MULTI_USER && !GATEWAY_TOKEN.trim()) {
+  console.error("FATAL: GATEWAY_BIND outside loopback requires authentication (GATEWAY_TOKEN or multi-user mode).");
+  process.exit(1);
+}
 
 // --- production preflight: fail fast on insecure configuration ---
 //  In NODE_ENV=production the gateway refuses to start if it would be
@@ -866,8 +874,8 @@ if (MULTI_USER && process.env.SCHEDULER_ENABLED === "1" && process.env.DATABASE_
   logger.info({ tickMs }, "scheduler enabled");
 }
 
-app.listen(PORT, () => {
-  console.log("NOVA Gateway → http://localhost:" + PORT + "/v1");
+app.listen(PORT, BIND, () => {
+  console.log("NOVA Gateway → http://" + (BIND.includes(":") ? `[${BIND}]` : BIND) + ":" + PORT + "/v1");
   console.log("default model:", DEFAULT, "| ollama:", OLLAMA);
   console.log("keys:",
     "anthropic=" + (KEYS.anthropic ? "✓" : "—"),

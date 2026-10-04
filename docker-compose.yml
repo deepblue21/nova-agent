@@ -59,6 +59,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: "8088"
+      # Internal listener; root GATEWAY_BIND below controls host publication only.
+      GATEWAY_BIND: "0.0.0.0"
       TRUST_PROXY: "1"          # gateway sits behind Caddy
       DATABASE_URL: postgres://nova:${POSTGRES_PASSWORD:-nova}@postgres:5432/nova
       REDIS_URL: redis://redis:6379

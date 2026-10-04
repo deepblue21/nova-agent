@@ -18,8 +18,8 @@ enum class BackendPreference(val id: String, val label: String, val note: String
     AUTO(
         id = "auto",
         label = "Otomatik",
-        note = "Önce GPU denenir; cihaz desteklemiyorsa CPU'ya düşülür ve hangisinin " +
-            "kullanıldığı ekranda yazar.",
+        note = "Modele göre GPU veya CPU seçilir; CPU önerilen modellerde GPU denenmez. " +
+            "Kullanılan motor ekranda yazar.",
     ),
     CPU(
         id = "cpu",
@@ -64,6 +64,9 @@ enum class ActiveBackend(val label: String) {
  * [OnDeviceEngine] bunu yukarıdan aşağı dener, ilk başarılıda durur.
  */
 object BackendPlan {
+    fun resolveForModel(spec: LocalModelSpec, preference: BackendPreference): BackendPreference =
+        if (preference == BackendPreference.AUTO && spec.preferCpuOnAuto) BackendPreference.CPU else preference
+
     fun attempts(preference: BackendPreference): List<ActiveBackend> = when (preference) {
         BackendPreference.AUTO -> listOf(ActiveBackend.GPU, ActiveBackend.CPU)
         BackendPreference.CPU -> listOf(ActiveBackend.CPU)

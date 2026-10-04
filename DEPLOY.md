@@ -19,6 +19,19 @@ geçilmelidir (bkz. `NOVA_Mimari_Inceleme.md`).
 
 ## Adımlar
 
+### Dinleme adresi
+
+Doğrudan `node gateway/gateway.mjs` çalıştırılırsa `GATEWAY_BIND` boş/yok olduğunda
+dinleyici `127.0.0.1` olur. LAN için `gateway/.env` içinde `GATEWAY_BIND=0.0.0.0`
+ve kimlik doğrulama ayarlanmalıdır; loopback dışındaki kimlik doğrulamasız başlangıç
+reddedilir. Üretim token uzunluğu ve CORS kontrolleri ayrıca uygulanır.
+
+Docker'da iç dinleyici `0.0.0.0` olarak sabittir. Kök `.env` içindeki
+`GATEWAY_BIND` ise host portunun hangi arayüzde yayımlandığını belirler ve varsayılanı
+`127.0.0.1` olur. Bu iki ayar birbirinden ayrıdır.
+
+Güncel yayın engelleri: [yayın hazırlık kaydı](docs/RELEASE-READINESS-2026-09-25.md).
+
 ```bash
 # 1) Gateway env'ini hazırla
 cp gateway/.env.example gateway/.env

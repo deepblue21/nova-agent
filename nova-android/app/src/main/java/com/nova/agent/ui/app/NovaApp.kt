@@ -98,7 +98,7 @@ fun NovaApp(
         mode = vm.mode,
         connection = vm.connectionState,
         localSubtitle = if (localPolicy) {
-            "Telefon · ${vm.executionPolicy.label} · ${activeSpec.displayName}"
+            "Telefon · ${vm.executionPolicy.label}"
         } else {
             null
         },
@@ -137,6 +137,8 @@ fun NovaApp(
                 onRefreshPcRuns = { vm.refreshPcRuns() },
                 pcHandoff = vm.pcHandoff,
                 onStopPcHandoff = { vm.stop() },
+                phoneTasksEnabled = PHONE_TASKS_TAB_ENABLED,
+                uiMode = vm.settings.uiModeValue,
             )
 
             Mode.TASKS -> MobileTaskScreen(
@@ -195,6 +197,7 @@ fun NovaApp(
                 gatewayModels = vm.modelOptions(),
                 gatewaySelectedId = vm.settings.modelId,
                 uiMode = vm.settings.uiModeValue,
+                showGatewayModels = vm.settings.uiModeValue.isAdvanced || !localPolicy || vm.executionPolicy == ExecutionPolicy.HYBRID,
                 onDownload = {
                     // Bildirim izni tam BURADA anlam kazanıyor: indirme arka
                     // planda sürecek ve ilerleme/iptal yalnız bildirimde
@@ -211,7 +214,7 @@ fun NovaApp(
                 onLocalTools = vm::setLocalTools,
                 onSelectGateway = vm::setModel,
                 onStartLocalChat = {
-                    vm.setExecutionPolicy(ExecutionPolicy.LOCAL_FIRST)
+                    vm.setExecutionPolicy(ExecutionPolicy.LOCAL_ONLY)
                     vm.mode = Mode.CHAT
                 },
             )

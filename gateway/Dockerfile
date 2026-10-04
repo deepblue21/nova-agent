@@ -2,6 +2,8 @@ FROM node:22-alpine
 
 WORKDIR /app
 ENV NODE_ENV=production
+# Container networking needs a wildcard listener; host publication is separate.
+ENV GATEWAY_BIND=0.0.0.0
 
 # Install only production deps using the lockfile (reproducible build).
 COPY package*.json ./

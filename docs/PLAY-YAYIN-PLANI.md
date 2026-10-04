@@ -1,5 +1,9 @@
 # Project Horus — Google Play Yayın Planı (VPN'siz, mağazadan indirilebilir sürüm)
 
+> 25 Eylül 2026: Google Play hedefi kullanıcı tarafından teyit edildi.
+> Aşağıdaki Ağustos bulguları/takvimi tarihsel kayıttır; güncel durum için
+> [Play kontrol listesini](play/YAYIN-KONTROL-LISTESI.md) kullanın.
+
 Tarih: 2026-08-24 · Dal: `codex/phase1-local-first` · Modül: `nova-android` (`com.nova.agent` v1.3 / versionCode 4)
 Önceki rapor: [`PLAY-STORE-HAZIRLIK.md`](./PLAY-STORE-HAZIRLIK.md) (2026-08-09) — bu belge onun yerini alır.
 

@@ -1,5 +1,8 @@
 # NOVA Android — kod denetimi (2026-08-27)
 
+> Güncel doğrulama: [25 Eylül 2026 yayın hazırlığı](RELEASE-READINESS-2026-09-25.md).
+> Aşağıdaki eski lint/CI sonuçları tarihsel kayıttır; yayın onayı sayılmaz.
+
 İki bağımsız denetim, 11.496 satır ana kaynak (58 dosya). Her bulgu okunan koddaki
 somut satırlara dayanıyor; doğrulanamayanlar **şüpheli** olarak işaretli.
 

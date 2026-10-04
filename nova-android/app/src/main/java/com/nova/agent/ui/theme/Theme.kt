@@ -1,13 +1,27 @@
 package com.nova.agent.ui.theme
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.em
+
+// Explicit fontSize overrides should not inherit bodyLarge's fixed 24sp line height.
+private val NovaTypography = Typography().let { base ->
+    base.copy(
+        bodyLarge = base.bodyLarge.copy(lineHeight = 1.45.em),
+        bodyMedium = base.bodyMedium.copy(lineHeight = 1.45.em),
+        bodySmall = base.bodySmall.copy(lineHeight = 1.45.em),
+    )
+}
 
 // Renk/aksan/ölçü token'ları NovaTokens.kt'de ÜRETİLİR (kaynak:
 // design/nova-tokens.json, `npm run tokens`). Bu dosya yalnız çalışma zamanı
@@ -49,7 +63,12 @@ fun orbPalette(): List<Color> {
 
 @Composable
 fun NovaTheme(themeId: String = DEFAULT_ACCENT_ID, content: @Composable () -> Unit) {
-    val accent = accentFor(themeId)
+    val target = accentFor(themeId)
+    // Brief theme-change transitions only; Compose respects the system animation scale.
+    val primary by animateColorAsState(target.primary, tween(240), label = "themePrimary")
+    val secondary by animateColorAsState(target.secondary, tween(240), label = "themeSecondary")
+    val tertiary by animateColorAsState(target.tertiary, tween(240), label = "themeTertiary")
+    val accent = target.copy(primary = primary, secondary = secondary, tertiary = tertiary)
     val surfaces = accent.surface ?: NovaSurfaceColors.default()
     val colors = darkColorScheme(
         primary = accent.primary,
@@ -72,6 +91,6 @@ fun NovaTheme(themeId: String = DEFAULT_ACCENT_ID, content: @Composable () -> Un
         error = Danger,
     )
     CompositionLocalProvider(LocalNovaAccent provides accent) {
-        MaterialTheme(colorScheme = colors, content = content)
+        MaterialTheme(colorScheme = colors, typography = NovaTypography, content = content)
     }
 }

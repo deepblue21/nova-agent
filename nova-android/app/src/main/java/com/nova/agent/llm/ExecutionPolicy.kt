@@ -6,8 +6,8 @@ package com.nova.agent.llm
  * TEMİZ kurulumun varsayılanı LOCAL_FIRST'tür (bkz. AppSettings.executionPolicy,
  * Play kararı B5): uygulama kutudan çıktığı gibi telefonda çalışır. Mevcut
  * kurulumlar diskteki değerini koruduğu için kendiliğinden telefona geçirilmez.
- * Aşağıdaki fromId yedeği hâlâ GATEWAY_ONLY'dir; o yalnız BOZUK/bilinmeyen bir
- * id için geçerlidir, temiz kurulum yolu buraya hiç uğramaz.
+ * Bozuk/bilinmeyen ayarlar da LOCAL_FIRST'e döner; eksik bir ayar istemi
+ * kullanıcının seçimi olmadan cihaz dışına göndermek için izin sayılmaz.
  *
  * LOCAL_ONLY (Çevrimdışı): istekler yalnız telefonda çalışır, devir kapalıdır.
  * HYBRID (Faz 3): kısa işler telefonda, uzun işler ve düşük pil PC'de;
@@ -41,7 +41,7 @@ enum class ExecutionPolicy(val id: String, val label: String) {
 
     companion object {
         fun fromId(id: String?): ExecutionPolicy =
-            entries.firstOrNull { it.id == id } ?: GATEWAY_ONLY
+            entries.firstOrNull { it.id == id } ?: LOCAL_FIRST
     }
 }
 
@@ -81,7 +81,7 @@ object EngineRouter {
     ): RouteDecision = when (policy) {
         ExecutionPolicy.GATEWAY_ONLY -> RouteDecision.Gateway
 
-        ExecutionPolicy.LOCAL_FIRST, ExecutionPolicy.LOCAL_ONLY ->
+        ExecutionPolicy.LOCAL_FIRST, ExecutionPolicy.LOCAL_ONLY, ExecutionPolicy.HYBRID ->
             if (localModelInstalled) {
                 RouteDecision.Local(localModelId)
             } else {
@@ -94,9 +94,6 @@ object EngineRouter {
                     },
                 )
             }
-
-        // HYBRID için asıl karar decideHybrid'dedir; bu basit yol güvenli tarafta kalır.
-        ExecutionPolicy.HYBRID -> RouteDecision.Gateway
     }
 
     /** Uzun istemler telefonun küçük modeli yerine PC'ye gider. */
@@ -107,15 +104,22 @@ object EngineRouter {
 
     /**
      * Hibrit yönlendirme (Faz 3 D1). Kurallar şeffaf ve sabittir:
-     * 1) Ne yerel model ne PC hazırsa → kurulum gerekçesi (istek hiçbir yere gitmez).
-     * 2) Yerel model yoksa → PC (hibrit seçimi PC kullanımına verilmiş açık rızadır).
-     * 3) Gizli görünen istem + telefonda model varsa → telefon (otomatik devre engel).
+     * 1) Hassas istem → telefon; model yoksa kurulum ve açık devir onayı gerekir.
+     * 2) Ne yerel model ne PC hazırsa → kurulum gerekçesi (istek hiçbir yere gitmez).
+     * 3) Hassas olmayan istemde yerel model yoksa → PC.
      * 4) İstem uzunsa ve PC hazırsa → PC.
      * 5) Pil düşük + şarjda değil + PC hazırsa → PC.
      * 6) Cihaz ciddi ısınmışsa + PC hazırsa → PC.
      * 7) Aksi halde → telefon.
      */
     fun decideHybrid(inputs: HybridInputs, localModelId: String): RouteDecision = when {
+        inputs.privacySensitive ->
+            if (inputs.localModelInstalled) RouteDecision.Local(localModelId)
+            else RouteDecision.LocalNeedsSetup(
+                "Bu sohbette hassas görünen bilgiler var. Telefonda model olmadığı için " +
+                    "istek gönderilmedi. Modeller'den bir model indirin; PC'ye devir ayrıca onay gerektirir.",
+            )
+
         !inputs.localModelInstalled && !inputs.gatewayReady ->
             RouteDecision.LocalNeedsSetup(
                 "Hibrit: ne telefonda kurulu model var ne PC erişilebilir. " +
@@ -123,9 +127,6 @@ object EngineRouter {
             )
 
         !inputs.localModelInstalled -> RouteDecision.Gateway
-
-        // Gizlilik önceliği: hassas istem, telefonda model varken PC'ye kaçmaz.
-        inputs.privacySensitive -> RouteDecision.Local(localModelId)
 
         inputs.promptChars >= LONG_PROMPT_CHARS && inputs.gatewayReady -> RouteDecision.Gateway
 

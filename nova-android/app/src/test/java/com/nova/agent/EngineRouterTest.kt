@@ -32,9 +32,25 @@ class EngineRouterTest {
     }
 
     @Test
-    fun `bilinmeyen politika id'si varsayilan olarak gateway olur`() {
-        assertEquals(ExecutionPolicy.GATEWAY_ONLY, ExecutionPolicy.fromId("bilinmeyen"))
-        assertEquals(ExecutionPolicy.GATEWAY_ONLY, ExecutionPolicy.fromId(null))
+    fun `bozuk veya eksik politika istemi otomatik olarak disari gondermez`() {
+        for (id in listOf(null, "", "bilinmeyen")) {
+            val policy = ExecutionPolicy.fromId(id)
+            assertEquals(RouteDecision.Local("phone"), EngineRouter.decide(policy, "phone", true))
+            assertTrue(EngineRouter.decide(policy, "phone", false) is RouteDecision.LocalNeedsSetup)
+        }
+    }
+
+    @Test
+    fun `kayitli gecerli politikalar korunur`() {
+        ExecutionPolicy.entries.forEach { policy ->
+            assertEquals(policy, ExecutionPolicy.fromId(policy.id))
+        }
+    }
+
+    @Test
+    fun `hibrit cihaz kosullari bilinmeden otomatik disari gondermez`() {
+        assertEquals(RouteDecision.Local("phone"), EngineRouter.decide(ExecutionPolicy.HYBRID, "phone", true))
+        assertTrue(EngineRouter.decide(ExecutionPolicy.HYBRID, "phone", false) is RouteDecision.LocalNeedsSetup)
     }
 
     @Test
@@ -130,8 +146,11 @@ class EngineRouterTest {
     }
 
     @Test
-    fun `hibrit gizli istem ama model yoksa yine de PC`() {
-        // Telefonda model yoksa gizlilik override devreye girmez; kendi PC'sine gider.
-        assertEquals(RouteDecision.Gateway, hybrid(installed = false, privacySensitive = true))
+    fun `hibrit gizli istem model yokken de otomatik olarak PCye gitmez`() {
+        for (ready in listOf(true, false)) {
+            val decision = hybrid(installed = false, gatewayReady = ready, privacySensitive = true)
+            assertTrue(decision is RouteDecision.LocalNeedsSetup)
+            assertTrue((decision as RouteDecision.LocalNeedsSetup).reason.contains("hassas"))
+        }
     }
 }

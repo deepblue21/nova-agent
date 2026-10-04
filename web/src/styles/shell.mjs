@@ -91,6 +91,7 @@ export const SHELL_CSS = `
 /* ------------------------------ üst çubuk -------------------------------- */
 
 .topbar {
+  flex-shrink: 0;
   position: relative; z-index: 10;
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--space-md); padding: 16px 26px;
@@ -170,6 +171,7 @@ export const SHELL_CSS = `
 .bottom-nav { display: none; }
 @media (max-width: 980px) {
   .bottom-nav {
+    flex-shrink: 0;
     display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
     position: relative; z-index: 10;
     height: calc(58px + env(safe-area-inset-bottom, 0px));
@@ -238,6 +240,12 @@ export const SHELL_CSS = `
   box-shadow: 0 30px 80px var(--glass-shadow), 0 0 0 1px var(--line);
   animation: scaleIn var(--dur-base) var(--ease-emphasized);
 }
+dialog.overlay {
+  margin: 0; border: 0; width: 100%; height: 100%;
+  max-width: none; max-height: none; color: inherit;
+}
+dialog.overlay:not([open]) { display: none; }
+dialog.overlay::backdrop { background: transparent; }
 .modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-md); }
 .modal h2 {
   font-family: 'Syne', sans-serif; font-weight: 700; font-size: 20px;

@@ -25,7 +25,7 @@ class NovaAppShellTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun showsFixedDestinationsAndRoutesClicks() {
+    fun showsReleaseDestinationsAndRoutesClicks() {
         val selected = mutableListOf<Mode>()
         composeRule.setContent {
             NovaTheme {
@@ -43,13 +43,14 @@ class NovaAppShellTest {
             .assertIsDisplayed()
             .assert(SemanticsMatcher.keyNotDefined(SemanticsActions.ScrollBy))
         composeRule.onNodeWithText("Kontrol alanı").assertIsDisplayed()
-        composeRule.onNodeWithText("İşler").assertIsDisplayed().performClick()
+        // Phone control is intentionally excluded from the first release.
+        composeRule.onNodeWithText("İşler").assertDoesNotExist()
         composeRule.onNodeWithText("Sohbet").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("Modeller").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("PC hazır").assertIsDisplayed()
         composeRule.onNodeWithTag("nova_brand_mark").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Ayarlar").assertIsDisplayed()
-        assertEquals(listOf(Mode.TASKS, Mode.CHAT, Mode.MODELLER), selected)
+        assertEquals(listOf(Mode.CHAT, Mode.MODELLER), selected)
     }
 
     @Test

@@ -15,7 +15,7 @@
     "line":     { "hex": "#FFFFFF", "alpha": 0.09, "desc": "kenarlık" },
     "textMain": { "hex": "#EEF1FB", "css": "text", "desc": "ana metin (Compose'da Text composable ile çakışmasın diye TextMain)" },
     "muted":    { "hex": "#9AA3BD", "desc": "ikincil metin" },
-    "muted2":   { "hex": "#5B6276", "desc": "üçüncül metin / etiket" },
+    "muted2":   { "hex": "#8F9BB6", "desc": "üçüncül metin / okunaklı cam yüzey etiketi" },
     "success":  { "hex": "#53D6A6", "desc": "hazır / tamamlandı" },
     "warning":  { "hex": "#FFC857", "desc": "kontrol ediliyor / uyarı" },
     "danger":   { "hex": "#FB7185", "desc": "hata / iptal" },

@@ -1,6 +1,8 @@
 package com.nova.agent.feature.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -53,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -83,6 +87,7 @@ import com.nova.agent.net.GatewayConnectionUiState
 import com.nova.agent.ui.components.NovaSecretField
 import com.nova.agent.ui.theme.Amber
 import com.nova.agent.ui.theme.Muted
+import com.nova.agent.ui.theme.TextMain
 import com.nova.agent.ui.theme.NOVA_ACCENTS
 import com.nova.agent.ui.theme.NovaAccent
 
@@ -872,18 +877,24 @@ private fun ThemePicker(selectedId: String, onThemeChange: (String) -> Unit) {
                         .weight(1f)
                         .heightIn(min = 48.dp)
                         .testTag("theme_${accent.id}")
-                    if (selected) {
-                        Button(onClick = { onThemeChange(accent.id) }, modifier = modifier) {
-                            ThemeSwatch(accent)
-                            Spacer(Modifier.width(6.dp))
-                            Text(accent.name, maxLines = 1)
-                        }
-                    } else {
-                        OutlinedButton(onClick = { onThemeChange(accent.id) }, modifier = modifier) {
-                            ThemeSwatch(accent)
-                            Spacer(Modifier.width(6.dp))
-                            Text(accent.name, maxLines = 1)
-                        }
+                    Row(
+                        modifier = modifier.clip(RoundedCornerShape(16.dp))
+                            .background(Brush.linearGradient(listOf(
+                                accent.primary.copy(alpha = if (selected) 0.26f else 0.10f),
+                                accent.secondary.copy(alpha = if (selected) 0.13f else 0.04f),
+                            )))
+                            .border(1.dp, accent.primary.copy(alpha = if (selected) 0.8f else 0.24f), RoundedCornerShape(16.dp))
+                            .selectable(selected = selected, role = Role.RadioButton,
+                                onClick = { onThemeChange(accent.id) })
+                            .padding(horizontal = 10.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        ThemeSwatch(accent)
+                        Text(accent.name, color = TextMain, style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f))
+                        if (selected) Icon(Icons.Default.CheckCircle, contentDescription = null,
+                            tint = accent.secondary, modifier = Modifier.size(16.dp))
                     }
                 }
                 // Tek sayıda tema kalırsa son satır hizalı dursun.
@@ -897,10 +908,9 @@ private fun ThemePicker(selectedId: String, onThemeChange: (String) -> Unit) {
 private fun ThemeSwatch(accent: NovaAccent) {
     Box(
         Modifier
-            .width(12.dp)
-            .heightIn(min = 12.dp)
+            .size(20.dp)
             .clip(CircleShape)
-            .background(accent.primary),
+            .background(Brush.linearGradient(listOf(accent.primary, accent.secondary))),
     )
 }
 

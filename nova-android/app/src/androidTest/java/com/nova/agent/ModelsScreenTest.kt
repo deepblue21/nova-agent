@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.nova.agent.data.FALLBACK_MODELS
 import com.nova.agent.feature.models.ModelsScreen
 import com.nova.agent.llm.LocalModelUi
@@ -55,7 +56,8 @@ class ModelsScreenTest {
             }
         }
         composeRule.onNodeWithTag("recommendation_banner").assertIsDisplayed()
-        composeRule.onNodeWithTag("recommend_download").assertIsDisplayed().performClick()
+        composeRule.onNodeWithTag("recommendation_banner").performClick()
+        composeRule.onNodeWithTag("recommend_download").performScrollTo().assertIsDisplayed().performClick()
         assertEquals(LocalModelCatalog.default.id, downloaded)
     }
 
@@ -89,7 +91,9 @@ class ModelsScreenTest {
                 )
             }
         }
-        composeRule.onNodeWithText("CİHAZDAKİ MODELLER").assertIsDisplayed()
-        composeRule.onNodeWithTag("local_model_${LocalModelCatalog.default.id}").assertIsDisplayed()
+        composeRule.onNodeWithTag("recommendation_banner").assertIsDisplayed()
+        composeRule.onNodeWithText("TELEFON MODELLERİ").performScrollTo().assertIsDisplayed()
+        val otherModel = LocalModelCatalog.entries.first { it.id != LocalModelCatalog.default.id }
+        composeRule.onNodeWithTag("local_model_${otherModel.id}").performScrollTo().assertIsDisplayed()
     }
 }

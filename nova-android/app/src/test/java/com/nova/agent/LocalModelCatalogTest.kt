@@ -9,6 +9,39 @@ import org.junit.Test
 class LocalModelCatalogTest {
 
     @Test
+    fun `qwen35 auto uses CPU while explicit backend remains explicit`() {
+        for (id in listOf("qwen3.5-4b-int4", "qwen3.5-4b-int8")) {
+            val spec = LocalModelCatalog.byId(id)!!
+            for (preference in com.nova.agent.llm.local.BackendPreference.entries) {
+                val expected = if (preference == com.nova.agent.llm.local.BackendPreference.AUTO)
+                    com.nova.agent.llm.local.BackendPreference.CPU else preference
+                assertEquals(expected, com.nova.agent.llm.local.BackendPlan.resolveForModel(spec, preference))
+            }
+        }
+        assertEquals(com.nova.agent.llm.local.BackendPreference.AUTO,
+            com.nova.agent.llm.local.BackendPlan.resolveForModel(LocalModelCatalog.default,
+                com.nova.agent.llm.local.BackendPreference.AUTO))
+    }
+
+    @Test
+    fun `model files cannot overwrite one another`() {
+        val names = LocalModelCatalog.entries.map { it.fileName }
+        assertEquals(names.size, names.toSet().size)
+        assertTrue(names.all { it.endsWith(".litertlm") })
+    }
+
+    @Test
+    fun `september exports preserve their actual capability limits`() {
+        for (id in listOf("qwen3.5-4b-int4", "qwen3.5-4b-int8", "lfm2.5-2.6b-int4")) {
+            val model = LocalModelCatalog.byId(id)!!
+            assertTrue(id, !model.supportsVision)
+            assertTrue(id, !model.supportsThinkingToggle)
+        }
+        assertTrue(LocalModelCatalog.byId("granite-4.2-3b-int4")!!.supportsThinkingToggle)
+        assertEquals("LFM Open License v1.0", LocalModelCatalog.byId("lfm2.5-2.6b-int4")!!.licenseName)
+    }
+
+    @Test
     fun `katalog bos degil ve id'ler benzersiz`() {
         assertTrue(LocalModelCatalog.entries.isNotEmpty())
         val ids = LocalModelCatalog.entries.map { it.id }

@@ -392,9 +392,12 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     val executionPolicy: ExecutionPolicy
         get() = ExecutionPolicy.fromId(settings.executionPolicy)
 
-    /** Yalnız açık politikalar seçilebilir; HYBRID Faz 3'e kadar pasiftir. */
+    /** Politika değişince önceki politikaya ait bekleyen devir izni geçersizleşir. */
     fun setExecutionPolicy(policy: ExecutionPolicy) {
-        if (policy.selectableNow) persist(settings.copy(executionPolicy = policy.id))
+        if (policy.selectableNow) {
+            pendingFallback = null
+            persist(settings.copy(executionPolicy = policy.id))
+        }
     }
 
     fun setLocalModel(id: String) {
@@ -742,7 +745,8 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     fun approveFallback() {
         val pending = pendingFallback ?: return
         // Çevrimdışı modda devir kapalıdır; bu yol hiçbir koşulda açılmaz.
-        if (!pending.allowGateway || busy) return
+        if (!pending.allowGateway || !executionPolicy.allowsGatewayFallback || busy) return
+        if (connectionState.status != GatewayConnectionStatus.READY) return
         pendingFallback = null
         while (messages.isNotEmpty() && messages.last().role == "assistant") {
             messages.removeAt(messages.lastIndex)

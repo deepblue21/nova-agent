@@ -30,7 +30,8 @@ agp = "9.4.0"
 # Eğer derlemede "was compiled with a newer Kotlin compiler" hatası alırsan
 # tek yapman gereken burayı "2.3.21" yapmak — litertlm bundan etkilenmez,
 # çünkü yeni derleyici eski metadata'yı her zaman okur.
-kotlin = "2.2.21"
+# LiteRT-LM 0.17.1 carries Kotlin 2.4 metadata; 2.3.21 reads it without bypass flags.
+kotlin = "2.3.21"
 
 # ——— Android SDK ———
 # compileSdk ve targetSdk BİLEREK farklı; ikisi farklı şeyler:
@@ -82,10 +83,10 @@ coroutines = "1.11.0"
 # ConversationConfig(systemInstruction, initialMessages, tools, samplerConfig),
 # sendMessageAsync(prompt, MessageCallback, extraContext).
 #
-# Google Maven'de 0.15.0 da var (2026-08-01) ama bir haftalık; fiziksel cihazda
-# 0.14.0 doğrulanmadan üstüne çıkma. Yükseltirken sırayla: assembleDebug →
-# gerçek ARM64 telefonda Otomatik/CPU/GPU üçünü de dene.
-litertlm = "0.14.0"
+# 2026-10-03: Google Maven kararlı 0.17.1. Qwen3.5 >=0.15,
+# LFM2.5 GPU >=0.16 ve güncel Gemma 4 12B >=0.17 gerektirir.
+# ARM64 CPU/GPU çıkarım performansı fiziksel cihazda ayrıca ölçülmelidir.
+litertlm = "0.17.1"
 
 # ——— Test ———
 junit = "4.13.2"

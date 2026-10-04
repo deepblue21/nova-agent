@@ -6,10 +6,12 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.nova.agent.data.FALLBACK_MODELS
+import com.nova.agent.data.UiMode
 import com.nova.agent.feature.models.ModelsScreen
 import com.nova.agent.llm.LocalModelUi
 import com.nova.agent.llm.local.LocalModelCatalog
@@ -52,6 +54,9 @@ class ModelsOfflineReadinessTest {
         onSelectLocal: (String) -> Unit = {},
         onStartLocalChat: () -> Unit = {},
         onSelectGateway: (String) -> Unit = {},
+        onVerify: (LocalModelUi) -> Unit = {},
+        onCancelDownload: (LocalModelUi) -> Unit = {},
+        uiMode: UiMode = UiMode.ADVANCED,
     ) {
         composeRule.setContent {
             NovaTheme {
@@ -69,10 +74,11 @@ class ModelsOfflineReadinessTest {
                     metrics = emptyMap(),
                     gatewayModels = FALLBACK_MODELS,
                     gatewaySelectedId = "auto",
+                    uiMode = uiMode,
                     onDownload = onDownload,
-                    onCancelDownload = {},
+                    onCancelDownload = onCancelDownload,
                     onDelete = {},
-                    onVerify = {},
+                    onVerify = onVerify,
                     onSelectLocal = onSelectLocal,
                     onLocalThinking = {},
                     onLocalTools = {},
@@ -81,6 +87,53 @@ class ModelsOfflineReadinessTest {
                 )
             }
         }
+    }
+
+    @Test
+    fun recommendedDownloadCanBePausedBeforePartialFileExists() {
+        var paused = false
+        screen(
+            uiMode = UiMode.SIMPLE,
+            models = catalog().map { if (it.spec.id == defaultSpec.id) it.copy(downloading = true) else it },
+            onCancelDownload = { paused = true },
+        )
+        composeRule.onNodeWithTag("recommendation_banner").assertDoesNotExist()
+        composeRule.onNodeWithTag("local_model_${defaultSpec.id}").performScrollTo().performClick()
+        composeRule.onNodeWithText("Duraklat").performScrollTo().performClick()
+        composeRule.runOnIdle { assertTrue(paused) }
+    }
+
+    @Test
+    fun recommendedDownloadErrorRemainsVisibleInSimpleMode() {
+        screen(
+            uiMode = UiMode.SIMPLE,
+            models = catalog().map { if (it.spec.id == defaultSpec.id) it.copy(error = "İndirme bağlantısı kesildi") else it },
+        )
+        composeRule.onNodeWithTag("recommendation_banner").assertDoesNotExist()
+        composeRule.onNodeWithText("İşlem tamamlanamadı").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("local_model_${defaultSpec.id}").performScrollTo().performClick()
+        composeRule.onNodeWithText("İndirme bağlantısı kesildi").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun simpleModeExpandsAvailableCatalogWithoutGatewayClutter() {
+        val other = LocalModelCatalog.entries.first { it.id != defaultSpec.id && !it.gated }
+        screen(uiMode = UiMode.SIMPLE)
+        composeRule.onNodeWithText("PC GATEWAY MODELLERİ").assertDoesNotExist()
+        composeRule.onNodeWithTag("local_model_${other.id}").assertDoesNotExist()
+        composeRule.onNodeWithTag("toggle_model_catalog").performScrollTo().performClick()
+        composeRule.onNodeWithTag("local_model_${other.id}").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("toggle_model_catalog").performScrollTo().performClick()
+        composeRule.onNodeWithTag("local_model_${other.id}").assertDoesNotExist()
+    }
+
+    @Test
+    fun simpleModeKeepsPartiallyDownloadedModelsAccessible() {
+        val other = LocalModelCatalog.entries.first { it.id != defaultSpec.id && !it.gated }
+        screen(uiMode = UiMode.SIMPLE, models = catalog(mapOf(other.id to LocalModelDiskState.Partial(100L))))
+        composeRule.onNodeWithTag("local_model_${other.id}").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("local_model_${other.id}").performClick()
+        composeRule.onNodeWithText("Sürdür").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -119,6 +172,20 @@ class ModelsOfflineReadinessTest {
     }
 
     @Test
+    fun installedButUnverifiedModelCanBeRecoveredWithoutDownloadingAgain() {
+        var verifiedModel: String? = null
+        screen(
+            models = catalog(mapOf(defaultSpec.id to LocalModelDiskState.Installed(verified = false))),
+            onVerify = { verifiedModel = it.spec.id },
+        )
+
+        composeRule.onNodeWithText("Model doğrulaması gerekli").assertIsDisplayed()
+        composeRule.onAllNodesWithTag("start_local_chat").assertCountEquals(0)
+        composeRule.onNodeWithTag("verify_local_model").performScrollTo().performClick()
+        composeRule.runOnIdle { assertEquals(defaultSpec.id, verifiedModel) }
+    }
+
+    @Test
     fun readinessCardStatesLocalRequestsNeverLeaveTheDevice() {
         screen(offlineReady = true)
 
@@ -141,16 +208,17 @@ class ModelsOfflineReadinessTest {
     }
 
     @Test
-    fun installedRecommendationSwapsDownloadForActivation() {
+    fun installedRecommendationCanBeActivatedFromItsModelRow() {
         var selected: String? = null
         screen(
             models = catalog(mapOf(defaultSpec.id to LocalModelDiskState.Installed(verified = true))),
             onSelectLocal = { selected = it },
         )
 
-        composeRule.onNodeWithTag("recommendation_banner").assertIsDisplayed()
+        composeRule.onAllNodesWithTag("recommendation_banner").assertCountEquals(0)
         composeRule.onAllNodesWithTag("recommend_download").assertCountEquals(0)
-        composeRule.onNodeWithTag("recommend_select")
+        composeRule.onNodeWithTag("local_model_${defaultSpec.id}").performScrollTo().performClick()
+        composeRule.onNodeWithContentDescription("${defaultSpec.displayName} aktif yerel model")
             .performScrollTo()
             .assertIsDisplayed()
             .performClick()
@@ -176,6 +244,7 @@ class ModelsOfflineReadinessTest {
         val gated = LocalModelCatalog.entries.first { it.gated }
         screen(recommendedId = gated.id)
 
+        composeRule.onNodeWithTag("recommendation_banner").performScrollTo().performClick()
         composeRule.onNodeWithTag("recommend_download")
             .performScrollTo()
             .assertIsDisplayed()
@@ -188,14 +257,16 @@ class ModelsOfflineReadinessTest {
 
         composeRule.onAllNodesWithTag("recommendation_banner").assertCountEquals(0)
         // Ekranın geri kalanı yine de çalışır.
-        composeRule.onNodeWithText("CİHAZDAKİ MODELLER").assertIsDisplayed()
+        composeRule.onNodeWithText("TELEFON MODELLERİ").performScrollTo().assertIsDisplayed()
     }
 
     @Test
-    fun everyCatalogEntryGetsItsOwnRow() {
+    fun catalogShowsRecommendationOnceAndAllOtherModels() {
         screen()
 
-        LocalModelCatalog.entries.forEach { spec ->
+        composeRule.onNodeWithTag("recommendation_banner").assertIsDisplayed()
+        composeRule.onAllNodesWithTag("local_model_${defaultSpec.id}").assertCountEquals(0)
+        LocalModelCatalog.entries.filter { it.id != defaultSpec.id }.forEach { spec ->
             composeRule.onNodeWithTag("local_model_${spec.id}")
                 .performScrollTo()
                 .assertIsDisplayed()

@@ -1,10 +1,23 @@
 package com.nova.agent.feature.chat
 
+import android.content.res.Configuration
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.ui.platform.LocalConfiguration
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.focus.onFocusChanged
+import com.nova.agent.ui.components.novaGlass
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +28,6 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -81,6 +93,7 @@ internal fun shouldShowNovaThinkingIndicator(message: ChatMessage): Boolean =
     message.role == "assistant" && message.content.isEmpty() && message.streaming
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun ChatScreen(
     messages: List<ChatMessage>,
     busy: Boolean,
@@ -104,16 +117,20 @@ fun ChatScreen(
     /** Play B6: sakıncalı yapay zekâ çıktısını bildir. */
     onReport: (ChatMessage, ContentReportReason, String) -> Unit = { _, _, _ -> },
 ) {
+    val compactKeyboard = WindowInsets.isImeVisible &&
+        LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     Column(Modifier.fillMaxSize()) {
-        TargetChipsRow(
-            targetLabel = targetLabel,
-            modelLabel = modelLabel,
-            showAgentHandoff = showAgentHandoff && messages.any { it.role == "user" } && !busy,
-            onOpenControl = onOpenControl,
-            onOpenModels = onOpenModels,
-            onHandoffToAgent = onHandoffToAgent,
-            onOpenHistory = onOpenHistory,
-        )
+        if (!compactKeyboard) {
+            TargetChipsRow(
+                targetLabel = targetLabel,
+                modelLabel = modelLabel,
+                showAgentHandoff = showAgentHandoff && messages.any { it.role == "user" } && !busy,
+                onOpenControl = onOpenControl,
+                onOpenModels = onOpenModels,
+                onHandoffToAgent = onHandoffToAgent,
+                onOpenHistory = onOpenHistory,
+            )
+        }
         if (messages.isEmpty()) {
             ChatEmptyState(Modifier.weight(1f))
         } else {
@@ -164,6 +181,7 @@ fun ChatScreen(
  * dokunuş = açık rıza, son soru tüm bağlamla PC ajanında yeniden yanıtlanır.
  */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun TargetChipsRow(
     targetLabel: String,
     modelLabel: String,
@@ -173,12 +191,12 @@ private fun TargetChipsRow(
     onHandoffToAgent: () -> Unit,
     onOpenHistory: () -> Unit,
 ) {
-    Row(
+    FlowRow(
         Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         // Bu satırda ÜÇ FARKLI cins vardı ve üçü de birebir aynı görünüyordu:
         // durum göstergesi (hedef, model), gezinme (Geçmiş) ve GERÇEK BİR EYLEM
@@ -220,6 +238,7 @@ private fun InfoChip(
     val accent = MaterialTheme.colorScheme.primary
     Box(
         Modifier
+            .defaultMinSize(minHeight = 48.dp)
             .clip(RoundedCornerShape(999.dp))
             .background(if (action) accent.copy(alpha = 0.14f) else Surface1)
             .border(1.dp, if (action) accent.copy(alpha = 0.55f) else Line, RoundedCornerShape(999.dp))
@@ -229,10 +248,11 @@ private fun InfoChip(
                 role = Role.Button
             }
             .padding(horizontal = 12.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             label,
-            color = if (action) accent else Muted,
+            color = if (action) MaterialTheme.colorScheme.secondary else Muted,
             fontSize = 11.sp,
             fontWeight = if (action) FontWeight.SemiBold else FontWeight.Normal,
             maxLines = 1,
@@ -359,27 +379,31 @@ private fun FallbackConsentCard(
 
 @Composable
 private fun ChatEmptyState(modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(24.dp),
-        ) {
-            // Tek marka görseli: Pulse Aperture.
-            NovaBrandMark(modifier = Modifier.size(56.dp))
-            Spacer(Modifier.height(16.dp))
-            Text(
-                "Merhaba, ben NOVA",
-                color = TextMain,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Kişisel ajanın. Bir şey sor ya da bir görevi otomatikleştir.",
-                color = Muted,
-                fontSize = 14.sp,
-                textAlign = TextAlign.Center,
-            )
+    BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        if (maxHeight >= 180.dp) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(24.dp),
+            ) {
+                // Tek marka görseli: Pulse Aperture.
+                NovaBrandMark(modifier = Modifier.size(56.dp))
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "Merhaba, ben NOVA",
+                    color = TextMain,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Bir soruyla başla. Fikir üret, metin yaz veya birlikte öğrenelim.",
+                    color = Muted,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        } else if (maxHeight >= 60.dp) {
+            Text("Merhaba, ben NOVA", color = TextMain, fontSize = 18.sp, textAlign = TextAlign.Center)
         }
     }
 }
@@ -621,20 +645,24 @@ private fun ChatComposer(
     onStop: () -> Unit,
 ) {
     var draft by rememberSaveable { mutableStateOf("") }
+    var focused by remember { mutableStateOf(false) }
     val accent = MaterialTheme.colorScheme.primary
+    val focusRim by animateColorAsState(
+        if (focused) MaterialTheme.colorScheme.secondary.copy(alpha = 0.65f) else Color.Transparent,
+        animationSpec = tween(180), label = "composer focus",
+    )
     val onAccent = MaterialTheme.colorScheme.onPrimary
     val gradient = accentBrush()
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp).imePadding(),
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
         Box(
             Modifier
                 .weight(1f)
                 .defaultMinSize(minHeight = 52.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .background(Surface1)
-                .border(1.dp, Line, RoundedCornerShape(18.dp))
+                .novaGlass(RoundedCornerShape(20.dp))
+                .border(1.dp, focusRim, RoundedCornerShape(20.dp))
                 .padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
             if (draft.isEmpty()) Text("NOVA'ya yaz…", color = Muted2, fontSize = 15.sp)
@@ -643,7 +671,8 @@ private fun ChatComposer(
                 onValueChange = { draft = it },
                 textStyle = TextStyle(color = TextMain, fontSize = 15.sp),
                 cursorBrush = SolidColor(accent),
-                modifier = Modifier.fillMaxWidth().testTag("chat_input"),
+                maxLines = 6,
+                modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }.testTag("chat_input"),
             )
         }
         Spacer(Modifier.width(10.dp))

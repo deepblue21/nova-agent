@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.nova.agent.data.AppSettings
 import com.nova.agent.data.UiMode
 import com.nova.agent.data.FALLBACK_MODELS
@@ -84,14 +85,14 @@ class GatewayModelCatalogUiTest {
                 hint = "Telefon ile PC aynı ağda mı? PC'de start-horus -Lan çalıştır.",
             ),
         )
-        composeRule.onNodeWithText("Zaman aşımı: PC'ye ulaşılamadı").assertIsDisplayed()
-        composeRule.onNodeWithTag("connection_hint").assertIsDisplayed()
+        composeRule.onNodeWithText("Zaman aşımı: PC'ye ulaşılamadı").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("connection_hint").performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun fallbackListHeaderShownWhenGatewayUnreachable() {
         render(models = FALLBACK_MODELS, modelsLive = false)
-        composeRule.onNodeWithText("Yedek liste · gateway'e ulaşılamadı").assertIsDisplayed()
+        composeRule.onNodeWithText("Yedek liste · gateway'e ulaşılamadı").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -99,8 +100,8 @@ class GatewayModelCatalogUiTest {
         var picked: String? = null
         render(models = liveCatalog, modelsLive = true, onModelChange = { picked = it })
 
-        composeRule.onNodeWithText("Canlı liste · gateway").assertIsDisplayed()
-        composeRule.onNodeWithTag("model_dropdown").performClick()
+        composeRule.onNodeWithText("Canlı liste · gateway").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("model_dropdown").performScrollTo().performClick()
         composeRule.onNodeWithText("Qwen3 14B", substring = true).performClick()
 
         composeRule.runOnIdle {
@@ -113,7 +114,7 @@ class GatewayModelCatalogUiTest {
         var picked: String? = null
         render(models = liveCatalog, modelsLive = true, onModelChange = { picked = it })
 
-        composeRule.onNodeWithTag("model_dropdown").performClick()
+        composeRule.onNodeWithTag("model_dropdown").performScrollTo().performClick()
         composeRule.onNodeWithText("Anahtar tanımlı değil", substring = true).assertIsDisplayed()
         composeRule.onNodeWithText("Claude Opus", substring = true).assertIsNotEnabled()
 
@@ -127,7 +128,7 @@ class GatewayModelCatalogUiTest {
         var refreshed = 0
         render(models = liveCatalog, modelsLive = true, onRefreshModels = { refreshed++ })
 
-        composeRule.onNodeWithText("Yenile").performClick()
+        composeRule.onNodeWithText("Yenile").performScrollTo().performClick()
 
         composeRule.runOnIdle {
             assertEquals(1, refreshed)

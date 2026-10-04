@@ -19,7 +19,7 @@ body, h1, h2, h3, h4, p, figure, blockquote, dl, dd { margin: 0; }
   position: relative;
   width: 100%;
   height: 100dvh;
-  min-height: 640px;
+  min-height: 0;
   background: var(--bg);
   color: var(--text);
   font-family: 'Sora', system-ui, -apple-system, sans-serif;

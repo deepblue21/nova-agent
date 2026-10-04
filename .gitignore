@@ -9,8 +9,12 @@ node_modules/
 
 # build output
 web/dist/
+web/test-results/
+web/playwright-report/
+releases/
 dist/
 build/
+nova-android/.kotlin/
 
 # logs / runtime
 *.log
@@ -36,3 +40,6 @@ docs/design/uploads/
 
 # Derleme dogrulama ciktisi (yerel)
 build-log.txt
+
+# Raw local QA captures/logs; curated evidence lives under docs/design/qa/.
+/audit-screenshots/

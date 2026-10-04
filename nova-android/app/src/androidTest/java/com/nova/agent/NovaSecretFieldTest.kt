@@ -6,14 +6,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
-import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
@@ -52,22 +51,27 @@ class NovaSecretFieldTest {
 
         composeRule.onNodeWithTag("secret").assertIsDisplayed()
         // Maskeliyken ham değer ekranda görünmez ve Password semantiği bildirilir.
-        composeRule.onAllNodesWithText("nv_ab12cd_gizli", useUnmergedTree = true)
-            .assertCountEquals(0)
+        // InputText includes the underlying editor value in newer Compose.
+        // EditableText is the transformed text actually rendered to the user.
+        composeRule.onNodeWithTag("secret").assert(SemanticsMatcher.expectValue(
+            SemanticsProperties.EditableText, AnnotatedString("•••••••••••••••"),
+        ))
         composeRule.onNodeWithTag("secret")
             .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Password))
 
         composeRule.onNodeWithTag("secret_reveal").performClick()
 
-        composeRule.onAllNodesWithText("nv_ab12cd_gizli", useUnmergedTree = true)
-            .assertCountEquals(1)
-        // Maske açıkken Password bildirilmez — ekran okuyucu yanılmasın.
+        composeRule.onNodeWithTag("secret").assert(SemanticsMatcher.expectValue(
+            SemanticsProperties.EditableText, AnnotatedString("nv_ab12cd_gizli"),
+        ))
+        // Revealing text must not remove the editor's sensitive-password classification.
         composeRule.onNodeWithTag("secret")
-            .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Password).not())
+            .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Password))
 
         composeRule.onNodeWithTag("secret_reveal").performClick()
-        composeRule.onAllNodesWithText("nv_ab12cd_gizli", useUnmergedTree = true)
-            .assertCountEquals(0)
+        composeRule.onNodeWithTag("secret").assert(SemanticsMatcher.expectValue(
+            SemanticsProperties.EditableText, AnnotatedString("•••••••••••••••"),
+        ))
     }
 
     /**

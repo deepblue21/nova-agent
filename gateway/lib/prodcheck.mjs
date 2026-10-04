@@ -25,7 +25,8 @@ export function cspConnectSrcLooksPublicSafe(value) {
 export function evaluate(env = {}) {
   const rows = [];
   const add = (name, pass, detail, hard = true) => rows.push({ name, pass: !!pass, detail, hard });
-  const multiUser = env.MULTI_USER === "on" || !!env.DATABASE_URL;
+  // Match the runtime switch: having a database does not enable auth if disabled.
+  const multiUser = !!env.DATABASE_URL && env.MULTI_USER !== "0";
 
   add("auth", multiUser || !!env.GATEWAY_TOKEN, "GATEWAY_TOKEN set or multi-user (DATABASE_URL)");
   if (!multiUser) {

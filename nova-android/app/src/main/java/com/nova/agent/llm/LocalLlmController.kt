@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import com.google.ai.edge.litertlm.tool
 import com.nova.agent.llm.local.ActiveBackend
 import com.nova.agent.llm.local.BackendPreference
+import com.nova.agent.llm.local.BackendPlan
 import com.nova.agent.llm.local.DownloadPreflight
 import com.nova.agent.llm.local.LocalModelCatalog
 import com.nova.agent.llm.local.LocalModelDiskState
@@ -425,12 +426,13 @@ class LocalLlmController(
             // Yol AYNI ama backend tercihi değiştiyse motor yeniden kurulur;
             // "zaten yüklü" kararı ikisine birden bakmalı, yoksa gerçek bir
             // yeniden yükleme metriklere 0 ms olarak yazılırdı.
-            val alreadyLoaded = engine.isLoadedWith(file.absolutePath, backend)
+            val resolvedBackend = BackendPlan.resolveForModel(spec, backend)
+            val alreadyLoaded = engine.isLoadedWith(file.absolutePath, resolvedBackend)
             if (!alreadyLoaded) {
                 onMain { engineState = LocalEngineUi.Loading(spec.displayName) }
             }
             val loadStart = System.currentTimeMillis()
-            val loaded = engine.ensureLoaded(file.absolutePath, backend)
+            val loaded = engine.ensureLoaded(file.absolutePath, resolvedBackend)
             val loadMs = if (alreadyLoaded) 0L else System.currentTimeMillis() - loadStart
             if (loaded.isFailure) {
                 val message = OnDeviceEngine.describeError(

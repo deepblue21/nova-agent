@@ -62,6 +62,21 @@ jobs:
       - name: Build web
         run: npm --prefix web run build
 
+      - name: Install browser for responsive regression checks
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: Responsive composer and accessible fields
+        run: npm --prefix web run test:e2e
+
+      - name: Browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-failures-node-${{ matrix.node }}
+          path: web/test-results/
+          if-no-files-found: ignore
+
       - name: Dependency audit (gateway + web)
         run: |
           npm --prefix gateway audit --audit-level=moderate
@@ -87,6 +102,14 @@ jobs:
           code=$?
           set -e
           test "$code" -ne 0 && echo "OK: gateway refused to start unauthenticated"
+
+      - name: Web release candidate
+        if: success() && matrix.node == '22'
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-release-candidate
+          path: web/dist/
+          if-no-files-found: error
 
   docker:
     runs-on: ubuntu-latest
@@ -121,7 +144,7 @@ jobs:
           java-version: "17"
           cache: gradle
       - name: Android JVM unit tests
-        run: ./gradlew --no-daemon testDebugUnitTest
+        run: ./gradlew --no-daemon testDebugUnitTest lintDebug
         working-directory: nova-android
 
   # Play SADECE release AAB kabul ediyor — ve o derleme bugune kadar hic
@@ -142,19 +165,22 @@ jobs:
           java-version: "17"
           cache: gradle
 
-      # Once ayri ayri: lint HIC kosturulmadi ve abortOnError = true.
-      # continue-on-error, raporun her hâlükârda yuklenmesi icin — hatanin
-      # kendisi bir sonraki adimda zaten derlemeyi durduruyor
-      # (checkReleaseBuilds = true).
+      # Full lint is a blocking release gate; reports upload even on failure.
       - name: Lint (release)
         id: lint
-        continue-on-error: true
         run: ./gradlew --no-daemon :app:lintRelease
         working-directory: nova-android
 
       - name: Release bundle (unsigned without a keystore)
         run: ./gradlew --no-daemon :app:bundleRelease
         working-directory: nova-android
+
+      - name: Unsigned Android release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-unsigned
+          path: nova-android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
 
       # Basarisiz kossa da yuklenir: asil deger raporun kendisinde.
       # usage.txt R8'in NEYI ATTIGINI gosterir — eksik bir -keep kuralini

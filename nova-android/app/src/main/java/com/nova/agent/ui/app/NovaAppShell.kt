@@ -1,5 +1,11 @@
 package com.nova.agent.ui.app
 
+import android.content.res.Configuration
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.ui.platform.LocalConfiguration
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -12,6 +18,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -33,7 +42,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -46,14 +54,14 @@ import com.nova.agent.data.Mode
 import com.nova.agent.net.GatewayConnectionStatus
 import com.nova.agent.net.GatewayConnectionUiState
 import com.nova.agent.ui.theme.Amber
-import com.nova.agent.ui.theme.Bg
-import com.nova.agent.ui.theme.Bg2
 import com.nova.agent.ui.theme.Coral
 import com.nova.agent.ui.theme.Line
 import com.nova.agent.ui.theme.Muted
 import com.nova.agent.ui.theme.Success
 import com.nova.agent.ui.theme.Surface2
 import com.nova.agent.ui.theme.TextMain
+import com.nova.agent.ui.components.NovaBackdrop
+import com.nova.agent.ui.components.novaGlass
 
 private data class Destination(
     val mode: Mode,
@@ -91,6 +99,7 @@ private val destinations = listOfNotNull(
 )
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun NovaAppShell(
     mode: Mode,
     connection: GatewayConnectionUiState,
@@ -103,52 +112,67 @@ fun NovaAppShell(
     notice: String? = null,
     content: @Composable () -> Unit,
 ) {
-    Scaffold(
-        containerColor = Bg,
-        topBar = {
-            NovaTopBar(mode, connection, localSubtitle, onSettings, onNewChat, onToggleVoice)
-        },
-        bottomBar = {
-            NavigationBar(
-                modifier = Modifier.testTag("primary_navigation"),
-                containerColor = Bg2,
-            ) {
-                val selectedMode = if (mode == Mode.VOICE) Mode.CHAT else mode
-                destinations.forEach { destination ->
-                    NavigationBarItem(
-                        selected = selectedMode == destination.mode,
-                        onClick = { onModeChange(destination.mode) },
-                        icon = { Icon(destination.icon, contentDescription = destination.label) },
-                        label = { Text(destination.label) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.onPrimary,
-                            selectedTextColor = TextMain,
-                            indicatorColor = MaterialTheme.colorScheme.primary,
-                            unselectedIconColor = Muted,
-                            unselectedTextColor = Muted,
-                        ),
+    val keyboardVisible = WindowInsets.isImeVisible
+    val compactKeyboard = keyboardVisible && LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    NovaBackdrop {
+        Scaffold(
+            modifier = Modifier.imePadding(),
+            containerColor = Color.Transparent,
+            topBar = {
+                if (!compactKeyboard) {
+                    NovaTopBar(mode, connection, localSubtitle, onSettings, onNewChat, onToggleVoice)
+                }
+            },
+            bottomBar = {
+                if (!keyboardVisible) {
+                    NavigationBar(
+                        modifier = Modifier
+                            .navigationBarsPadding()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .novaGlass(RoundedCornerShape(28.dp))
+                            .testTag("primary_navigation"),
+                        containerColor = Color.Transparent,
+                        tonalElevation = 0.dp,
+                        windowInsets = WindowInsets(0, 0, 0, 0),
+                    ) {
+                        val selectedMode = if (mode == Mode.VOICE) Mode.CHAT else mode
+                        destinations.forEach { destination ->
+                            NavigationBarItem(
+                                selected = selectedMode == destination.mode,
+                                onClick = { onModeChange(destination.mode) },
+                                icon = { Icon(destination.icon, contentDescription = destination.label) },
+                                label = { Text(destination.label) },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = TextMain,
+                                    selectedTextColor = TextMain,
+                                    indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.30f),
+                                    unselectedIconColor = Muted,
+                                    unselectedTextColor = Muted,
+                                ),
+                            )
+                        }
+                    }
+                }
+            },
+        ) { padding ->
+            Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
+                content()
+                notice?.let { message ->
+                    Text(
+                        message,
+                        color = TextMain,
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Surface2)
+                            .border(1.dp, Line, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                            .testTag("app_notice"),
                     )
                 }
-            }
-        },
-    ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
-            content()
-            notice?.let { message ->
-                Text(
-                    message,
-                    color = TextMain,
-                    fontSize = 12.sp,
-                    lineHeight = 17.sp,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Surface2)
-                        .border(1.dp, Line, RoundedCornerShape(12.dp))
-                        .padding(horizontal = 14.dp, vertical = 10.dp)
-                        .testTag("app_notice"),
-                )
             }
         }
     }
@@ -166,9 +190,8 @@ private fun NovaTopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Bg)
             .statusBarsPadding()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Tek marka görseli: Pulse Aperture. Jenerik "parıltı" ikonu kullanılmaz.

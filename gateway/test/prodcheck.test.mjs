@@ -40,6 +40,18 @@ test("evaluate: short token fails token-strength (single-user)", () => {
   assert.ok(hardFailures(rows) > 0);
 });
 
+test("evaluate: a configured database does not bypass auth when multi-user mode is disabled", () => {
+  const env = {
+    NODE_ENV: "production", DATABASE_URL: "postgres://u@h/db", MULTI_USER: "0",
+    ALLOW_ORIGINS: "https://nova.example.com", CSP_CONNECT_SRC: "'self'",
+  };
+  const insecure = evaluate(env);
+  assert.equal(find(insecure, "auth").pass, false);
+  assert.equal(find(insecure, "token-strength").pass, false);
+  assert.ok(hardFailures(insecure) > 0);
+  assert.equal(hardFailures(evaluate({ ...env, GATEWAY_TOKEN: "a".repeat(40) })), 0);
+});
+
 test("evaluate: multi-user requires DATABASE_URL; admins is a soft warning", () => {
   const rows = evaluate({ NODE_ENV: "production", ALLOW_ORIGINS: "https://x", DATABASE_URL: "postgres://u@h/db" });
   assert.equal(find(rows, "database").pass, true);

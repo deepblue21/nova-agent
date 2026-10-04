@@ -1,8 +1,20 @@
 package com.nova.agent.feature.control
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import com.nova.agent.data.UiMode
+import com.nova.agent.ui.components.novaGlass
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -110,7 +122,12 @@ fun ControlScreen(
      * kararlı olmuyor ve gereksiz yeniden bileşim tetikliyordu.
      */
     nowMillis: Long = 0L,
+    phoneTasksEnabled: Boolean = false,
+    uiMode: UiMode = UiMode.ADVANCED,
 ) {
+    var policyExpanded by rememberSaveable { mutableStateOf(false) }
+    val showGuide = FirstRunGuide.shouldShow(anyModelInstalled, firstRunGuideDismissed) &&
+        (uiMode.isAdvanced || policy.runsOnDevice)
     // Süren devir varken saniyede bir tik: geçen süre ilerlesin. Devir bitince
     // efekt iptal olur — boşta dönen bir sayaç bırakmıyoruz.
     var now by remember { mutableStateOf(if (nowMillis > 0L) nowMillis else System.currentTimeMillis()) }
@@ -131,7 +148,7 @@ fun ControlScreen(
         // Yeni kullanıcı, varsayılan politika PC olduğu için uygulamanın
         // manşet özelliğinden (telefonda çevrimdışı LLM) haberdar olmuyordu.
         // Kart yolu TIKAMAZ: yalnız PC'ye bağlanmak isteyen "şimdilik atla" der.
-        if (FirstRunGuide.shouldShow(anyModelInstalled, firstRunGuideDismissed)) {
+        if (showGuide) {
             FirstRunCard(
                 recommendedName = recommendedName,
                 recommendedSize = recommendedSize,
@@ -140,31 +157,65 @@ fun ControlScreen(
             )
         }
 
-        SectionLabel("YÜRÜTME POLİTİKASI")
-        PolicyPicker(policy, onPolicyChange)
+        if (uiMode.isAdvanced) {
+            SectionLabel("YÜRÜTME POLİTİKASI")
+            PolicyPicker(policy, onPolicyChange)
+        } else {
+            Column(Modifier.fillMaxWidth().novaGlass().padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Çalışma biçimi", color = Muted, fontSize = 12.sp)
+                        Text(policy.label, color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    TextButton(
+                        onClick = { policyExpanded = !policyExpanded },
+                        modifier = Modifier.heightIn(min = 48.dp).testTag("toggle_policy"),
+                    ) {
+                        Text(if (policyExpanded) "Kapat" else "Değiştir", color = MaterialTheme.colorScheme.secondary)
+                    }
+                }
+                AnimatedVisibility(
+                    visible = policyExpanded,
+                    enter = expandVertically(tween(220)) + fadeIn(tween(160)),
+                    exit = shrinkVertically(tween(200)) + fadeOut(tween(120)),
+                ) {
+                    PolicyPicker(policy) {
+                        onPolicyChange(it)
+                        policyExpanded = false
+                    }
+                }
+            }
+        }
 
-        TargetCard(
-            policy = policy,
-            localModelName = localModelName,
-            localInstalled = localInstalled,
-            localVerified = localVerified,
-            engineState = engineState,
-            connection = connection,
-            onNewTask = onNewTask,
-            onOpenChat = onOpenChat,
-            onOpenModels = onOpenModels,
-        )
+        if (!showGuide || uiMode.isAdvanced) {
+            TargetCard(
+                policy = policy,
+                localModelName = localModelName,
+                localInstalled = localInstalled,
+                localVerified = localVerified,
+                engineState = engineState,
+                connection = connection,
+                onNewTask = onNewTask,
+                onOpenChat = onOpenChat,
+                onOpenModels = onOpenModels,
+                phoneTasksEnabled = phoneTasksEnabled,
+            )
+        }
 
         if (policy == ExecutionPolicy.HYBRID) {
             HybridRulesCard(hybridAutoFallback, onHybridAutoFallback)
         }
 
-        SectionLabel("AKTİF İŞ")
-        ActiveWorkCard(activeTask, chatBusy, engineState, pcHandoff, now, onStopPcHandoff)
+        if (uiMode.isAdvanced || activeTask != null || chatBusy || pcHandoff != null || engineState is LocalEngineUi.Loading) {
+            SectionLabel("AKTİF İŞ")
+            ActiveWorkCard(activeTask, chatBusy, engineState, pcHandoff, now, onStopPcHandoff)
+        }
 
         // Faz 11 — devir görünür olsun. Devredilen iş PC'de çalışıyor ve yanıtı
         // sohbet balonunda kalıyordu; uygulama kapanınca devrin izi yok oluyordu.
-        if (PcHandoffFeed.shouldShow(gatewayRelevant = policy != ExecutionPolicy.LOCAL_ONLY)) {
+        val showPcHistory = uiMode.isAdvanced || policy == ExecutionPolicy.GATEWAY_ONLY ||
+            policy == ExecutionPolicy.HYBRID || !pcRuns.isNullOrEmpty() || pcHandoff != null
+        if (showPcHistory && PcHandoffFeed.shouldShow(gatewayRelevant = policy != ExecutionPolicy.LOCAL_ONLY)) {
             SectionLabel(PcHandoffFeed.TITLE)
             PcRunsCard(
                 runs = pcRuns,
@@ -278,23 +329,21 @@ private fun FirstRunCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Surface1)
-            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-            .padding(16.dp)
+            .novaGlass(emphasized = true)
+            .padding(20.dp)
             .testTag("first_run_card"),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(
             FirstRunGuide.TITLE,
             color = TextMain,
-            fontSize = 16.sp,
+            fontSize = 23.sp,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
             FirstRunGuide.body(recommendedName, recommendedSize),
             color = Muted,
-            fontSize = 12.sp,
+            fontSize = 14.sp,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
@@ -330,27 +379,25 @@ private fun SectionLabel(text: String) {
 private fun PolicyPicker(policy: ExecutionPolicy, onPolicyChange: (ExecutionPolicy) -> Unit) {
     val ordered = listOf(
         ExecutionPolicy.LOCAL_FIRST,
-        ExecutionPolicy.GATEWAY_ONLY,
         ExecutionPolicy.LOCAL_ONLY,
+        ExecutionPolicy.GATEWAY_ONLY,
         ExecutionPolicy.HYBRID,
     )
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier = Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         ordered.chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { option ->
                     val selected = option == policy
+                    val tileColor by animateColorAsState(
+                        if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else Surface1,
+                        animationSpec = tween(180), label = "policy selection",
+                    )
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 56.dp)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(
-                                if (selected) {
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
-                                } else {
-                                    Surface1
-                                },
-                            )
+                            .background(tileColor)
                             .border(
                                 1.dp,
                                 if (selected) {
@@ -360,7 +407,7 @@ private fun PolicyPicker(policy: ExecutionPolicy, onPolicyChange: (ExecutionPoli
                                 },
                                 RoundedCornerShape(14.dp),
                             )
-                            .clickable { onPolicyChange(option) }
+                            .selectable(selected = selected, role = Role.RadioButton) { onPolicyChange(option) }
                             .semantics {
                                 role = Role.RadioButton
                                 contentDescription = option.label
@@ -400,6 +447,7 @@ private fun TargetCard(
     onNewTask: () -> Unit,
     onOpenChat: () -> Unit,
     onOpenModels: () -> Unit,
+    phoneTasksEnabled: Boolean,
 ) {
     val accent = MaterialTheme.colorScheme.primary
     val localMode = policy.runsOnDevice
@@ -407,9 +455,7 @@ private fun TargetCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(Surface1)
-            .border(1.dp, Line, RoundedCornerShape(20.dp))
+            .novaGlass()
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -500,7 +546,7 @@ private fun TargetCard(
             ) {
                 Text("Model indir")
             }
-        } else {
+        } else if (phoneTasksEnabled) {
             Button(
                 onClick = onNewTask,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp).testTag("cta_new_task"),
@@ -509,16 +555,27 @@ private fun TargetCard(
                 Spacer(Modifier.width(6.dp))
                 Text("Yeni görev")
             }
+        } else {
+            Button(
+                onClick = onOpenChat,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp).testTag("cta_open_chat"),
+            ) {
+                Icon(Icons.Filled.ChatBubbleOutline, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text("Sohbet başlat")
+            }
         }
-        TextButton(onClick = onOpenChat, modifier = Modifier.fillMaxWidth()) {
-            Icon(
-                Icons.Filled.ChatBubbleOutline,
-                contentDescription = null,
-                tint = Muted,
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(Modifier.width(6.dp))
-            Text("Sohbet başlat", color = Muted)
+        if (phoneTasksEnabled || (localMode && !localInstalled)) {
+            TextButton(onClick = onOpenChat, modifier = Modifier.fillMaxWidth()) {
+                Icon(
+                    Icons.Filled.ChatBubbleOutline,
+                    contentDescription = null,
+                    tint = Muted,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text("Sohbet başlat", color = Muted)
+            }
         }
     }
 }
@@ -542,7 +599,7 @@ private fun HybridRulesCard(autoFallback: Boolean, onAutoFallback: (Boolean) -> 
                 "• ${EngineRouter.LONG_PROMPT_CHARS}+ karakterlik istemler PC'ye gider\n" +
                 "• Pil ≤ %${EngineRouter.LOW_BATTERY_PERCENT} ve şarjda değilken PC tercih edilir\n" +
                 "• Cihaz ciddi ısınmışsa PC tercih edilir\n" +
-                "• Telefon modeli kurulu değilse istekler PC'de çalışır",
+                "• Telefon modeli yoksa hassas içerik için ayrıca devir onayı istenir",
             color = Muted,
             fontSize = 12.sp,
         )

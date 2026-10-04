@@ -1,7 +1,7 @@
 package com.nova.agent
 
 import android.os.ParcelFileDescriptor
-import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -10,7 +10,6 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -65,11 +64,11 @@ class SettingsPanelTest {
             }
         }
 
-        composeRule.onNodeWithText("PC bağlantısı").assertIsDisplayed()
-        composeRule.onNodeWithTag("gateway_token").assertIsDisplayed()
-        composeRule.onAllNodesWithText("secret", useUnmergedTree = true).assertCountEquals(0)
-        composeRule.onNodeWithText("Bağlantıyı test et").performClick()
-        composeRule.onNodeWithText("Model ve çalışma biçimi").assertIsDisplayed()
+        composeRule.onNodeWithText("PC bağlantısı").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("gateway_token").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("gateway_token").assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("••••••")))
+        composeRule.onNodeWithText("Bağlantıyı test et").performScrollTo().performClick()
+        composeRule.onNodeWithText("Model ve çalışma biçimi").performScrollTo().assertIsDisplayed()
         assertEquals("http://10.0.2.2:8088/v1" to "secret", tested)
     }
 
@@ -92,6 +91,7 @@ class SettingsPanelTest {
         }
 
         composeRule.onNodeWithTag("gateway_token")
+            .performScrollTo()
             .assertIsEnabled()
             .assertHasClickAction()
             .assert(SemanticsMatcher.keyIsDefined(SemanticsActions.SetText))
@@ -99,9 +99,9 @@ class SettingsPanelTest {
             .performClick()
             .assertIsFocused()
             .performTextReplacement("replacement-secret")
-        composeRule.onAllNodesWithText("replacement-secret", useUnmergedTree = true)
-            .assertCountEquals(0)
-        composeRule.onNodeWithText("Kaydet").performClick()
+        composeRule.onNodeWithTag("gateway_token")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("••••••••••••••••••")))
+        composeRule.onNodeWithText("Kaydet").performScrollTo().performClick()
 
         composeRule.runOnIdle {
             assertEquals("replacement-secret", saved?.second)
@@ -127,6 +127,7 @@ class SettingsPanelTest {
         }
 
         composeRule.onNodeWithContentDescription("Akıl yürütme")
+            .performScrollTo()
             .assertIsOn()
             .performClick()
 

@@ -38,6 +38,8 @@ data class LocalModelSpec(
     val gated: Boolean = false,
     /** Büyük modeller için dürüst uyarı (indirme süresi, RAM baskısı). */
     val note: String? = null,
+    /** Model card recommends CPU on Android; AUTO must not risk GPU memory expansion. */
+    val preferCpuOnAuto: Boolean = false,
 ) {
     val sizeLabel: String
         get() = "%.1f GB".format(sizeBytes / 1_073_741_824.0).replace('.', ',')
@@ -58,6 +60,8 @@ data class LocalModelSpec(
  * Yol haritası ve Off Grid karşılaştırması: `docs/MODEL-KATALOG-YOLHARITASI.md`.
  */
 object LocalModelCatalog {
+
+    const val REVIEWED_ON = "2026-10-03"
 
     const val QWEN_REVISION = "3adacb36657dbe0119addf143782ed973c680716"
     const val GEMMA_REVISION = "6d54daa71cfbffba6b2843c08eeb1a27e7430bf0"
@@ -119,6 +123,84 @@ object LocalModelCatalog {
         "https://huggingface.co/litert-community/gemma-4-12B-it-litert-lm/resolve/$GEMMA4_12B_REVISION/"
 
     val entries: List<LocalModelSpec> = listOf(
+        // 2026-10-03: metadata and LFS hashes verified against pinned HF revisions.
+        // RAM values are conservative device estimates, not benchmark guarantees.
+        LocalModelSpec(
+            id = "qwen3.5-4b-int4",
+            preferCpuOnAuto = true,
+            displayName = "Qwen3.5 4B (int4)",
+            family = "Qwen3.5",
+            quantization = "mixed int4",
+            fileName = "Qwen3.5-4B_mixed_int4.litertlm",
+            downloadUrl = "https://huggingface.co/litert-community/Qwen3.5-4B/resolve/" +
+                "2345e16c6e6e5a2db95d5bcfa3b4fc4dc2fc0394/Qwen3.5-4B_mixed_int4.litertlm",
+            sizeBytes = 2_754_365_536L,
+            sha256 = "50cbb13f782f4609ff11874ff15e79de5c1ee2e8856a21db72e7ef86f4acef35",
+            licenseName = "Apache-2.0",
+            licenseUrl = "https://huggingface.co/Qwen/Qwen3.5-4B",
+            recommendedRamGb = 8,
+            supportsThinkingToggle = false,
+            note = "Qwen3.5 ailesinin 4B metin modeli. Sohbet, özet ve soru-cevap için; " +
+                "int4 paketi int8'den daha az yer kaplar. Bu pakette görsel, araç çağırma " +
+                "ve düşünme anahtarı bulunmaz. Otomatik mod CPU kullanır; 8 GB cihazda GPU önerilmez. " +
+                "CPU önbelleği için indirmeye ek yaklaşık 3 GB boş alan bırakın. Eylül 2026 paketi.",
+        ),
+        LocalModelSpec(
+            id = "qwen3.5-4b-int8",
+            preferCpuOnAuto = true,
+            displayName = "Qwen3.5 4B (int8)",
+            family = "Qwen3.5",
+            quantization = "dynamic int8",
+            fileName = "Qwen3.5-4B_int8.litertlm",
+            downloadUrl = "https://huggingface.co/litert-community/Qwen3.5-4B/resolve/" +
+                "2345e16c6e6e5a2db95d5bcfa3b4fc4dc2fc0394/Qwen3.5-4B_int8.litertlm",
+            sizeBytes = 4_407_428_464L,
+            sha256 = "74abbd14d83952be2638220f4e6df0a5661ec75e52386c6c88b40a1b0fbc8271",
+            licenseName = "Apache-2.0",
+            licenseUrl = "https://huggingface.co/Qwen/Qwen3.5-4B",
+            recommendedRamGb = 12,
+            supportsThinkingToggle = false,
+            note = "Qwen3.5 4B'nin daha az sıkıştırılmış metin paketi. int4'e göre daha " +
+                "fazla depolama ve çalışma belleği kullanır. Görsel ve araç çağırma içermez; " +
+                "bu dönüşümde düşünme kapalıdır. Otomatik mod CPU kullanır; 8 GB cihazlara önerilmez. " +
+                "Eylül 2026 şablon güncellemesini içerir.",
+        ),
+        LocalModelSpec(
+            id = "granite-4.2-3b-int4",
+            displayName = "Granite 4.2 3B (int4)",
+            family = "Granite 4.2",
+            quantization = "blockwise int4",
+            fileName = "granite-4.2-3b_int4.litertlm",
+            downloadUrl = "https://huggingface.co/litert-community/granite-4.2-3b/resolve/" +
+                "3b7f1338ee26a06d016a72a7d5c64f3ed022a466/granite-4.2-3b_int4.litertlm",
+            sizeBytes = 2_190_708_656L,
+            sha256 = "9859901f6050df5c4616e31462643b76d0aa2bd395a8863cb6162495c1ef517d",
+            licenseName = "Apache-2.0",
+            licenseUrl = "https://huggingface.co/ibm-granite/granite-4.2-3b",
+            recommendedRamGb = 8,
+            supportsThinkingToggle = true,
+            note = "IBM'in 3B akıl yürütme modelinin int4 dönüşümü. Metin soruları ve " +
+                "çok adımlı görevler için; düşünme açılıp kapatılabilir. Eylül 2026 " +
+                "paketi, çok turlu konuşmalar için güncellenmiş şablonu içerir.",
+        ),
+        LocalModelSpec(
+            id = "lfm2.5-2.6b-int4",
+            displayName = "LFM2.5 2.6B (int4)",
+            family = "LFM2.5",
+            quantization = "blockwise int4",
+            fileName = "LFM2.5-2.6B_int4.litertlm",
+            downloadUrl = "https://huggingface.co/litert-community/LFM2.5-2.6B/resolve/" +
+                "88cc3e27a083cc1f134285a35b3618d13d100032/LFM2.5-2.6B_int4.litertlm",
+            sizeBytes = 1_668_151_680L,
+            sha256 = "d3e943dae301d88086c792b46786f26a60339998dac8fee34ed3f6cc4acccaac",
+            licenseName = "LFM Open License v1.0",
+            licenseUrl = "https://huggingface.co/LiquidAI/LFM2.5-2.6B/blob/main/LICENSE",
+            recommendedRamGb = 6,
+            supportsThinkingToggle = false,
+            note = "Liquid AI'nin cihazda çalışmaya odaklı hibrit metin modeli. Yanıttan " +
+                "önce düşünür; bu pakette düşünmeyi kapatma anahtarı yoktur. Uzun " +
+                "konuşmalarda bağlam daha çabuk dolar. Eylül 2026 paketi; özel LFM lisansına tabidir.",
+        ),
         LocalModelSpec(
             id = "qwen3-0.6b-int4",
             displayName = "Qwen3 0.6B (int4)",
@@ -448,7 +530,8 @@ object LocalModelCatalog {
         ),
     )
 
-    val default: LocalModelSpec = entries.first()
+    // Catalogue display order must never change the small first-run default.
+    val default: LocalModelSpec = entries.first { it.id == "qwen3-0.6b-int4" }
 
     fun byId(id: String?): LocalModelSpec? = entries.firstOrNull { it.id == id }
 }

@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.nova.agent.feature.control.ControlScreen
+import com.nova.agent.data.UiMode
 import com.nova.agent.feature.tasks.MobileTask
 import com.nova.agent.feature.tasks.MobileTaskStatus
 import com.nova.agent.llm.ExecutionPolicy
@@ -55,6 +56,9 @@ class ControlScreenTargetTest {
         onNewTask: () -> Unit = {},
         onOpenChat: () -> Unit = {},
         onOpenModels: () -> Unit = {},
+        phoneTasksEnabled: Boolean = false,
+        uiMode: UiMode = UiMode.ADVANCED,
+        firstRun: Boolean = false,
     ) {
         composeRule.setContent {
             NovaTheme {
@@ -73,9 +77,42 @@ class ControlScreenTargetTest {
                     onNewTask = onNewTask,
                     onOpenChat = onOpenChat,
                     onOpenModels = onOpenModels,
+                    phoneTasksEnabled = phoneTasksEnabled,
+                    uiMode = uiMode,
+                    anyModelInstalled = !firstRun,
+                    firstRunGuideDismissed = !firstRun,
                 )
             }
         }
+    }
+
+    @Test
+    fun simpleSetupShowsOneDownloadEntryAndHidesEmptyWork() {
+        var openedModels = false
+        screen(uiMode = UiMode.SIMPLE, firstRun = true, localInstalled = false, localVerified = false,
+            onOpenModels = { openedModels = true })
+        composeRule.onNodeWithTag("cta_download_model").assertDoesNotExist()
+        composeRule.onNodeWithTag("active_work_card").assertDoesNotExist()
+        composeRule.onNodeWithTag("pc_runs_card").assertDoesNotExist()
+        composeRule.onNodeWithTag("first_run_open").assertIsDisplayed().performClick()
+        composeRule.runOnIdle { assertTrue(openedModels) }
+    }
+
+    @Test
+    fun simplePolicyPickerOpensAndSelectionClosesIt() {
+        var chosen: ExecutionPolicy? = null
+        screen(uiMode = UiMode.SIMPLE, onPolicyChange = { chosen = it })
+        composeRule.onNodeWithTag("policy_local_only").assertDoesNotExist()
+        composeRule.onNodeWithTag("toggle_policy").performClick()
+        composeRule.onNodeWithTag("policy_local_only").assertIsDisplayed().performClick()
+        composeRule.runOnIdle { assertEquals(ExecutionPolicy.LOCAL_ONLY, chosen) }
+        composeRule.onNodeWithTag("policy_local_only").assertDoesNotExist()
+    }
+
+    @Test
+    fun simpleModeKeepsActiveWorkVisible() {
+        screen(uiMode = UiMode.SIMPLE, chatBusy = true)
+        composeRule.onNodeWithTag("active_work_card").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -103,22 +140,26 @@ class ControlScreenTargetTest {
     }
 
     @Test
-    fun installedLocalModelPromotesNewTask() {
+    fun installedLocalModelPromotesChatWithoutOpeningDisabledTasks() {
         var newTask = false
+        var openedChat = false
         screen(
             policy = ExecutionPolicy.LOCAL_FIRST,
             localInstalled = true,
             onNewTask = { newTask = true },
+            onOpenChat = { openedChat = true },
         )
 
         composeRule.onAllNodesWithTag("cta_download_model").assertCountEquals(0)
-        composeRule.onNodeWithTag("cta_new_task")
+        composeRule.onAllNodesWithTag("cta_new_task").assertCountEquals(0)
+        composeRule.onNodeWithTag("cta_open_chat")
             .performScrollTo()
             .assertIsDisplayed()
             .performClick()
 
         composeRule.runOnIdle {
-            assertTrue("Yeni görev tetiklenmedi", newTask)
+            assertTrue("Yerel sohbet açılmadı", openedChat)
+            assertFalse("Kapalı görev ekranı açılmamalı", newTask)
         }
     }
 
@@ -127,10 +168,19 @@ class ControlScreenTargetTest {
         screen(policy = ExecutionPolicy.GATEWAY_ONLY, localInstalled = false)
 
         composeRule.onAllNodesWithTag("cta_download_model").assertCountEquals(0)
-        composeRule.onNodeWithTag("cta_new_task").performScrollTo().assertIsDisplayed()
+        composeRule.onAllNodesWithTag("cta_new_task").assertCountEquals(0)
+        composeRule.onNodeWithTag("cta_open_chat").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText(
             "Bulut modelleri de PC'deki Gateway üzerinden çağrılır; anahtarlar telefona gelmez.",
         ).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun taskEntryRemainsAvailableWhenTaskFeatureIsEnabled() {
+        var newTask = false
+        screen(phoneTasksEnabled = true, onNewTask = { newTask = true })
+        composeRule.onNodeWithTag("cta_new_task").performScrollTo().performClick()
+        composeRule.runOnIdle { assertTrue(newTask) }
     }
 
     @Test

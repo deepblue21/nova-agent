@@ -117,7 +117,10 @@ class NsdGatewayDiscovery(context: Context) {
 
         awaitClose {
             runCatching { manager.stopServiceDiscovery(discoveryListener) }
-            registered.forEach { runCatching { manager.unregisterServiceInfoCallback(it) } }
+            // Match the API guard used when registering these callbacks.
+            if (Build.VERSION.SDK_INT >= 34) {
+                registered.forEach { runCatching { manager.unregisterServiceInfoCallback(it) } }
+            }
             registered.clear()
             resolveExecutor.shutdownNow()
         }

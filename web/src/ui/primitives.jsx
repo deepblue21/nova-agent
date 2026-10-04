@@ -1,6 +1,6 @@
 // Paylaşılan görsel ilkeller. Compose tarafındaki SectionLabel / Card / Chip
 // karşılıklarıyla aynı ölçü ve davranışa sahiptir.
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { Check, ChevronDown, Copy, Eye, EyeOff } from "lucide-react";
 import { copyText } from "../lib/format.mjs";
 
@@ -78,6 +78,7 @@ export function SecretField({
   revealTimeoutMs = 30000,
 }) {
   const [shown, setShown] = useState(false);
+  const inputId = useId();
   const [copied, setCopied] = useState("");   // "" | "ok" | "err"
   const timers = useRef({ hide: null, copy: null });
 
@@ -108,9 +109,11 @@ export function SecretField({
 
   return (
     <div className="field">
-      {label && <span>{label}</span>}
+      {label && <label htmlFor={inputId}>{label}</label>}
       <div className="secret-row">
         <input
+          id={inputId}
+          aria-describedby={hint || copied ? `${inputId}-hint` : undefined}
           className="input mono"
           type={shown ? "text" : "password"}
           value={value}
@@ -143,7 +146,7 @@ export function SecretField({
         </button>
       </div>
       {(hint || copied) && (
-        <span className="secret-hint">
+        <span id={`${inputId}-hint`} className="secret-hint" role="status">
           {copied === "ok" ? "Panoya kopyalandı." : copied === "err" ? "Kopyalanamadı — alanı açıp elle seç." : hint}
         </span>
       )}

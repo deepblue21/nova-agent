@@ -46,6 +46,7 @@ class ChatFallbackConsentTest {
                     busy = false,
                     pendingFallback = "Yerel model belleğe sığmadı",
                     fallbackAllowsGateway = true,
+                    gatewayReady = true,
                     onSend = {},
                     onStop = {},
                     onRegenerate = {},
@@ -77,6 +78,7 @@ class ChatFallbackConsentTest {
                     busy = false,
                     pendingFallback = "Model yüklenemedi",
                     fallbackAllowsGateway = false,
+                    gatewayReady = true,
                     onSend = {},
                     onStop = {},
                     onRegenerate = {},
@@ -90,7 +92,7 @@ class ChatFallbackConsentTest {
         composeRule.onAllNodesWithContentDescription("PC'ye gönder").assertCountEquals(0)
         composeRule.onNodeWithText(
             "Çevrimdışı mod: istem cihaz dışına gönderilmez. " +
-                "Modeller sekmesinden durumu kontrol edebilirsin.",
+                "Modeller sekmesinden bir model indirebilirsin.",
         ).assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Anladım").assertIsDisplayed().performClick()
 

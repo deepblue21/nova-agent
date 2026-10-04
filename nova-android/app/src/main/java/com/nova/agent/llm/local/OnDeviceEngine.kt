@@ -224,6 +224,7 @@ class OnDeviceEngine(private val appContext: Context) {
             val conversation =
                 obtainConversation(current, cleanHistory, system, wantTools, tools, sampler)
             val raw = StringBuilder()
+            val messageStream = ModelMessageStream()
 
             // Faz 12A: görsel varsa mesaj çok parçalı gider. Sıra bilinçli —
             // görsel önce, metin sonra: model kartlarındaki örnek de böyle ve
@@ -236,10 +237,8 @@ class OnDeviceEngine(private val appContext: Context) {
             val callback = object : MessageCallback {
                     override fun onMessage(message: Message) {
                         if (cancelled) return
-                        // 0.13.1 API: metin, Message.contents içindeki Content.Text parçalarındadır.
-                        val text = message.contents.contents
-                            .filterIsInstance<Content.Text>()
-                            .joinToString(separator = "") { it.text }
+                        // Thought-only chunks are activity too: keep the UI and watchdog current.
+                        val text = messageStream.append(message)
                         if (text.isNotEmpty()) {
                             raw.append(text)
                             cb.onToken(text)

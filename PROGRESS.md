@@ -1,9 +1,109 @@
 # NOVA — Durum & Sonraki Adımlar
 
 > Bu dosya "nereden devam edeceğiz"i tutar. Her oturum sonunda güncellenir.
-> **Son güncelleme:** 19 Temmuz 2026.
+> **Son güncelleme:** 4 Ekim 2026.
 
 ## Oturum Hafızası / Handoff
+
+### Model penceresi, güncel katalog ve temalar — 4 Ekim 2026
+
+Model listesi kompakt satırlara indirildi; özet, cihaz uygunluğu, lisans ve
+indirme/seçme/doğrulama/silme işlemleri kaydırılabilir açılır pencerede.
+Pencere güncel durumdan besleniyor, kapatılınca indirme sürüyor. Basit modda
+model ayarları açılır bölümde. Cam vurgular ve tema önizlemeleri güçlendirildi;
+tema değişiminde 240 ms renk geçişi var, sürekli efekt eklenmedi.
+
+3 Ekim kesimiyle doğrulanan dört paket: Qwen3.5 4B int4/int8, Granite 4.2 3B
+int4 ve LFM2.5 2.6B int4. Toplam 22 paket; 12B/14B dosyaları tekrar doğrulandı.
+Motor 0.17.1, Kotlin 2.3.21. Qwen3.5 4B Otomatik modda CPU kullanıyor;
+ayrı thought kanalı akışa ve watchdog'a aktarılıyor. Varsayılan model ID ile sabit.
+
+Doğrulama: 461 JVM testi, 34 ilgili Android emülatör testi, 240 Gateway + 22 web
++ 34 Node smoke testi, 7 Playwright testi geçti. Debug APK/test APK ve web üretim
+derlemesi başarılı; Android lint başarılı. İlk emulator koşusu sistem çökmesiyle
+kesildi; son APK ile 34/34 tamamlandı. Kaynakta 137 enstrümanlı test var, tamamı
+bu turda koşulmadı. Fiziksel ARM64 model çıkarımı ve performansı henüz ölçülmedi.
+Kaynaklar ve sınırlar: [Ekim model kaydı](docs/MODEL-KATALOG-EKIM-2026.md).
+Premium canlı entegrasyonu hâlâ aşağıdaki harici kurulumları bekliyor.
+
+### Telefon cam arayüzü — 3 Ekim 2026
+
+Telefon aşamasından sonra Kontrol, Sohbet ve Modeller sadeleştirildi. Basit modda
+tek kurulum çağrısı, açılır çalışma biçimi, kısa model kataloğu ve yalnız ilgili
+PC panelleri var. Kurulu/yarım/indirilen/hatalı modeller ile gerçek işler korunur.
+Mevcut tema seçimleriyle çalışan cam yüzeyler, sabit ışık alanları, kısa seçim/odak
+geçişleri ve kenarlardan ayrılmış alt gezinme eklendi. Sürekli blur/animasyon yok.
+Küçük metin kontrastı ve satır aralığı iyileşti. Büyük yazıda sohbet kontrolleri
+satır kırıyor; klavye yerleşimi kabukta yönetiliyor, yatay yazarken üst kontroller
+çekiliyor. Önerilen model indirmesinin duraklatma/hata satırını örtmesi düzeltildi.
+
+Doğrulama: 455 JVM, 61 farklı ilgili emülatör testi, 22 web testi başarılı;
+Android/web derlemesi ve lint (0 hata) geçti. Android 16 emülatöründe gerçek ekran
+görüntüleri alındı; kaynak, karar ve kanıtlar [arayüz kaydında](docs/TELEFON-CAM-ARAYUZ.md).
+Toplam 133 enstrümanlı testin tamamı çalıştırılmadı; fiziksel ARM64 performansı
+ölçülmedi. Premium canlı entegrasyonu aşağıdaki harici kurulumları bekliyor.
+
+### Telefon önceliği ve Premium kararı — 3 Ekim 2026
+
+Kullanıcı web istemcisi ve uzak PC/GPU kullanımının Premium olmasını, ilk etapta
+telefonda çalışan özelliklerin iyileştirilmesini istedi. Abonelik kanalı **Google
+Play**, erişim eşlemesi **aynı NOVA hesabıyla Android + web + uzak GPU** olarak
+seçildi. Telefonun kendi CPU/GPU'sunda çalışma abonelik sorgusuna bağlanmayacak.
+
+Telefon düzeltmeleri: bilinmeyen yürütme ayarı artık yerel öncelikli; hassas hibrit
+istem yerel model yokken otomatik PC'ye gönderilmiyor; politika değişiminde bekleyen
+devir izni temizleniyor ve onay anında güncel politika/bağlantı denetleniyor. Kapalı
+İşler sekmesine yönlendiren düğme yerine sohbet başlangıcı var. Kurulu fakat
+doğrulanmamış model hazırlık kartından doğrulanabiliyor; yerel sohbet başlangıcı
+Çevrimdışı politikasını seçiyor.
+
+**Premium henüz uygulanmadı/etkinleştirilmedi.** Mevcut Stripe kullanım bildirimi
+aktif abonelik doğrulaması değil. Play ürün kimliği, merkezi üyelik API'si ve
+sunucuda Google Play satın alma doğrulaması gereklidir. Ürün sınırı, önerilen
+entegrasyon ve bağımlılıklar: [telefon/Premium kaydı](docs/TELEFON-ONCELIKLI-PREMIUM.md).
+
+Doğrulama: Android JVM **455/455**, `lintDebug` sıfır hata, debug APK ve test APK
+derlemesi başarılı. İlgili emülatör testleri **46/46** geçti: kontrol hedefi 18,
+model/sohbet/açılış 26, gerçek ViewModel yönlendirmesi 2. İki gizlilik regresyonu
+eski davranışta başarısız, düzeltmeyle başarılı oldu. Bu tüm enstrümanlı süitin
+veya fiziksel ARM64 çıkarımının doğrulandığı anlamına gelmez. `docs-check` geçti.
+
+### Yayın hedefi kararı — Google Play
+
+Kullanıcı Google Play odaklı ilerlemeyi seçti; Firebase bağlantısını daha önce
+yaptığını belirtti. Mevcut Android ağacında Firebase config/SDK bulunmadı;
+konsoldaki proje eşleşmesi teyit bekliyor. Öncelik imzalı AAB, fiziksel release
+testi, mağaza/gizlilik beyanları ve Play dahili test kanalıdır. Yerel öncelikli
+ilk sürümde uzak sunucu yayını zorunlu bağımlılık yapılmayacak.
+[Güncel Play kontrol listesi](docs/play/YAYIN-KONTROL-LISTESI.md).
+
+### Güncel yayın hazırlığı — 25 Eylül 2026
+
+Çalışan gateway güvenli bind imajına geçirildi; yerel Ollama bağlantısı düzeltildi.
+Gerçek modelle kimlikli sohbet ve SSE akışı geçti. Gateway 240, web 22,
+yardımcı testler 34, web E2E 7/7 geçti. Modal klavye odağı ve production auth
+kontrolü düzeltildi. Yerel web/APK/imzasız AAB adayları `releases/2026-09-25/`
+altında SHA-256 değerleriyle hazırlandı.
+Android JVM 453/453; lint sıfır hata. Tam UI koşusu 117/122 verdi; üç UI
+beklentisi düzeltildi ve ilgili gruplar 15/15 geçti. İki canlı Android testi
+bağlantı parametreleri olmadan çalışmadı; tam süit yeşil diye sunulmamalı.
+**Genel yayın hâlâ engelli:** Postgres parolası ve CSP preflight hataları,
+Android upload imzası/fiziksel cihaz doğrulaması, Keycloak/worker/RAG E2E açık.
+Android instrumentation sonucu ve tüm kanıtlar:
+[güncel yayın hazırlık kaydı](docs/RELEASE-READINESS-2026-09-25.md).
+
+### Önceki yayın hazırlığı — 23 Eylül 2026
+
+Gateway güvenli bind, Android NSD lint ve mobil composer örtüşmesi düzeltildi;
+erişilebilir alan adları ve CI regresyon kapıları eklendi. Gateway 239, web 22,
+yardımcı/smoke 34, worker 35, Android JVM 453 test geçti; web E2E 6/6.
+Debug/release lint sıfır hata (24 uyarı, 5 ipucu), APK/AAB derlemeleri başarılı.
+**Henüz yayına hazır değil:** mevcut Ollama köprüsü bağlantıyı kapatıyor ve emülatör
+başarılı uygulama açılışından sonra ADB'den kayboluyor. Tam E2E, fiziksel cihaz,
+mağaza imzası ve performans doğrulaması açık.
+Kanıtlar, değişiklikler ve devam sırası: [güncel yayın hazırlık kaydı](docs/RELEASE-READINESS-2026-09-23.md).
+
+Önceki oturumların aşağıdaki sonuçları tarihsel kayıttır; güncel yayın onayı değildir.
 
 Bu dosya yeni oturuma başlarken ilk okunacak hafıza dosyasıdır. Her çalışma sonunda
 bu bölüm veya "SIRADAKİ ADIM" bölümü güncel bırakılmalı.
