@@ -15,21 +15,41 @@ spec:
       labels:
         app: nova-gateway
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       # Idempotent migrations run before the app container starts. Safe to run
       # per-pod: migrate.mjs tracks applied files in schema_migrations.
       initContainers:
         - name: migrate
-          image: ghcr.io/OWNER/nova-gateway:latest
+          # Replace with the immutable digest of your published release.
+          image: ghcr.io/OWNER/nova-gateway@sha256:REPLACE_WITH_RELEASE_DIGEST
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           command: ["node", "migrate.mjs"]
           envFrom:
             - secretRef:
                 name: nova-secrets
       containers:
         - name: gateway
-          image: ghcr.io/OWNER/nova-gateway:latest
+          image: ghcr.io/OWNER/nova-gateway@sha256:REPLACE_WITH_RELEASE_DIGEST
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           ports:
             - containerPort: 8088
           envFrom:
@@ -56,3 +76,7 @@ spec:
             limits:
               cpu: "1"
               memory: "512Mi"
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

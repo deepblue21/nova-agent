@@ -35,7 +35,7 @@ knowledge.post("/v1/knowledge", async (req, res) => {
   } catch (e) {
     if (e.status) return res.status(e.status).json({ error: e.message || "belge işlenemedi" });
     req.log?.error?.({ err: e.message }, "knowledge ingest failed");
-    res.status(500).json({ error: "yükleme başarısız: " + (e.message || e) });
+    res.status(500).json({ error: "Belge yüklenemedi. Lütfen yeniden deneyin." });
   }
 });
 

@@ -94,6 +94,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     private val client = NovaClient()
     private val connectionClient = GatewayConnectionClient()
     private val connectionProbes = LatestConnectionProbe()
+    private val gatewayStreams = LatestConnectionProbe()
     private val speech = SpeechManager(app)
     private val main = Handler(Looper.getMainLooper())
     private fun onMain(block: () -> Unit) { main.post(block) }
@@ -625,6 +626,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun stop() {
+        gatewayStreams.invalidate()
         // M1: iptali istemci işaretler, yoksa "Gateway hatası (200)" yazılıyordu.
         client.cancelStream(es); es = null
         // Faz 11B: devir dinlemesi de burada biter. Not: akışı kesmek PC'deki
@@ -890,6 +892,8 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
         speakWhenDone: Boolean,
         modelOverride: String? = null,
     ) {
+        val generation = gatewayStreams.start()
+        fun onCurrentMain(block: () -> Unit) = onMain { gatewayStreams.complete(generation, block) }
         sb.clear()
         thoughtBuf.clear()
         messages.add(ChatMessage("assistant", "", streaming = true))
@@ -909,8 +913,8 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
             // araç izi kartında görür.
             agent = agenticForModel(model),
             cb = object : NovaClient.Callbacks {
-                override fun onRoute(route: String) = onMain { updateLast { it.copy(route = route) } }
-                override fun onToken(text: String) = onMain {
+                override fun onRoute(route: String) = onCurrentMain { updateLast { it.copy(route = route) } }
+                override fun onToken(text: String) = onCurrentMain {
                     sb.append(text)
                     // Faz 11B: ilk parça geldiğinde "gönderildi" → "yanıt yazıyor".
                     // Kullanıcının "takıldı mı?" sorusunun cevabı bu geçiş.
@@ -918,14 +922,15 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
                     val (thoughts, content) = renderStreamed()
                     updateLast { it.copy(content = content, thoughts = thoughts) }
                 }
-                override fun onThought(text: String) = onMain {
+                override fun onThought(text: String) = onCurrentMain {
                     thoughtBuf.append(text)
                     val (thoughts, _) = renderStreamed()
                     updateLast { it.copy(thoughts = thoughts) }
                 }
-                override fun onTool(step: ToolStep) = onMain { mergeToolStep(step) }
-                override fun onDone() = onMain { finish(speakWhenDone) }
-                override fun onError(message: String) = onMain {
+                override fun onTool(step: ToolStep) = onCurrentMain { mergeToolStep(step) }
+                override fun onDone() = onCurrentMain { gatewayStreams.invalidate(); finish(speakWhenDone) }
+                override fun onError(message: String) = onCurrentMain {
+                    gatewayStreams.invalidate()
                     val (thoughts, partial) = renderStreamed()
                     val body = if (partial.isBlank()) "⚠️ $message" else "$partial\n\n⚠️ $message"
                     updateLast { it.copy(content = body, thoughts = thoughts, streaming = false) }
@@ -1074,6 +1079,7 @@ class NovaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        gatewayStreams.invalidate()
         // V2: yıkım anında son hâli yaz. Hiçbir yaşam döngüsü kancası
         // kaydetmiyordu; kullanıcı uygulamayı kapatınca kaydedilmemiş sohbet
         // yok oluyordu.

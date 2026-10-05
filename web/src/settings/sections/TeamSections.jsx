@@ -10,10 +10,16 @@ const editable = (wss) => wss.filter((w) => w.role === "admin" || w.role === "ed
 
 export function WorkspacesSection({
   wss, wsName, onWsName, onCreate, wsOpen, wsMembers, onToggleMembers,
-  wsInvite, onWsInvite, onInvite, onChangeRole, onRemoveMember,
+  wsInvite, onWsInvite, onInvite, onCancelInvite, onChangeRole, onRemoveMember,
+  invitations = [], onRespondInvitation,
 }) {
   return (
     <Accordion icon={Users} title="Çalışma Alanları" desc={`Takım · RBAC · ${wss.length} alan`}>
+      {invitations.map(invite => <div className="list-row" key={invite.id}>
+        <span className="lr-name">{invite.name} · {invite.role} daveti</span>
+        <button className="btn sm primary" onClick={() => onRespondInvitation(invite.id, true)}>Kabul et</button>
+        <button className="btn sm" onClick={() => onRespondInvitation(invite.id, false)}>Reddet</button>
+      </div>)}
       <div className="hint" style={{ marginBottom: 9 }}>
         Çalışma alanı oluştur ve üyeleri rolüyle yönet: <b>admin</b> (tam yetki) ·
         <b> editör</b> (paylaşılan içerik yaz) · <b>izleyici</b> (sadece görüntüle).
@@ -90,6 +96,7 @@ export function WorkspacesSection({
                       <button className="btn sm primary" onClick={() => onInvite(w.id)} disabled={!wsInvite.email.trim()}>
                         Davet
                       </button>
+                      <button className="btn sm" onClick={() => onCancelInvite(w.id)} disabled={!wsInvite.email.trim()}>Daveti iptal et</button>
                     </div>
                   )}
                 </div>
@@ -107,7 +114,7 @@ export function ScheduledSection({ tasks, wss, form, onForm, busy, onCreate, onT
     <Accordion icon={Icons.team} title="Zamanlanmış Görevler" desc={`Otomatik ajan · ${tasks.length} görev`}>
       <div className="hint" style={{ marginBottom: 9 }}>
         Tekrarlayan ajan görevleri tanımla (ör. her sabah haber özeti). Sunucu zamanı gelince ajanı
-        çalıştırır; son sonuç altta görünür. Gateway'de <b>SCHEDULER_ENABLED=1</b> gerekir.
+        çalıştırır; son sonuç altta görünür. Günlük saatlerde seçilen saat dilimi kullanılır; eski, saat dilimi olmayan günlük görevler UTC'dir.
       </div>
 
       <input

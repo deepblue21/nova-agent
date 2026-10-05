@@ -9,6 +9,8 @@
 //   (istemci pasif gösterir — "desteklenmeyeni taklit etme" ilkesi).
 // - Saf fonksiyonlar ayrıştırıldı: ağ olmadan test edilebilir.
 
+import { hasPrice } from "./pricing.mjs";
+
 /** Sağlayıcı anahtarı yokken bile gösterilecek küratörlü bulut modelleri. */
 export const CLOUD_MODELS = {
   anthropic: [
@@ -198,6 +200,7 @@ export function buildCatalog({
   allow = [],
   ollamaError = null,
   openclaw = true,
+  env = process.env,
 } = {}) {
   const data = [];
 
@@ -239,14 +242,15 @@ export function buildCatalog({
   for (const [provider, models] of Object.entries(CLOUD_MODELS)) {
     const hasKey = Boolean(keys[provider]);
     for (const m of models) {
+      const priced = hasPrice(`${provider}/${m.id}`, env);
       data.push({
         id: `${provider}/${m.id}`,
         name: m.name,
         desc: m.desc,
         provider,
         group: GROUPS.cloud,
-        available: hasKey,
-        reason: hasKey ? undefined : `${PROVIDER_ENV[provider]} tanımlı değil`,
+        available: hasKey && priced,
+        reason: !hasKey ? `${PROVIDER_ENV[provider]} tanımlı değil` : !priced ? "Model fiyatı yapılandırılmamış" : undefined,
         // Üç bulut sağlayıcının da güncel modelleri araç çağırmayı destekler.
         tools: true,
         toolsSource: "provider",

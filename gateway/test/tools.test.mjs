@@ -89,7 +89,7 @@ test("weather_forecast: missing numeric fields do not produce NaN output", async
     },
   });
   try {
-    const r = await runTool("weather_forecast", { location: "Manisa, Türkiye", date: "2099-01-01" });
+    const r = await runTool("weather_forecast", { location: "Manisa, Türkiye", date: "tomorrow" });
     assert.equal(r.ok, true);
     assert.match(r.text, /Manisa/);
     assert.match(r.text, /2026-06-17/);

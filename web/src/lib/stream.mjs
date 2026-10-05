@@ -38,16 +38,7 @@ export const ndjsonHandler = (onObj) => (line) => {
   try { onObj(JSON.parse(l)); } catch (e) {}
 };
 
-/** Canlı veri gerektiren istem mi? (hava/haber/web araması → gateway araçları) */
-export function needsLiveTool(text) {
-  const s = String(text || "");
-  return [
-    /hava\s*durum|hava\s*nas[ıi]l|s[ıi]cakl[ıi]k|ya[ğg]mur|ya[ğg][ıi]ş|ka[çc]\s*derece|rüzg[âa]r/i,
-    /haber|son\s*dakika|g[üu]ndem|g[üu]ncel|bug[üu]n|yar[ıi]n|şu\s*an|şimdi|en\s*son|bu\s*hafta/i,
-    /internette|internet(?:ten)?|web(?:'|’)?de|web\s*arama|ara[şs]t[ıi]r|kaynakl[ıi]|kaynak\s+göster|link(?:li)?/i,
-    /\b(weather|forecast|temperature|news|today|tomorrow|current|latest|web search|search the web|research online|sources?|citations?)\b/i,
-  ].some((re) => re.test(s));
-}
+export { needsLiveData as needsLiveTool } from './live_intent.mjs';
 
 /* ---- çoklu-medya mesaj adaptörleri (m.images: data URL dizisi) ---- */
 
@@ -157,18 +148,7 @@ export async function streamChat({
       }));
       return;
     }
-    // anahtarsız yerleşik köprü (önizleme ortamı)
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST", headers: H, signal,
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514", max_tokens: 1024, system,
-        messages: history.map(anthroMsg),
-      }),
-    });
-    const data = await res.json();
-    const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
-    onToken(text);
-    return;
+    throw new Error('Anthropic API anahtarı gerekli. Ayarlar’dan bir anahtar girin veya Gateway kullanın.');
   }
 
   // openai uyumlu (openai, gateway, openrouter, ollama /v1 …)

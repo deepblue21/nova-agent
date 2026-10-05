@@ -69,7 +69,15 @@ export async function runTeam({ task, subtasks, runOne, synthesize, concurrency 
     return out;
   });
   const sources = [];
-  for (const r of results) for (const s of (r.sources || [])) sources.push(s);
+  for (const r of results) {
+    const numbers = new Map();
+    r.sources = r.sources.map(s => {
+      const n = sources.length + 1;
+      numbers.set(String(s.n), n);
+      const source = {...s, n}; sources.push(source); return source;
+    });
+    r.content = r.content.replace(/\[(\d+)\]/g, (label, n) => numbers.has(n) ? '[' + numbers.get(n) + ']' : label);
+  }
   if (typeof onSynthesize === "function") onSynthesize();
   const synthesis = synthesize ? await synthesize(buildSynthesisPrompt(task, results), results) : null;
   return { results, sources, synthesis };

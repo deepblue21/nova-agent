@@ -23,7 +23,7 @@ import {
   convFromSharePayload, readSharePayloadFromHash, clearShareHash,
 } from "../lib/share.mjs";
 import {
-  OIDC, pkcePair, authorizeUrl, exchangeCode, refresh as refreshTokens, sessionFromTokens,
+  configureOidc, loadOidc, pkcePair, authorizeUrl, exchangeCode, refresh as refreshTokens, sessionFromTokens,
 } from "../lib/oidc.mjs";
 import * as api from "../lib/gateway.mjs";
 import {
@@ -129,6 +129,7 @@ export default function NovaAgent() {
   const [wsName, setWsName] = useState("");
   const [wsOpen, setWsOpen] = useState(null);
   const [wsMembers, setWsMembers] = useState([]);
+  const [wsInvitations, setWsInvitations] = useState([]);
   const [wsInvite, setWsInvite] = useState({ email: "", role: "viewer" });
 
   const [schedTasks, setSchedTasks] = useState([]);
@@ -239,7 +240,6 @@ export default function NovaAgent() {
   const provReady = useCallback((id) => {
     const p = providers[id];
     if (id === "ollama" || id === "gateway") return !!p.baseUrl;
-    if (id === "anthropic") return true;
     return !!p.apiKey;
   }, [providers]);
   const ready = provReady(curItem.provider);
@@ -345,6 +345,7 @@ export default function NovaAgent() {
   ]);
 
   /* ------------------------------- OIDC ---------------------------------- */
+  const oidcCallbackHandled = useRef(false);
 
   const applyTokens = useCallback((t) => {
     const a = sessionFromTokens(t);
@@ -354,11 +355,14 @@ export default function NovaAgent() {
   }, []);
 
   const loginOidc = useCallback(async () => {
-    const { verifier, challenge } = await pkcePair();
-    const state = newId();
-    try { sessionStorage.setItem("nova:pkce", JSON.stringify({ verifier, state })); } catch (e) {}
-    location.assign(authorizeUrl({ challenge, state }));
-  }, []);
+    try {
+      const config = await loadOidc(gw.baseUrl);
+      const { verifier, challenge } = await pkcePair();
+      const state = newId();
+      sessionStorage.setItem("nova:pkce", JSON.stringify({ verifier, state, config, expiresAt: Date.now() + 600000 }));
+      location.assign(authorizeUrl({ challenge, state }));
+    } catch (e) { alert('Giriş başlatılamadı: ' + e.message); }
+  }, [gw.baseUrl]);
 
   const logoutOidc = useCallback(() => {
     setAuth(null);
@@ -369,13 +373,24 @@ export default function NovaAgent() {
   useEffect(() => {
     (async () => {
       const qs = new URLSearchParams(location.search);
+      if (qs.has('code') || qs.has('error')) {
+        if (oidcCallbackHandled.current) return;
+        oidcCallbackHandled.current = true;
+      }
+      if (qs.get('error')) {
+        sessionStorage.removeItem('nova:pkce');
+        window.history.replaceState({}, '', location.pathname);
+        alert('Hesapla giriş tamamlanamadı. Yeniden deneyin.');
+        return;
+      }
       if (qs.get("code")) {
         try {
           const pk = JSON.parse(sessionStorage.getItem("nova:pkce") || "{}");
-          if (pk.state && qs.get("state") === pk.state) {
-            applyTokens(await exchangeCode(qs.get("code"), pk.verifier));
-          }
-        } catch (e) {}
+          sessionStorage.removeItem('nova:pkce');
+          if (!pk.state || qs.get('state') !== pk.state || !(pk.expiresAt > Date.now())) throw new Error('Giriş isteği geçersiz veya süresi dolmuş.');
+          configureOidc(pk.config);
+          applyTokens(await exchangeCode(qs.get("code"), pk.verifier));
+        } catch (e) { alert('Giriş tamamlanamadı: ' + e.message); }
         try { window.history.replaceState({}, "", location.pathname); } catch (e) {}
         return;
       }
@@ -452,7 +467,10 @@ export default function NovaAgent() {
 
   const loadDocs = useCallback(async () => { if (signedIn) setDocs(await api.listDocs(gw)); }, [signedIn, gw.apiKey, gw.baseUrl]);   // eslint-disable-line react-hooks/exhaustive-deps
   const loadMems = useCallback(async () => { if (signedIn) setMems(await api.listMems(gw)); }, [signedIn, gw.apiKey, gw.baseUrl]);   // eslint-disable-line react-hooks/exhaustive-deps
-  const loadWss = useCallback(async () => { if (signedIn) setWss(await api.listWorkspaces(gw)); }, [signedIn, gw.apiKey, gw.baseUrl]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const loadWss = useCallback(async () => { if (signedIn) {
+    const [spaces, invitations] = await Promise.all([api.listWorkspaces(gw), api.listInvitations(gw)]);
+    setWss(spaces); setWsInvitations(invitations);
+  } }, [signedIn, gw.apiKey, gw.baseUrl]);   // eslint-disable-line react-hooks/exhaustive-deps
   const loadSched = useCallback(async () => { if (signedIn) setSchedTasks(await api.listScheduled(gw)); }, [signedIn, gw.apiKey, gw.baseUrl]);   // eslint-disable-line react-hooks/exhaustive-deps
   const loadRuns = useCallback(async () => { if (signedIn) setAgentRuns(await api.listAgentRuns(gw)); }, [signedIn, gw.apiKey, gw.baseUrl]);   // eslint-disable-line react-hooks/exhaustive-deps
   const loadMcp = useCallback(async () => {
@@ -555,6 +573,11 @@ export default function NovaAgent() {
   }
 
   /* ---------------------------- workspaces ------------------------------- */
+  async function respondInvitation(id, accept) {
+    const r = await api.respondToInvitation(gw, id, accept);
+    if (r.ok) { await loadWss(); await Promise.all([loadDocs(), loadMems(), loadSched()]); }
+    else alert(r.error || "Davet yanıtı kaydedilemedi.");
+  }
 
   async function createWs() {
     const name = wsName.trim();
@@ -1289,7 +1312,13 @@ export default function NovaAgent() {
           evalRunning={evalRunning} evalResults={evalResults} onRunEval={runEval}
           wsName={wsName} onWsName={setWsName} onCreateWs={createWs}
           wsOpen={wsOpen} wsMembers={wsMembers} onToggleMembers={toggleMembers}
+          wsInvitations={wsInvitations} onRespondInvitation={respondInvitation}
           wsInvite={wsInvite} onWsInvite={setWsInvite} onInviteMember={inviteMember}
+          onCancelInvite={async id => {
+            const r = await api.cancelInvitation(gw, id, wsInvite.email.trim());
+            if (r.ok) { setWsInvite({email:'', role:'viewer'}); alert('Bekleyen davet varsa iptal edildi.'); }
+            else alert(r.error || 'Davet iptal edilemedi.');
+          }}
           onChangeRole={changeRole} onRemoveMember={removeMember}
           schedTasks={schedTasks} schedForm={schedForm} onSchedForm={setSchedForm}
           schedBusy={schedBusy} onCreateSched={createSched}

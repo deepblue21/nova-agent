@@ -1,8 +1,10 @@
 // Bootstrap the first user: create user + API key + monthly quota in one shot.
 //   node scripts/bootstrap-user.mjs <email> [limitUSD]
 // Prints the full API key ONCE (only its hash is stored).
+import "../lib/env.mjs";
 import { q, pool } from "../lib/db.mjs";
 import { newApiKey } from "../lib/keys.mjs";
+import { setQuota } from "../lib/usage.mjs";
 
 const [email, usd = "5"] = process.argv.slice(2);
 if (!email) {
@@ -19,11 +21,8 @@ async function main() {
     [u.id, k.prefix, k.token_hash]);
 
   const limitMicros = Math.round(parseFloat(usd) * 1_000_000); // $1 = 1e6 micro-dollars
-  await q(
-    `INSERT INTO quotas (subject_id, period, limit_micros, resets_at)
-       VALUES ($1, 'month', $2, date_trunc('month', now()) + interval '1 month')
-     ON CONFLICT (subject_id) DO UPDATE SET limit_micros = EXCLUDED.limit_micros`,
-    [u.id, limitMicros]);
+  if (!Number.isSafeInteger(limitMicros) || limitMicros < 0) throw new Error("invalid quota");
+  await setQuota(u.id, "month", limitMicros);
 
   console.log("user id :", u.id);
   console.log("email   :", email);

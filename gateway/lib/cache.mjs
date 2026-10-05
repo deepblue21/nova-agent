@@ -24,11 +24,16 @@ export const rlBucket = (subject, windowMs, now = Date.now()) =>
   `rl:${subject}:${Math.floor(now / windowMs)}`;
 
 // Atomic INCR; set TTL on the first hit of a window. Works across N gateway instances.
-export async function rateLimit(subject, max, windowMs) {
+export const RATE_SCRIPT = `
+local n = redis.call('INCR', KEYS[1])
+if redis.call('PTTL', KEYS[1]) < 0 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
+return {n, redis.call('PTTL', KEYS[1])}
+`;
+export async function rateLimit(subject, max, windowMs, { client, now = Date.now() } = {}) {
   if (max <= 0) return { allowed: true, count: 0, limit: max };
-  const redis = getRedis();
-  const key = rlBucket(subject, windowMs);
-  const n = await redis.incr(key);
-  if (n === 1) await redis.pexpire(key, windowMs);
-  return { allowed: n <= max, count: n, limit: max, retryAfterMs: windowMs };
+  const redis = client || getRedis();
+  const key = rlBucket(subject, windowMs, now);
+  const remaining = Math.max(1, windowMs - (now % windowMs));
+  const [n, ttl] = await redis.eval(RATE_SCRIPT, 1, key, remaining);
+  return { allowed: n <= max, count: n, limit: max, retryAfterMs: Math.max(1, ttl) };
 }

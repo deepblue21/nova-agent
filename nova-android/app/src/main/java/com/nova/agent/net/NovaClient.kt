@@ -20,13 +20,13 @@ import java.util.concurrent.TimeUnit
  * NOVA Gateway istemcisi. /v1/chat/completions ucuna OpenAI-uyumlu istek atar,
  * SSE ile token token yanıt akıtır. Anahtarlar gateway'de; burada sadece gateway token'ı kullanılır.
  */
-class NovaClient {
+class NovaClient(private val sourceFactory: EventSource.Factory? = null, private val streamTimeoutMs: Long = 360_000) {
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.SECONDS)   // streaming: zaman aşımı yok
-        .callTimeout(0, TimeUnit.SECONDS)
-        .build()
+        .readTimeout(180, TimeUnit.SECONDS)
+        .callTimeout(360, TimeUnit.SECONDS)
+        .build().withGatewayPolicy()
 
     interface Callbacks {
         fun onRoute(route: String) {}
@@ -81,6 +81,8 @@ class NovaClient {
         /** Sunucu tarafı sohbet geçmişi; null ise yalnız yerelde tutulur. */
         conversationId: String? = null,
     ): EventSource? {
+        val generation = streamGeneration.incrementAndGet()
+        fun superseded() = generation != streamGeneration.get()
         val messages = JSONArray()
         for (m in history) {
             messages.put(JSONObject().put("role", m.role).put("content", m.content))
@@ -110,15 +112,14 @@ class NovaClient {
         if (token.isNotBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
         val request = reqBuilder.build()
 
-        val generation = streamGeneration.get()
-        fun superseded() = generation != streamGeneration.get()
-
         val listener = object : EventSourceListener() {
             override fun onOpen(eventSource: EventSource, response: Response) {
+                if (superseded()) return
                 response.header("x-nova-route")?.let { cb.onRoute(it) }
             }
 
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
+                if (superseded()) return
                 val delta = parseStreamDelta(data) ?: return
                 delta.thought?.let { cb.onThought(it) }
                 delta.tool?.let { cb.onTool(it) }
@@ -150,7 +151,7 @@ class NovaClient {
             }
         }
 
-        return EventSources.createFactory(client).newEventSource(request, listener)
+        return BoundedEventSourceFactory(sourceFactory ?: EventSources.createFactory(client), streamTimeoutMs).newEventSource(request, listener)
     }
 
     /** Tek bir SSE deltasından çıkarılabilen parçalar. */

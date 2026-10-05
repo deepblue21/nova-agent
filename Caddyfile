@@ -12,9 +12,8 @@
 # local/dev provider-direct use working; production should set it to "'self'" or
 # exact trusted origins only.
 
-# Serve BOTH https (internal CA) and plain http for local testing, so the
-# browser doesn't hit a self-signed-cert interstitial on http://localhost.
-{$DOMAIN:localhost}, http://{$DOMAIN:localhost} {
+# Caddy owns the HTTP -> HTTPS redirect; never attach application routes to HTTP.
+{$DOMAIN:localhost} {
 	encode gzip
 
 	@api path /health /v1/* /stt /tts

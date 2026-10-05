@@ -20,12 +20,13 @@ import okhttp3.sse.EventSources
 import org.json.JSONObject
 
 class MobileTaskClient(
-    private val client: OkHttpClient = OkHttpClient.Builder()
+    client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.SECONDS)
-        .callTimeout(0, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .callTimeout(90, TimeUnit.SECONDS)
         .build(),
 ) {
+    private val client = client.withGatewayPolicy()
 
     interface EventCallbacks {
         fun onEvent(event: MobileTaskEvent)
@@ -87,7 +88,7 @@ class MobileTaskClient(
         val builder = request(baseUrl, token, "/mobile/tasks/$taskId/events").get()
         if (!lastEventId.isNullOrBlank()) builder.header("Last-Event-ID", lastEventId)
 
-        return EventSources.createFactory(client).newEventSource(
+        return BoundedEventSourceFactory(EventSources.createFactory(client)).newEventSource(
             builder.build(),
             object : EventSourceListener() {
                 override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
@@ -132,7 +133,7 @@ class MobileTaskClient(
             }
 
             override fun onResponse(call: Call, response: Response) {
-                response.use { result ->
+                try { response.use { result ->
                     val responseBody = result.body?.string().orEmpty()
                     if (!result.isSuccessful) {
                         val message = if (taskCreation) {
@@ -149,6 +150,8 @@ class MobileTaskClient(
                     } else {
                         callback(Result.success(task))
                     }
+                } } catch (e: IOException) {
+                    callback(Result.failure(IOException("Görev yanıtı alınamadı", e)))
                 }
             }
         })

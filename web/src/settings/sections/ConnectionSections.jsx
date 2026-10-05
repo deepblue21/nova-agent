@@ -41,8 +41,8 @@ export function ProvidersSection({
                 value={p.apiKey}
                 onChange={(v) => onProv(id, { apiKey: v })}
                 hint={id === "gateway"
-                  ? "Aynı anahtar Android uygulamasındaki “Erişim belirteci” alanına girilir."
-                  : ""}
+                  ? "Belirteç yalnız bu sayfa açıkken tutulur. Yenilediğinde tekrar giriş yap veya anahtarı gir."
+                  : "Anahtar yalnız bu sayfa açıkken tutulur; kalıcı kayıt için Gateway kullan."}
               />
             )}
 

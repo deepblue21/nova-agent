@@ -65,12 +65,13 @@ sealed interface GatewayConnectionResult {
 }
 
 class GatewayConnectionClient(
-    private val client: OkHttpClient = OkHttpClient.Builder()
+    client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(5, TimeUnit.SECONDS)
         .callTimeout(8, TimeUnit.SECONDS)
         .build(),
 ) {
+    private val client = client.withGatewayPolicy()
     fun test(baseUrl: String, token: String, callback: (GatewayConnectionResult) -> Unit): Call? {
         val url = modelsUrl(baseUrl) ?: run { callback(GatewayConnectionResult.InvalidUrl); return null }
         val builder = Request.Builder().url(url).get()

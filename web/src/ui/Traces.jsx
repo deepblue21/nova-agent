@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Brain, Check, ChevronDown, Cloud, Code2, GitBranch, Link2, Waves, Activity } from "lucide-react";
 import { NovaMark } from "./NovaMark.jsx";
 import { THINK_STEPS } from "../lib/constants.mjs";
+import { safeLinkHref } from "../lib/format.mjs";
 
 export function ThinkTrace({ text, live }) {
   const [stage, setStage] = useState(0);
@@ -89,7 +90,7 @@ export function ToolTrace({ tools }) {
                   const label = `${src.n ? "[" + src.n + "] " : ""}${src.title || src.url || "Kaynak"}` +
                     `${src.score ? " · " + Math.round(src.score * 100) + "%" : ""}`;
                   return src.url
-                    ? <a key={si} className="tt-source" href={src.url} target="_blank" rel="noreferrer">{label}</a>
+                    ? (safeLinkHref(src.url) ? <a key={si} className="tt-source" href={safeLinkHref(src.url)} target="_blank" rel="noreferrer">{label}</a> : <span key={si} className="tt-source">{label}</span>)
                     : <span key={si} className="tt-source">{label}</span>;
                 })}
               </div>

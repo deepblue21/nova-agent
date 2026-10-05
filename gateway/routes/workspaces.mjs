@@ -25,6 +25,16 @@ workspaces.get("/v1/workspaces", asyncRoute(async (req, res) => {
   res.json({ data: await store.listForUser(req.principal.userId) });
 }));
 
+workspaces.get("/v1/workspace-invitations", asyncRoute(async (req, res) => {
+  res.json({ data: await store.listInvitations(req.principal.userId) });
+}));
+workspaces.post("/v1/workspace-invitations/:id", asyncRoute(async (req, res) => {
+  if (!UUID_RE.test(req.params.id) || typeof req.body?.accept !== "boolean")
+    return res.status(400).json({ error: "invalid invitation response" });
+  const changed = await store.respondToInvitation(req.params.id, req.principal.userId, req.body.accept);
+  res.status(changed ? 204 : 404).end();
+}));
+
 workspaces.post("/v1/workspaces", asyncRoute(async (req, res) => {
   const name = str((req.body || {}).name, 120);
   if (!name) return res.status(400).json({ error: "name required" });
@@ -43,10 +53,8 @@ workspaces.post("/v1/workspaces/:id/members", asyncRoute(async (req, res) => {
   const role = str(b.role, 20) || "viewer";
   if (!email) return res.status(400).json({ error: "email required" });
   if (!isRole(role)) return res.status(400).json({ error: "invalid role (admin|editor|viewer)" });
-  const userId = await store.findUserByEmail(email);
-  if (!userId) return res.status(404).json({ error: "no user with that email" });
-  await store.setMember(req.params.id, userId, role);
-  res.status(201).json({ user_id: userId, email, role });
+  await store.inviteMember(req.params.id, email, role);
+  res.status(202).json({ status: "invitation_requested" });
 }));
 
 workspaces.patch("/v1/workspaces/:id/members/:userId", asyncRoute(async (req, res) => {
@@ -55,13 +63,22 @@ workspaces.patch("/v1/workspaces/:id/members/:userId", asyncRoute(async (req, re
   if (!isRole(role)) return res.status(400).json({ error: "invalid role" });
   const target = String(req.params.userId || "");
   if (!UUID_RE.test(target)) return res.status(400).json({ error: "invalid user id" });
-  const current = await store.getRole(req.params.id, target);
+  const state = await store.getMemberState(req.params.id, target);
+  const current = state?.role;
   if (!current) return res.status(404).json({ error: "member not found" });
   // never leave the workspace without an admin
-  if (current === "admin" && role !== "admin" && (await store.adminCount(req.params.id)) <= 1)
+  if (state.accepted_at && current === "admin" && role !== "admin" && (await store.adminCount(req.params.id)) <= 1)
     return res.status(409).json({ error: "cannot demote the last admin" });
   await store.setMember(req.params.id, target, role);
   res.json({ user_id: target, role });
+}));
+
+workspaces.delete("/v1/workspaces/:id/invitations", asyncRoute(async (req,res) => {
+  if (!(await require(req,res,"manage"))) return;
+  const email = str(req.body?.email,320);
+  if (!email) return res.status(400).json({error:"email required"});
+  await store.cancelInvitation(req.params.id,email);
+  res.status(204).end(); // no email existence signal
 }));
 
 workspaces.delete("/v1/workspaces/:id/members/:userId", asyncRoute(async (req, res) => {
@@ -71,9 +88,10 @@ workspaces.delete("/v1/workspaces/:id/members/:userId", asyncRoute(async (req, r
   // managers may remove anyone; a member may always remove themselves (leave).
   const role = self ? await requireMember(req, res) : await require(req, res, "manage");
   if (!role) return;
-  const current = await store.getRole(req.params.id, target);
+  const state = await store.getMemberState(req.params.id, target);
+  const current = state?.role;
   if (!current) return res.status(404).json({ error: "member not found" });
-  if (current === "admin" && (await store.adminCount(req.params.id)) <= 1)
+  if (state.accepted_at && current === "admin" && (await store.adminCount(req.params.id)) <= 1)
     return res.status(409).json({ error: "cannot remove the last admin" });
   await store.removeMember(req.params.id, target);
   res.status(204).end();

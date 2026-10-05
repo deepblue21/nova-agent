@@ -119,7 +119,7 @@ export const PROV_META = {
   },
   anthropic: {
     label: "Anthropic", icon: Cloud,
-    hint: "Boş bırakırsan bu önizleme yerleşik bağlantıyı kullanır.",
+    hint: "API anahtarı gerekir. Anahtarları sunucuda tutmak için Gateway önerilir.",
     keyLabel: "x-api-key",
   },
   gemini: {
@@ -154,13 +154,14 @@ export const SUGGESTIONS = [
   { icon: Brain, cat: "Fikir", t: "RSS haber dedup mantığı öner", d: "embedding tabanlı" },
 ];
 
+const SCHEDULE_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 export const SCHEDULE_OPTIONS = [
   { value: "every:30m", label: "Her 30 dakika" },
   { value: "every:1h", label: "Her saat" },
   { value: "every:6h", label: "Her 6 saat" },
   { value: "every:1d", label: "Her gün (24s)" },
-  { value: "daily:09:00", label: "Her gün 09:00" },
-  { value: "daily:18:00", label: "Her gün 18:00" },
+  { value: "daily:09:00@" + SCHEDULE_ZONE, label: "Her gün 09:00 · " + SCHEDULE_ZONE },
+  { value: "daily:18:00@" + SCHEDULE_ZONE, label: "Her gün 18:00 · " + SCHEDULE_ZONE },
 ];
 
 /**

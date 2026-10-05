@@ -1,7 +1,4 @@
-// Kalıcı depo. Sıra: claude.ai artefakt köprüsü (window.storage) → IndexedDB
-// (kendi origin'inde; büyük sohbet geçmişi + data-URL görseller için kota derdi
-// yok) → localStorage → bellek. Bu sıra olmadan her sayfa yenilemesinde API key
-// ve sohbetler sıfırlanıyordu.
+// Conversations/settings persist; provider keys and login tokens stay in memory.
 
 export const STATE_KEY = "nova:state:v1";
 export const AUTH_KEY = "nova:auth:v1";
@@ -42,7 +39,7 @@ const _idb = (() => {
   };
 })();
 
-export const store = {
+const persistent = {
   async get(k) {
     try {
       if (typeof window !== "undefined" && window.storage) {
@@ -80,5 +77,41 @@ export const store = {
       return;
     } catch (e) {}
     _mem[k] = v;
+  },
+};
+
+export function redactStoredSecrets(k, value) {
+  if (k === AUTH_KEY) return '';
+  if (k !== STATE_KEY || !value) return value;
+  try {
+    const state = JSON.parse(value);
+    for (const provider of Object.values(state.settings?.providers || {})) {
+      if (provider && typeof provider === 'object') provider.apiKey = '';
+    }
+    return JSON.stringify(state);
+  } catch { return ''; }
+}
+
+async function scrubLegacyCopies(k) {
+  // All fallback stores may contain old copies; clean each one independently.
+  const clean = async (get, set) => {
+    const value = await get(k);
+    if (value != null) await set(k, redactStoredSecrets(k, value));
+  };
+  await Promise.allSettled([
+    clean(key => _idb.get(key), (key, value) => _idb.set(key, value)),
+    clean(key => localStorage.getItem(key), (key, value) => localStorage.setItem(key, value)),
+    clean(async key => (await window.storage.get(key))?.value, (key, value) => window.storage.set(key, value)),
+  ]);
+}
+
+export const store = {
+  async get(k) {
+    if (k === STATE_KEY || k === AUTH_KEY) await scrubLegacyCopies(k);
+    return k === AUTH_KEY ? (_mem[k] || null) : redactStoredSecrets(k, await persistent.get(k));
+  },
+  async set(k, value) {
+    if (k === AUTH_KEY) { _mem[k] = value; await scrubLegacyCopies(k); return; }
+    await persistent.set(k, redactStoredSecrets(k, value));
   },
 };

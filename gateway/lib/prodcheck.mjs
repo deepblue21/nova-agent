@@ -41,13 +41,12 @@ export function evaluate(env = {}) {
     add("admins", !!env.ADMIN_USER_IDS, "ADMIN_USER_IDS set (at least one admin)", false);
   }
 
-  // When OIDC/JWT auth is configured, JWTs should be audience-restricted to this
-  // app. Without OIDC_AUDIENCE the verifier accepts any token from the issuer —
-  // including one minted for a different client of the same realm. Soft warning:
-  // not every IdP deployment uses audiences, so this is advisory, not fatal.
+  // Runtime JWT verification fails closed without issuer, JWKS and audience.
   if (env.OIDC_ISSUER || env.OIDC_JWKS_URL) {
     add("oidc-audience", !!env.OIDC_AUDIENCE,
-      "OIDC_AUDIENCE set (JWTs restricted to this app's audience)", false);
+      "OIDC_AUDIENCE set (JWTs restricted to this app's audience)");
+    add('oidc-endpoints', /^https:\/\//.test(env.OIDC_ISSUER || '') && !!env.OIDC_JWKS_URL,
+      'public HTTPS OIDC_ISSUER and OIDC_JWKS_URL configured');
   }
 
   // Default/weak infrastructure secrets (only checked when present).

@@ -103,9 +103,10 @@ export function SettingsModal({ onClose, signedIn, ...p }) {
 
           {signedIn && (
             <WorkspacesSection
+              invitations={p.wsInvitations} onRespondInvitation={p.onRespondInvitation}
               wss={p.wss} wsName={p.wsName} onWsName={p.onWsName} onCreate={p.onCreateWs}
               wsOpen={p.wsOpen} wsMembers={p.wsMembers} onToggleMembers={p.onToggleMembers}
-              wsInvite={p.wsInvite} onWsInvite={p.onWsInvite} onInvite={p.onInviteMember}
+              wsInvite={p.wsInvite} onWsInvite={p.onWsInvite} onInvite={p.onInviteMember} onCancelInvite={p.onCancelInvite}
               onChangeRole={p.onChangeRole} onRemoveMember={p.onRemoveMember}
             />
           )}

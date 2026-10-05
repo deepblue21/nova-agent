@@ -48,6 +48,9 @@ keep you from accidentally exposing the gateway to the internet.
 
 ## Quick start
 
+Upgrading an existing installation? Read the [upgrade instructions](./docs/UPGRADING.md)
+for database migrations, workspace invitations, public login and usage limits.
+
 Two paths: **Docker (recommended — full stack)** or **bare-metal (gateway + web only)**.
 
 ### Path A — Docker full stack (Postgres, Redis, Keycloak, SearXNG, MinIO, Grafana, voice)
@@ -294,7 +297,7 @@ Nova_Agent_AI/
 | `gateway/gateway.mjs` | Hardened server: auth, CORS allowlist, rate limit. |
 | `gateway/lib/` | Agent loop, MCP, RAG, memory, RBAC, prodcheck and helpers. |
 | `gateway/routes/` | Knowledge, memory, scheduled tasks, workspaces, agent runs and API routes. |
-| `gateway/migrations/` | SQL migrations `001` through `011`. |
+| `gateway/migrations/` | SQL migrations `001` through `016`. |
 | `gateway/.env.example` | Copy to `.env` and fill in per machine. |
 | `web/` | Browser UI with Vite, React and PWA support. |
 | `web/src/nova-agent.jsx` | Main browser UI component. |

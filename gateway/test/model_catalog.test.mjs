@@ -64,7 +64,8 @@ test("buildCatalog: canlı Ollama modelleri listeye girer ve varsayılan olur", 
 });
 
 test("buildCatalog: anahtarsız bulut modelleri listede ama pasif ve gerekçeli", () => {
-  const cat = buildCatalog({ ollamaModels: [], keys: { openai: "sk-x" }, allow: [] });
+  const cat = buildCatalog({ ollamaModels: [], keys: { openai: "sk-x" }, allow: [],
+    env: { MODEL_PRICES_JSON: JSON.stringify({ "openai/gpt-5.6": [1, 2] }) } });
   const claude = cat.data.find((m) => m.id === "anthropic/claude-opus-4-8");
   const gpt = cat.data.find((m) => m.id === "openai/gpt-5.6");
   assert.equal(claude.available, false);

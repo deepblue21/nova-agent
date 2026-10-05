@@ -27,7 +27,7 @@ Kotlin + Jetpack Compose.
 | 9 | **Basit/Gelişmiş arayüz modu** + cihaz motoru hızlandırması (Otomatik/CPU/GPU/NPU) ve örnekleme ayarları |
 | 10A | **VPN'siz LAN bağlantısı** — mDNS ile PC keşfi, 8 karakterlik kod veya QR bağlantısıyla eşleme |
 
-Test kapsamı: **461 birim + 137 enstrümanlı test.**
+Test kapsamı: **465 birim + 137 enstrümanlı test.**
 
 4 Ekim 2026: model satırları kompakt, özet ve işlemler açılır pencerede. 22 paketlik
 katalog ve LiteRT-LM 0.17.1 geçişinin kaynakları: [Ekim model kaydı](../docs/MODEL-KATALOG-EKIM-2026.md).

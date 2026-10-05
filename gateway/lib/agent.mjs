@@ -7,20 +7,9 @@ import { classifyUpstream, tagUpstream, UP } from "./upstream_errors.mjs";
 
 const MAX_ROUNDS = parseInt(process.env.AGENT_MAX_ROUNDS || "4", 10);
 
-// Canlı/güncel veri gerektiren sorgular: bu durumda gateway ajan modunu otomatik
-// açar ki web_search çalışsın (yoksa model uydurur). Pure → test edilebilir.
-const LIVE_PATTERNS = [
-  /hava\s*durum|hava\s*nas[ıi]l|s[ıi]cakl[ıi]k|ya[ğg]mur|ya[ğg][ıi]ş|ka[çc]\s*derece|rüzg[âa]r/i,
-  /haber|son\s*dakika|g[üu]ndem|g[üu]ncel|bug[üu]n|yar[ıi]n|şu\s*an|şimdi|en\s*son|bu\s*hafta/i,
-  /borsa|d[öo]viz|dolar|euro|alt[ıi]n|kur\b|fiyat|maç|skor|puan\s*durum/i,
-  /internette|internet(?:ten)?|web(?:'|’)?de|web\s*arama|ara[şs]t[ıi]r|kaynakl[ıi]|kaynak\s+göster|link(?:li)?/i,
-  /\b(weather|forecast|temperature|news|today|tomorrow|tonight|current|latest|right now|price|stock|score|headlines)\b/i,
-  /\b(web search|search the web|research online|look up|sources?|citations?|links?)\b/i,
-];
-export function needsLiveData(text) {
-  const s = String(text || "");
-  return LIVE_PATTERNS.some((re) => re.test(s));
-}
+import { needsLiveData } from './live_intent.mjs';
+export { needsLiveData } from './live_intent.mjs';
+import { approxTokens } from './pricing.mjs';
 
 const TR_LOCATIONS = [
   "Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Amasya", "Ankara", "Antalya", "Artvin",
@@ -42,12 +31,13 @@ function lastUserText(messages) {
   return [...(messages || [])].reverse().find(m => m.role === "user")?.content || "";
 }
 
-function guessLocation(text) {
-  const s = String(text || "");
-  const found = TR_LOCATIONS.find(city => new RegExp("\\b" + city + "\\b", "iu").test(s));
+export function guessLocation(text) {
+  const fold = value => String(value || '').toLocaleLowerCase('tr-TR').normalize('NFD').replace(/\p{M}/gu, '').replace(/ı/g, 'i');
+  const s = fold(text);
+  const found = TR_LOCATIONS.find(city => new RegExp('(^|[^\\p{L}])' + fold(city) + '($|[^\\p{L}])', 'u').test(s));
   if (found) return found + ", Türkiye";
   const quoted = /(?:konum|şehir|il|location|city)\s*[:=]\s*([^\n,.;]+)/i.exec(s);
-  return quoted ? quoted[1].trim() : "Manisa, Türkiye";
+  return quoted ? quoted[1].trim() : "";
 }
 
 function fallbackToolCalls(messages) {
@@ -57,7 +47,7 @@ function fallbackToolCalls(messages) {
   if (WEATHER_RE.test(text)) {
     calls.push({ id: "fb_weather", type: "function", function: { name: "weather_forecast", arguments: { location: guessLocation(text) } } });
   }
-  if (NEWS_RE.test(text) || !calls.length) {
+  if (!WEATHER_RE.test(text) && (NEWS_RE.test(text) || !calls.length)) {
     calls.push({ id: "fb_web", type: "function", function: { name: "web_search", arguments: { query: String(text).slice(0, 256) } } });
   }
   return calls;
@@ -76,7 +66,7 @@ function toOllama(messages) {
 // Tek bir Ollama /api/chat çağrısı (stream yok, tools ile).
 // Hata durumunda upstreamCode iliştirilmiş bir Error fırlatır; çağıran taraf
 // "araç desteklenmiyor" ile "Ollama kapalı"yı ayırt edebilsin diye.
-async function ollamaChat(ollamaBase, model, messages, tools, { signal, think = false, params = {}, notices } = {}) {
+async function ollamaChat(ollamaBase, model, messages, tools, { signal, think = false, params = {}, notices, onUsage } = {}) {
   const options = {};
   if (params.temperature != null) options.temperature = params.temperature;
   if (params.top_p != null) options.top_p = params.top_p;
@@ -108,6 +98,10 @@ async function ollamaChat(ollamaBase, model, messages, tools, { signal, think = 
       throw tagUpstream(err, classifyUpstream(err));
     }
     const d = await r.json();
+    onUsage?.({
+      in: d.prompt_eval_count ?? approxTokens(messages.map(m => m.content || '').join('\n')),
+      out: d.eval_count ?? approxTokens(d.message?.content || ''),
+    });
     return d.message || {};
   };
 
@@ -127,27 +121,32 @@ async function ollamaChat(ollamaBase, model, messages, tools, { signal, think = 
 // messages: OpenAI tarzı [{role,content}]. system zaten içinde.
 // onStep(evt): { type:"tool_call"|"tool_result", name, args?, text? }
 // Döner: { content, sources:[], rounds, toolsUsed:[] }
-export async function runAgent({ ollamaBase, model, messages, signal, onStep, userId, extraTools = [], extraDispatch, think = false, params = {}, notices }) {
+export async function runAgent({ ollamaBase, model, messages, signal, onStep, userId, documentScope, extraTools = [], extraDispatch, think = false, params = {}, notices, toolsEnabled = true }) {
   agentRuns.inc();
   const convo = [...messages];
   const sources = [];
   const toolsUsed = [];
   let rounds = 0;
+  const usage = {in:0,out:0};
+  const onUsage = d => {
+    usage.in += Math.max(0,Number(d.in)||0);
+    usage.out += Math.max(0,Number(d.out)||0);
+  };
 
-  const specs = extraTools && extraTools.length ? [...TOOL_SPECS, ...extraTools] : TOOL_SPECS;
+  const specs = toolsEnabled ? (extraTools && extraTools.length ? [...TOOL_SPECS, ...extraTools] : TOOL_SPECS) : undefined;
   const extraNames = new Set((extraTools || []).map((t) => t.function && t.function.name).filter(Boolean));
 
   for (; rounds < MAX_ROUNDS; rounds++) {
-    const msg = await ollamaChat(ollamaBase, model, convo, specs, { signal, think, params, notices });
-    let calls = msg.tool_calls || [];
+    const msg = await ollamaChat(ollamaBase, model, convo, specs, { signal, think, params, notices, onUsage });
+    let calls = toolsEnabled ? msg.tool_calls || [] : [];
     // Yerel model araç çağırmadıysa ama soru canlı veri gerektiriyorsa (ilk tur)
     // güvenli bir geri-dönüş çağrısı üret: weather_forecast / web_search.
-    if (!calls.length && rounds === 0) {
+    if (toolsEnabled && !calls.length && rounds === 0) {
       const fb = fallbackToolCalls(convo);
       if (fb.length) { calls = fb; onStep && onStep({ type: "fallback", count: fb.length }); }
     }
     if (!calls.length) {
-      return { content: msg.content || "", sources, rounds, toolsUsed };
+      return { content: msg.content || "", sources, rounds, toolsUsed, usage };
     }
     // asistanın araç çağrısı mesajını geçmişe ekle
     convo.push({ role: "assistant", content: msg.content || "", tool_calls: calls });
@@ -162,18 +161,24 @@ export async function runAgent({ ollamaBase, model, messages, signal, onStep, us
       let res;
       try {
         res = (extraNames.has(name) && extraDispatch)
-          ? await extraDispatch(name, args, { signal, userId })
-          : await runTool(name, args, { signal, userId });
+          ? await extraDispatch(name, args, { signal, userId, documentScope })
+          : await runTool(name, args, { signal, userId, documentScope });
       } finally {
         agentToolDuration.observe({ tool: toolLabel }, Number(process.hrtime.bigint() - t0) / 1e9);
       }
       agentToolCalls.inc({ tool: toolLabel, status: res && res.ok === false ? "error" : "ok" });
-      if (res.sources && res.sources.length) for (const s of res.sources) sources.push(s);
+      if (res.sources?.length) {
+        const numbers = new Map();
+        res.sources = res.sources.map(s => {
+          const source = {...s, n: sources.length + 1}; numbers.set(String(s.n), source.n); sources.push(source); return source;
+        });
+        res.text = res.text.replace(/\[(\d+)\]/g, (label, n) => numbers.has(n) ? '[' + numbers.get(n) + ']' : label);
+      }
       onStep && onStep({ type: "tool_result", name, text: res.text, sources: res.sources || [] });
       convo.push({ role: "tool", tool_name: name, content: res.text });
     }
   }
   // tur limiti: son bir kez araçsız özet iste
-  const fin = await ollamaChat(ollamaBase, model, convo, undefined, { signal, think, params, notices });
-  return { content: fin.content || "", sources, rounds, toolsUsed };
+  const fin = await ollamaChat(ollamaBase, model, convo, undefined, { signal, think, params, notices, onUsage });
+  return { content: fin.content || "", sources, rounds, toolsUsed, usage };
 }

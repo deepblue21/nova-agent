@@ -2,11 +2,10 @@
 // sonucu modele geri verir (agent.mjs döngüsü). Araçlar OpenAI/Ollama uyumlu
 // JSON şema formatında tanımlanır. Yeni araç eklemek: SPECS + EXECUTORS.
 
-import { lookup as dnsLookup } from "node:dns/promises";
 import { webSearch, formatResults } from "./search.mjs";
 import { search as ragSearch } from "./rag.mjs";
 import { codeToolEnabled, runJavaScriptSandbox } from "./code_sandbox.mjs";
-import { isPrivateAddress } from "./image_inputs.mjs";
+import { isPrivateAddress, fetchPublicResource } from "./public_fetch.mjs";
 
 // Opt-in web page reader. Off by default (SSRF surface); enable with FETCH_TOOL_ENABLED=1.
 const FETCH_TOOL_ENABLED = process.env.FETCH_TOOL_ENABLED === "1";
@@ -175,7 +174,7 @@ const rounded = (value, suffix = "") => Number.isFinite(Number(value)) ? Math.ro
 const EXECUTORS = {
   async doc_search(args, ctx) {
     if (!ctx || !ctx.userId) return { text: "Belge araması için oturum gerekli." };
-    const rows = await ragSearch(ctx.userId, args.query, 5, ctx.signal);
+    const rows = await ragSearch(ctx.userId, args.query, 5, ctx.signal, ctx.documentScope);
     if (!rows.length) return { text: "Bilgi tabanında ilgili içerik bulunamadı." };
     return {
       text: rows.map((r, i) => `[${i + 1}] ${r.title} (benzerlik ${(r.score * 100).toFixed(0)}%)\n${r.content.slice(0, 400)}`).join("\n\n"),
@@ -210,15 +209,6 @@ const EXECUTORS = {
     const gjson = await gres.json();
     const place = gjson && gjson.results && gjson.results[0];
     if (!place) return { text: `"${loc}" için konum bulunamadı.` };
-    const when = String(args.date || "tomorrow").trim().toLowerCase();
-    const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    let offset = 1;
-    if (when === "today" || when === "bugün") offset = 0;
-    else if (when === "tomorrow" || when === "yarın") offset = 1;
-    else if (/^\d{4}-\d{2}-\d{2}$/.test(when)) {
-      offset = Math.round((startOfDay(new Date(when + "T00:00:00")) - startOfDay(new Date())) / 86400000);
-    }
-    if (!(offset >= 0 && offset <= 6)) offset = 1;
     const fu = API + "?latitude=" + place.latitude + "&longitude=" + place.longitude
       + "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max"
       + "&current=temperature_2m,weather_code,wind_speed_10m&timezone=auto&forecast_days=7";
@@ -227,6 +217,10 @@ const EXECUTORS = {
     const fjson = await fres.json();
     const daily = fjson.daily || {};
     const days = daily.time || [];
+    const when = String(args.date || 'tomorrow').trim().toLowerCase();
+    const offset = when === 'today' || when === 'bugün' ? 0
+      : when === 'tomorrow' || when === 'yarın' ? 1 : days.indexOf(when);
+    if (offset < 0 || offset > 6) return {text: 'İstenen tarih desteklenmiyor. Bugün ve sonraki 6 gün için tahmin alınabilir.'};
     if (!days.length || offset >= days.length) return { text: "Tahmin verisi alınamadı." };
     const placeName = [place.name, place.admin1, place.country].filter(Boolean).join(", ");
     const label = offset === 0 ? "bugün" : offset === 1 ? "yarın" : days[offset];
@@ -264,18 +258,12 @@ const EXECUTORS = {
     if (u.protocol !== "http:" && u.protocol !== "https:") return { text: "Sadece http/https desteklenir." };
     if (u.username || u.password) return { text: "URL içinde kimlik bilgisi kabul edilmez." };
     if (isUnsafeFetchHost(u.hostname)) return { text: "Özel/yerel/loopback adresler engellendi (SSRF koruması)." };
-    try {
-      const addrs = await dnsLookup(u.hostname, { all: true });
-      for (const a of addrs) if (isPrivateAddress(a.address)) return { text: "Host özel bir adrese çözümleniyor; engellendi." };
-    } catch { return { text: "Host çözümlenemedi." }; }
     const MAX = parseInt(process.env.FETCH_TOOL_MAX_BYTES || "2000000", 10);
-    const r = await fetch(u.toString(), { redirect: "manual", signal: ctx && ctx.signal, headers: { "User-Agent": "NOVA-Agent/1.0", Accept: "text/html,text/plain,*/*" } });
+    const r = await fetchPublicResource(u.toString(), { maxBytes: MAX, signal: ctx && ctx.signal, headers: { "User-Agent": "NOVA-Agent/1.0", Accept: "text/html,text/plain,*/*" } });
     if (r.status >= 300 && r.status < 400) return { text: "Yönlendirme engellendi (SSRF güvenliği için takip edilmez): HTTP " + r.status };
-    if (!r.ok) return { text: "Sayfa getirilemedi: HTTP " + r.status };
+    if (r.status < 200 || r.status >= 300) return { text: "Sayfa getirilemedi: HTTP " + r.status };
     const ct = r.headers.get("content-type") || "";
-    const buf = Buffer.from(await r.arrayBuffer());
-    if (buf.length > MAX) return { text: "İçerik çok büyük (" + buf.length + " bayt)." };
-    const body = buf.toString("utf8");
+    const body = r.buffer.toString("utf8");
     const text = /html/i.test(ct) ? htmlToText(body) : body.slice(0, 6000);
     return { text: text || "(boş içerik)", sources: [{ n: 1, title: u.hostname, url: u.toString() }] };
   },

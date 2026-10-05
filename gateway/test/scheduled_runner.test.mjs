@@ -1,7 +1,8 @@
 // Scheduled runner tests: agent flag must select direct chat vs tool-using agent.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { runScheduledTask } from "../lib/scheduled_runner.mjs";
+import { runScheduledTask as run } from "../lib/scheduled_runner.mjs";
+const runScheduledTask=(task,options={})=>run(task,{checkQuotaImpl:async()=>({allowed:true}),recordUsageImpl:async()=>{},rateLimitImpl:async()=>({allowed:true}),...options});
 
 test("scheduled runner: agent=false uses direct provider chat", async () => {
   let chatArgs = null;

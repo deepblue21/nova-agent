@@ -59,7 +59,8 @@ export function metricsMiddleware() {
   return (req, res, next) => {
     const stop = httpDuration.startTimer();
     res.on("finish", () => {
-      const labels = { method: req.method, route: routeLabel(req.path), status: res.statusCode };
+      const method = ['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'].includes(req.method) ? req.method : 'OTHER';
+      const labels = { method, route: typeof req.route?.path === 'string' ? req.route.path : 'unmatched', status: res.statusCode };
       httpRequests.inc(labels);
       stop(labels);
     });

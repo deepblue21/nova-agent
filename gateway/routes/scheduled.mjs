@@ -31,7 +31,7 @@ scheduled.get("/v1/scheduled", asyncRoute(async (req, res) => {
 
 scheduled.post("/v1/scheduled", asyncRoute(async (req, res) => {
   const b = req.body || {};
-  const title = str(b.title, 120), prompt = str(b.prompt, 4000), schedule = str(b.schedule, 40);
+  const title = str(b.title, 120), prompt = str(b.prompt, 4000), schedule = str(b.schedule, 100);
   if (!title || !prompt) return res.status(400).json({ error: "title and prompt required" });
   if (!isValidSchedule(schedule)) return res.status(400).json({ error: "invalid schedule (use every:30m / every:6h / daily:09:00)" });
   let workspaceId = null;
@@ -61,7 +61,7 @@ scheduled.patch("/v1/scheduled/:id", asyncRoute(async (req, res) => {
   if (b.agent !== undefined) fields.agent = !!b.agent;
   if (b.enabled !== undefined) fields.enabled = !!b.enabled;
   if (b.schedule !== undefined) {
-    const s = str(b.schedule, 40);
+    const s = str(b.schedule, 100);
     if (!isValidSchedule(s)) return res.status(400).json({ error: "invalid schedule" });
     fields.schedule = s;
     fields.nextRunAt = nextRunAt(s);

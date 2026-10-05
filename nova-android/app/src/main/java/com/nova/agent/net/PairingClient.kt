@@ -18,12 +18,13 @@ import org.json.JSONObject
  * [PairingResponses] (saf, testli) ve [NetworkPolicy] (saf, testli) içindedir.
  */
 class PairingClient(
-    private val client: OkHttpClient = OkHttpClient.Builder()
+    client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
         .callTimeout(15, TimeUnit.SECONDS)
         .build(),
 ) {
+    private val client = client.withGatewayPolicy()
 
     fun claim(
         baseUrl: String,

@@ -2,6 +2,8 @@
 // Mount AFTER principal(); guarded by ADMIN_USER_IDS (comma-separated user ids).
 import { Router } from "express";
 import { q } from "../lib/db.mjs";
+import { setQuota } from "../lib/usage.mjs";
+import { API_KEY_SCOPES } from "../lib/admission.mjs";
 import { newApiKey } from "../lib/keys.mjs";
 
 export const admin = Router();
@@ -28,8 +30,10 @@ function requireUuid(req, res, next) {
 admin.post("/v1/admin/users/:userId/api-keys", requireAdmin, requireUuid, asyncRoute(async (req, res) => {
   const k = newApiKey();
   const scopes = Array.isArray(req.body?.scopes)
-    ? req.body.scopes.map(s => String(s).trim()).filter(Boolean).slice(0, 20)
+    ? req.body.scopes
     : [];
+  if ((req.body?.scopes != null && !Array.isArray(req.body.scopes)) || scopes.length > 20 || scopes.some(s => !API_KEY_SCOPES.includes(s)))
+    return res.status(400).json({ error: "unsupported API key scopes", allowed: API_KEY_SCOPES });
   await q(
     "INSERT INTO api_keys (user_id, prefix, token_hash, scopes) VALUES ($1,$2,$3,$4)",
     [req.params.userId, k.prefix, k.token_hash, scopes]);
@@ -59,13 +63,6 @@ admin.put("/v1/admin/users/:userId/quota", requireAdmin, requireUuid, asyncRoute
   const period = req.body?.period === "day" ? "day" : "month";
   if (!Number.isFinite(limit) || limit < 0 || limit > 1_000_000_000_000)
     return res.status(400).json({ error: "limit_micros required" });
-  const resets = period === "day" ? "date_trunc('day', now()) + interval '1 day'"
-                                   : "date_trunc('month', now()) + interval '1 month'";
-  await q(
-    `INSERT INTO quotas (subject_id, period, limit_micros, resets_at)
-       VALUES ($1, $2, $3, ${resets})
-     ON CONFLICT (subject_id) DO UPDATE
-       SET limit_micros = EXCLUDED.limit_micros, period = EXCLUDED.period`,
-    [req.params.userId, period, limit]);
+  await setQuota(req.params.userId, period, limit);
   res.status(204).end();
 }));

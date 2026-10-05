@@ -11,11 +11,25 @@ export const PRICES = {
   "openclaw/*":                         [0, 0],
 };
 
-// Resolve exact route first, then "provider/*", else free.
-export function priceFor(route) {
-  if (PRICES[route]) return PRICES[route];
+// Unpriced routes must never silently consume a paid credential for free.
+export function priceFor(route, env = process.env) {
+  let configured;
+  try { configured = JSON.parse(env.MODEL_PRICES_JSON || "{}"); }
+  catch { throw Object.assign(new Error("invalid model price configuration"), { status: 503 }); }
+  if (configured && Object.hasOwn(configured, route)) {
+    const rates = configured[route];
+    if (!Array.isArray(rates) || rates.length !== 2 || !rates.every(n => typeof n === "number" && Number.isFinite(n) && n >= 0) || rates[0] + rates[1] <= 0)
+      throw Object.assign(new Error("invalid model price configuration"), { status: 503 });
+    return rates;
+  }
+  if (Object.hasOwn(PRICES, route)) return PRICES[route];
   const prov = String(route || "").split("/")[0];
-  return PRICES[prov + "/*"] || [0, 0];
+  if (Object.hasOwn(PRICES, prov + "/*")) return PRICES[prov + "/*"];
+  throw Object.assign(new Error("model price is not configured"), { status: 400 });
+}
+
+export function hasPrice(route, env = process.env) {
+  try { priceFor(route, env); return true; } catch { return false; }
 }
 
 // Rough estimate when the provider doesn't return usage (~4 chars/token).

@@ -1,5 +1,4 @@
-import pdfParse from "pdf-parse/lib/pdf-parse.js";
-import mammoth from "mammoth";
+import { runComputeJob } from './compute_jobs.mjs';
 
 const PDF_MIME = "application/pdf";
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -52,26 +51,15 @@ function isTextFile({ mime, ext }) {
   return TEXT_MIMES.has(mime) || mime.startsWith("text/") || TEXT_EXTS.has(ext);
 }
 
-async function extractFileText(file, maxFileBytes) {
+async function extractFileText(file, maxFileBytes, maxTextBytes) {
   const f = decodeFile(file, maxFileBytes);
   if (isTextFile(f)) return { title: cleanTitle(f.name), text: f.buffer.toString("utf8"), kind: "text" };
 
-  if (f.mime === PDF_MIME || f.ext === ".pdf") {
-    try {
-      const out = await pdfParse(f.buffer);
-      return { title: cleanTitle(f.name), text: out.text || "", kind: "pdf" };
-    } catch (e) {
-      throw httpError(422, "PDF metni çıkarılamadı: " + (e.message || e));
-    }
-  }
-
-  if (f.mime === DOCX_MIME || f.ext === ".docx") {
-    try {
-      const out = await mammoth.extractRawText({ buffer: f.buffer });
-      return { title: cleanTitle(f.name), text: out.value || "", kind: "docx" };
-    } catch (e) {
-      throw httpError(422, "DOCX metni çıkarılamadı: " + (e.message || e));
-    }
+  const kind = f.mime === PDF_MIME || f.ext === '.pdf' ? 'pdf'
+    : f.mime === DOCX_MIME || f.ext === '.docx' ? 'docx' : null;
+  if (kind) {
+    const text = await runComputeJob('document', {kind, bytes: f.buffer, maxTextBytes});
+    return {title: cleanTitle(f.name), text, kind};
   }
 
   throw httpError(415, "desteklenmeyen belge türü: " + (f.mime || f.ext || "bilinmiyor"));
@@ -83,7 +71,7 @@ export async function normalizeKnowledgeInput(body = {}, { maxTextBytes = 104857
   let kind = "text";
 
   if (body.file) {
-    const extracted = await extractFileText(body.file, maxFileBytes);
+    const extracted = await extractFileText(body.file, maxFileBytes, maxTextBytes);
     title = body.title || extracted.title;
     text = extracted.text;
     kind = extracted.kind;

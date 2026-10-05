@@ -1,7 +1,25 @@
 // Keycloak (OIDC) + PKCE. Oturum açıldığında gateway çağrıları JWT kullanır;
 // tarayıcıya kalıcı sağlayıcı anahtarı yapıştırmak gerekmez.
 
-export const OIDC = { issuer: "http://localhost:8081/realms/nova", clientId: "nova-web" };
+export const OIDC = { issuer: '', clientId: 'nova-web' };
+
+export function configureOidc(config) {
+  const issuer = new URL(config?.issuer || '');
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(issuer.hostname);
+  if ((issuer.protocol !== 'https:' && !(local && issuer.protocol === 'http:')) || issuer.username || issuer.password || issuer.search || issuer.hash)
+    throw new Error('OIDC sunucu adresi HTTPS olmalı.');
+  if (typeof config.clientId !== 'string' || !config.clientId.trim()) throw new Error('OIDC istemcisi yapılandırılmamış.');
+  Object.assign(OIDC, {issuer: issuer.href.replace(/\/$/, ''), clientId: config.clientId});
+  return {...OIDC};
+}
+
+export async function loadOidc(gatewayBase) {
+  const r = await fetch(gatewayBase.replace(/\/v1\/?$/, '').replace(/\/$/, '') + '/v1/config');
+  if (!r.ok) throw new Error('Giriş yapılandırması alınamadı (' + r.status + ').');
+  const config = (await r.json()).oidc;
+  if (!config) throw new Error('Bu Gateway için hesapla giriş henüz yapılandırılmamış.');
+  return configureOidc(config);
+}
 
 const b64url = (buf) =>
   btoa(String.fromCharCode(...new Uint8Array(buf)))

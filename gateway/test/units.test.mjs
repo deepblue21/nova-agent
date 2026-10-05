@@ -125,7 +125,7 @@ test("api keys: shape, hashing, parsing", () => {
 test("pricing: tiers + cost", () => {
   assert.deepEqual(priceFor("anthropic/claude-sonnet-4-20250514"), [3, 15]);
   assert.deepEqual(priceFor("ollama/qwen3:14b"), [0, 0]);
-  assert.deepEqual(priceFor("unknown/x"), [0, 0]);
+  assert.throws(() => priceFor("unknown/x"), /price/);
   assert.equal(approxTokens("12345678"), 2);
   assert.equal(estimateCostMicros("anthropic/claude-sonnet-4-20250514", 1000, 500), 10500);
   assert.equal(estimateCostMicros("ollama/qwen3:14b", 1000, 500), 0);

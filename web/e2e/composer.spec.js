@@ -65,3 +65,25 @@ test("settings contains keyboard focus, closes with Escape and restores focus", 
   await expect(dialog).toHaveCount(0);
   await expect(opener).toBeFocused();
 });
+
+test('legacy credentials are scrubbed from IndexedDB and localStorage without losing settings',async({page})=>{
+  await page.goto('/');
+  await page.getByRole('button',{name:'Ayarlar',exact:true}).last().click();
+  await expect(page.getByRole('dialog',{name:'Ayarlar'})).toBeVisible();
+  await page.evaluate(async()=>{
+    const state=JSON.stringify({v:2,settings:{accent:'ocean',providers:{gateway:{kind:'openai',baseUrl:location.origin+'/v1',apiKey:'legacy-test-key'}}}});
+    for(const [key,value] of [['nova:state:v1',state],['nova:auth:v1','legacy-test-token']])localStorage.setItem(key,value);
+    const db=await new Promise((resolve,reject)=>{const req=indexedDB.open('nova-store',1);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
+    await new Promise((resolve,reject)=>{const tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(state,'nova:state:v1');tx.objectStore('kv').put('legacy-test-token','nova:auth:v1');tx.oncomplete=resolve;tx.onerror=reject;});db.close();
+  });
+  await page.reload();
+  await page.getByRole('button',{name:'Ayarlar',exact:true}).last().click();
+  await expect(page.getByRole('dialog',{name:'Ayarlar'}).getByLabel('Anahtar (opsiyonel)',{exact:true})).toHaveValue('');
+  const values=await page.evaluate(async()=>{
+    const db=await new Promise(resolve=>{const req=indexedDB.open('nova-store',1);req.onsuccess=()=>resolve(req.result);});
+    const get=key=>new Promise(resolve=>{const req=db.transaction('kv').objectStore('kv').get(key);req.onsuccess=()=>resolve(req.result);});
+    const values=[await get('nova:state:v1'),await get('nova:auth:v1'),localStorage.getItem('nova:state:v1'),localStorage.getItem('nova:auth:v1')];db.close();return values;
+  });
+  expect(values.join('')).not.toContain('legacy-test');
+  expect(values[1]).toBe('');expect(values[3]).toBe('');
+});

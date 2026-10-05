@@ -16,7 +16,7 @@ export async function listMemories(userId) {
   const wsIds = await listWorkspaceIds(userId);
   const r = await q(
     `SELECT ${COLS} FROM user_memory
-      WHERE user_id=$1 OR workspace_id = ANY($3::uuid[])
+      WHERE (user_id=$1 AND workspace_id IS NULL) OR workspace_id = ANY($3::uuid[])
       ORDER BY created_at DESC LIMIT $2`,
     [userId, MAX_ITEMS, wsIds]);
   return r.rows;
@@ -74,7 +74,9 @@ export function mergeMemory(messages, block) {
 export async function withMemory(messages, userId) {
   if (!MEMORY_ENABLED || !userId) return messages;
   try {
-    const items = await listMemories(userId);
+    // Shared notes are visible in their workspace, never promoted to personal system instructions.
+    const { rows: items } = await q(`SELECT ${COLS} FROM user_memory
+      WHERE user_id=$1 AND workspace_id IS NULL ORDER BY created_at DESC LIMIT $2`, [userId, MAX_ITEMS]);
     return mergeMemory(messages, buildMemoryBlock(items));
   } catch {
     return messages;

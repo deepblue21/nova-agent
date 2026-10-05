@@ -145,7 +145,13 @@ async function listServerTools(server, signal) {
 // Returns { specs:[toolSpec...], dispatch(name,args,ctx) } — empty when disabled.
 let _cache = null; // { at, specs, routes:Map<prefixedName,{server,tool,session}> }
 
-export async function getMcpTools(signal, nowMs = Date.now()) {
+export function mayUseMcp(userId, env = process.env) {
+  if (!env.DATABASE_URL || env.MULTI_USER === '0') return true;
+  return !!userId && (env.ADMIN_USER_IDS || '').split(',').map(s=>s.trim()).includes(userId);
+}
+
+export async function getMcpTools(signal, nowMs = Date.now(), {userId} = {}) {
+  if (!mayUseMcp(userId)) return { specs: [], dispatch: null };
   const servers = parseServers(process.env.MCP_SERVERS);
   if (!servers.length) return { specs: [], dispatch: null };
   if (_cache && (nowMs - _cache.at) < CACHE_MS) return _cache.tools;
@@ -163,6 +169,7 @@ export async function getMcpTools(signal, nowMs = Date.now()) {
   }
 
   const dispatch = async (name, args, ctx) => {
+    if (!mayUseMcp(ctx?.userId)) return { ok: false, name, text: 'MCP yetkisi gerekli.' };
     const route = routes.get(name);
     if (!route) return { ok: false, name, text: "Bilinmeyen MCP aracı: " + name };
     try {

@@ -27,16 +27,21 @@ export async function ingestDocument(userId, title, text, signal, workspaceId = 
 }
 
 // Sorguya en yakın K parça — kişisel + üye olunan workspace belgeleri. [{content, title, score}].
-export async function search(userId, query, k = 5, signal) {
+export async function search(userId, query, k = 5, signal, documentScope) {
   const v = toVectorLiteral(await embed(query, signal));
   const wsIds = await listWorkspaceIds(userId);
+  const scoped = documentScope != null;
+  if (scoped && (!documentScope.workspaceId || !wsIds.includes(documentScope.workspaceId))) return [];
   const { rows } = await q(
-    `SELECT c.content, d.title, 1 - (c.embedding <=> $2) AS score
+    `WITH visible_chunks AS MATERIALIZED (
+      SELECT c.content, c.embedding, d.title
        FROM doc_chunks c JOIN documents d ON d.id = c.document_id
-      WHERE d.user_id = $1 OR d.workspace_id = ANY($4::uuid[])
-      ORDER BY c.embedding <=> $2
+      WHERE ($5::boolean = false AND d.user_id = $1 AND d.workspace_id IS NULL)
+         OR d.workspace_id = ANY($4::uuid[])
+    ) SELECT content, title, 1 - (embedding <=> $2::vector) AS score FROM visible_chunks
+      ORDER BY embedding <=> $2::vector
       LIMIT $3`,
-    [userId, v, k, wsIds]);
+    [userId, v, k, scoped ? [documentScope.workspaceId] : wsIds, scoped]);
   return rows;
 }
 
@@ -44,7 +49,7 @@ export async function listDocuments(userId) {
   const wsIds = await listWorkspaceIds(userId);
   const { rows } = await q(
     `SELECT id, title, bytes, chunks, workspace_id, created_at
-       FROM documents WHERE user_id = $1 OR workspace_id = ANY($2::uuid[])
+       FROM documents WHERE (user_id = $1 AND workspace_id IS NULL) OR workspace_id = ANY($2::uuid[])
       ORDER BY created_at DESC`, [userId, wsIds]);
   return rows;
 }

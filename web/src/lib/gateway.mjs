@@ -106,10 +106,14 @@ export const runEval = (prov, body) => result(prov, "/v1/eval", { method: "POST"
 /* ------------------------------ workspaces ------------------------------ */
 
 export const listWorkspaces = (prov) => list(prov, "/v1/workspaces");
+export const listInvitations = (prov) => list(prov, "/v1/workspace-invitations");
+export const respondToInvitation = (prov, id, accept) => result(prov, "/v1/workspace-invitations/" + id, { method: "POST", body: { accept } });
 export const createWorkspace = (prov, name) => result(prov, "/v1/workspaces", { method: "POST", body: { name } });
 export const listMembers = (prov, id) => list(prov, "/v1/workspaces/" + id + "/members");
 export const inviteMember = (prov, id, body) =>
   result(prov, "/v1/workspaces/" + id + "/members", { method: "POST", body });
+export const cancelInvitation = (prov, id, email) =>
+  result(prov, '/v1/workspaces/' + id + '/invitations', {method: 'DELETE', body: {email}});
 export const changeMemberRole = (prov, id, userId, role) =>
   result(prov, "/v1/workspaces/" + id + "/members/" + userId, { method: "PATCH", body: { role } });
 export const removeMember = (prov, id, userId) =>

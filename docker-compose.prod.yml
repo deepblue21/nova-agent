@@ -17,13 +17,14 @@ services:
       NODE_ENV: production
       TRUST_PROXY: "1"                 # behind Caddy/TLS
       ALLOW_ORIGINS: ${ALLOW_ORIGINS:?set ALLOW_ORIGINS to your exact UI origin(s), never *}
-      GATEWAY_TOKEN: ${GATEWAY_TOKEN:-}        # multi-user uses OIDC/JWT; set if single-user
+      OIDC_ISSUER: ${OIDC_ISSUER:?set OIDC_ISSUER to the public HTTPS realm URL}
+      OIDC_AUDIENCE: nova-gateway
     restart: unless-stopped
 
   caddy:
     environment:
       KC_HOSTNAME_HOST: ${KC_HOSTNAME_HOST:?set KC_HOSTNAME_HOST to the public auth host, e.g. auth.example.com}
-      CSP_CONNECT_SRC: "${CSP_CONNECT_SRC:-'self'}"
+      CSP_CONNECT_SRC: "${CSP_CONNECT_SRC:-'self'} https://${KC_HOSTNAME_HOST:?set the public auth host}"
     restart: unless-stopped
 
   keycloak:

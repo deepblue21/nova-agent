@@ -16,6 +16,12 @@
       "serviceAccountsEnabled": false,
       "redirectUris": ["http://localhost/*", "https://localhost/*", "http://localhost:5173/*"],
       "webOrigins": ["http://localhost", "https://localhost", "http://localhost:5173"],
+      "protocolMappers": [{
+        "name": "nova-gateway-audience",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-audience-mapper",
+        "config": { "included.custom.audience": "nova-gateway", "access.token.claim": "true", "id.token.claim": "false" }
+      }],
       "attributes": { "pkce.code.challenge.method": "S256" }
     }
   ]

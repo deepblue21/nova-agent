@@ -1,9 +1,10 @@
 // S3-compatible object storage for media (works with AWS S3 or MinIO).
 // Lets clients upload images/audio once and reference them, instead of
 // shipping 25 MB base64 data URLs through every chat request.
-import { S3Client, PutObjectCommand, GetObjectCommand, CreateBucketCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, CreateBucketCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "node:crypto";
+import {mediaStore} from './media_store.mjs';
 
 export const BUCKET = process.env.S3_BUCKET || "nova-media";
 
@@ -42,8 +43,27 @@ function ensureBucket() {
 export async function putMedia(userId, buffer, mime) {
   await ensureBucket();
   const key = mediaKey(userId, mime);
+  // Reserve before upload. An uncertain S3 failure keeps the reservation until
+  // cleanup, so orphaned/partially acknowledged uploads cannot evade the quota.
+  await mediaStore.reserve(userId,key,buffer.length);
   await s3.send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: buffer, ContentType: mime }));
   return { key, bucket: BUCKET };
+}
+
+export async function deleteMedia(userId,key) {
+  if (!await mediaStore.get(userId,key)) return false;
+  await s3.send(new DeleteObjectCommand({Bucket:BUCKET,Key:key}));
+  await mediaStore.remove(key);
+  return true;
+}
+
+export async function cleanupExpiredMedia({store=mediaStore,client=s3}={}) {
+  let removed=0;
+  for(const row of await store.expired()) {
+    await client.send(new DeleteObjectCommand({Bucket:BUCKET,Key:row.object_key}));
+    await store.remove(row.object_key);removed++;
+  }
+  return removed;
 }
 
 export function signedGetUrl(key, ttlSeconds = 3600) {

@@ -70,14 +70,27 @@ export function createVoiceQueue({ env = process.env, logger = console, handlers
   return {
     enabled: true,
     cfg,
-    async add(type, data) {
+    ...voiceJobAccess(queue),
+    async close() {
+      await worker.close();
+      await queue.close();
+      await connection.quit();
+    },
+  };
+}
+
+// Ownership is checked here so status and audio cannot diverge in authorization.
+export function voiceJobAccess(queue) {
+  return {
+    async add(type, data, owner) {
       if (type !== "stt" && type !== "tts") throw new Error("type must be stt or tts");
-      const job = await queue.add(type, data);
+      if (typeof owner !== "string" || !owner) throw new Error("voice owner required");
+      const job = await queue.add(type, { ...data, owner });
       return { id: String(job.id), type, state: "queued", status_url: "/v1/voice/jobs/" + job.id };
     },
-    async get(id) {
+    async get(id, owner) {
       const job = await queue.getJob(id);
-      if (!job) return null;
+      if (!job || !owner || job.data?.owner !== owner) return null;
       const state = await job.getState();
       const out = {
         id: String(job.id),
@@ -88,11 +101,6 @@ export function createVoiceQueue({ env = process.env, logger = console, handlers
       if (state === "completed") out.result = job.returnvalue || null;
       if (state === "failed") out.error = job.failedReason || "job failed";
       return out;
-    },
-    async close() {
-      await worker.close();
-      await queue.close();
-      await connection.quit();
     },
   };
 }

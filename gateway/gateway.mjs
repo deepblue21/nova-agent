@@ -20,14 +20,12 @@
 //    ALLOW_MODELS    optional model allowlist
 // ============================================================
 
+import "./lib/env.mjs";
 import express from "express";
 import cors from "cors";
 import { timingSafeEqual } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
 import { principal } from "./lib/auth.mjs";
-import { rateLimit as distributedRateLimit } from "./lib/cache.mjs";
+import { userAdmission } from "./lib/admission.mjs";
 import { checkQuota, recordUsage, approxTokens } from "./lib/usage.mjs";
 import { appendMessage, getConversation } from "./lib/persistence.mjs";
 import { requestLogger, logger } from "./lib/observability.mjs";
@@ -50,7 +48,7 @@ import { createTracer } from "./lib/tracing.mjs";
 import { scheduled } from "./routes/scheduled.mjs";
 import { memory } from "./routes/memory.mjs";
 import { withMemory } from "./lib/memory_store.mjs";
-import { getMcpTools, describeTools, parseServers } from "./lib/mcp.mjs";
+import { getMcpTools, describeTools } from "./lib/mcp.mjs";
 import { workspaces } from "./routes/workspaces.mjs";
 import { agentRuns as agentRunsRoute } from "./routes/agent_runs.mjs";
 import { createMobileTasksRouter } from "./routes/mobile_tasks.mjs";
@@ -62,34 +60,12 @@ import * as schedStore from "./lib/scheduled_store.mjs";
 import { nextRunAt as schedNextRunAt } from "./lib/scheduler.mjs";
 import { createErrorReporter } from "./lib/errors.mjs";
 import { runTeam, parsePlan, mapLimit } from "./lib/multiagent.mjs";
-import { estimateCostMicros } from "./lib/pricing.mjs";
+import {cleanupExpiredMedia} from './lib/storage.mjs';
+import { estimateCostMicros, priceFor } from "./lib/pricing.mjs";
 import { runScheduledTask } from "./lib/scheduled_runner.mjs";
 import {
   buildCatalog, fetchOllamaModels, createCatalogCache, annotateToolSupport, pickInstalledModel,
 } from "./lib/model_catalog.mjs";
-
-// ---------- zero-dependency .env loader ----------
-// Loads KEY=VALUE pairs from ./.env into process.env WITHOUT overwriting
-// values already present in the real environment. No external dependency,
-// so secrets never need to be hard-coded in source.
-(function loadEnv() {
-  try {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const txt = readFileSync(resolve(here, ".env"), "utf8");
-    for (const raw of txt.split("\n")) {
-      const line = raw.trim();
-      if (!line || line.startsWith("#")) continue;
-      const eq = line.indexOf("=");
-      if (eq < 0) continue;
-      const key = line.slice(0, eq).trim();
-      let val = line.slice(eq + 1).trim();
-      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-        val = val.slice(1, -1);
-      }
-      if (key && !(key in process.env)) process.env[key] = val;
-    }
-  } catch { /* no .env file — rely on real environment */ }
-})();
 
 const MOBILE_WORKER_ENABLED = process.env.MOBILE_WORKER_ENABLED === "1";
 const MOBILE_WORKER_GOAL_POLICY = process.env.MOBILE_WORKER_GOAL_POLICY || "settings_android_version";
@@ -138,6 +114,8 @@ const tracer = createTracer();   // opt-in OTLP tracing; no-op unless OTEL_* env
 const errorReporter = createErrorReporter();   // opt-in; no-op unless ERROR_WEBHOOK_URL set
 const TEAM_CONCURRENCY = parseInt(process.env.TEAM_CONCURRENCY || "3", 10);   // çoklu ajan paralel alt-görev sınırı
 const TIMEOUT_MS    = parseInt(process.env.REQ_TIMEOUT_MS || "60000", 10);
+const AGENT_TIMEOUT_MS = parseInt(process.env.AGENT_TIMEOUT_MS || "180000",10);
+const TEAM_TIMEOUT_MS = parseInt(process.env.TEAM_TIMEOUT_MS || "300000",10);
 const AUTO_AGENT    = process.env.AUTO_AGENT_ENABLED !== "0";          // auto-enable tools for live-data queries
 const MAX_RETRIES   = parseInt(process.env.MAX_RETRIES || "2", 10);    // on 429/5xx/network error
 const ALLOW         = (process.env.ALLOW_MODELS || "").split(",").map(s => s.trim()).filter(Boolean);
@@ -237,7 +215,7 @@ const PAIRING_ENABLED = MULTI_USER && process.env.PAIRING_ENABLED !== "0";
 
 function isPublicPath(req) {
   if (PAIRING_ENABLED && req.path === PAIR_CLAIM_PATH) return true;
-  return req.path === "/health" || req.path === "/metrics";
+  return req.path === "/health" || req.path === "/metrics" || (req.method === 'GET' && req.path === '/v1/config');
 }
 
 function validateMessages(messages) {
@@ -275,7 +253,8 @@ async function recordChatCompletion(req, { route, model, messages, assistantText
       return;
     }
 
-    const lastUserText = messageText([...messages].reverse().find(m => m.role === "user"));
+    const lastUserMessage = [...messages].reverse().find(m => m.role === "user");
+    const lastUserText = lastUserMessage ? messageText(lastUserMessage) : "";
     if (lastUserText) await appendMessage(conversationId, { role: "user", content: lastUserText });
     if (assistantText) {
       await appendMessage(conversationId, {
@@ -338,7 +317,7 @@ if (RATE_MAX > 0) {
   if (t.unref) t.unref();
 }
 app.use((req, res, next) => {
-  if (MULTI_USER || RATE_MAX <= 0 || isPublicPath(req)) return next();
+  if (RATE_MAX <= 0 || isPublicPath(req)) return next();
   const ip = req.ip || req.socket?.remoteAddress || "unknown";
   const now = Date.now();
   let e = hits.get(ip);
@@ -375,6 +354,8 @@ app.use((req, res, next) => {
   if (auth.startsWith("Bearer ") && safeEqual(auth.slice(7), GATEWAY_TOKEN)) return next();
   res.status(401).json({ error: "unauthorized (GATEWAY_TOKEN required)" });
 });
+
+app.use(userAdmission({ max: RATE_MAX, windowMs: RATE_WINDOW_MS }));
 
 if (MULTI_USER) {
   app.use(history);
@@ -422,6 +403,10 @@ async function installedOllamaModels(signal) {
   return installedCache.set(models || []);
 }
 
+app.get('/v1/config', (_req, res) => res.json({
+  oidc: MULTI_USER && process.env.OIDC_ISSUER ? {issuer: process.env.OIDC_ISSUER, clientId: process.env.OIDC_WEB_CLIENT_ID || 'nova-web'} : null,
+}));
+
 app.get("/v1/models", async (req, res) => {
   const fresh = req.query?.refresh === "1";
   if (!fresh) {
@@ -460,7 +445,9 @@ async function planSubtasks(model, task, signal) {
   } catch { return null; }
 }
 
-app.post("/v1/chat/completions", async (req, res) => {
+const asyncRoute = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res, next)).catch(next);
+
+app.post("/v1/chat/completions", asyncRoute(async (req, res) => {
   let { messages = [], stream = false, think = false, effort, agent = false, team = false } = req.body || {};
   // input validation
   if (!Array.isArray(messages) || messages.length === 0) {
@@ -473,6 +460,7 @@ app.post("/v1/chat/completions", async (req, res) => {
   if (invalid) return res.status(invalid.includes("too large") ? 413 : 400).json({ error: invalid });
   // "auto" / empty → dynamic routing decides by effort + context
   let modelStr = req.body?.model;
+  if (modelStr != null && typeof modelStr !== "string") return res.status(400).json({ error: "model must be a string" });
   const autoRouted = !modelStr || modelStr === "auto";
   if (autoRouted) {
     modelStr = pickDynamicModel({
@@ -501,6 +489,7 @@ app.post("/v1/chat/completions", async (req, res) => {
     }
   }
   const full = provider + "/" + model;
+  priceFor(full); // fail before dispatch, even when ALLOW_MODELS is empty
   if (ALLOW.length && !ALLOW.includes(full) && !ALLOW.includes(provider + "/*")) {
     return res.status(403).json({ error: "model not allowed: " + full });
   }
@@ -510,12 +499,6 @@ app.post("/v1/chat/completions", async (req, res) => {
 
   if (req.principal) {
     try {
-      const rl = await distributedRateLimit(req.principal.userId, RATE_MAX, RATE_WINDOW_MS);
-      if (!rl.allowed) {
-        res.setHeader("Retry-After", String(Math.ceil(rl.retryAfterMs / 1000)));
-        return res.status(429).json({ error: "rate limit exceeded" });
-      }
-
       const quota = await checkQuota(req.principal.userId);
       if (!quota.allowed) {
         return res.status(402).json({ error: "quota exceeded", used: quota.used, limit: quota.limit });
@@ -531,7 +514,10 @@ app.post("/v1/chat/completions", async (req, res) => {
   // connection). req "close" fires as soon as the POST body is read — before we
   // respond — which would abort every upstream call instantly.
   const up = new AbortController();
-  const to = setTimeout(() => up.abort(), TIMEOUT_MS);
+  const automaticAgent = AUTO_AGENT && !agent && !team && provider === 'ollama' && !hasImageContent(messages)
+    && needsLiveData(messageText(messages[messages.length - 1]));
+  const localAgent = provider === 'ollama' && !hasImageContent(messages);
+  const to = setTimeout(() => up.abort(), localAgent && team ? TEAM_TIMEOUT_MS : localAgent && (agent || automaticAgent) ? AGENT_TIMEOUT_MS : TIMEOUT_MS);
   res.on("close", () => { if (!res.writableEnded) up.abort(); });
   const usage = makeUsageAccumulator(provider);
   const errMeta = { provider, model, wanted: substitutedFrom };
@@ -560,8 +546,7 @@ app.post("/v1/chat/completions", async (req, res) => {
     if (req.principal) messages = await withMemory(messages, req.principal.userId);
     // canlı/güncel veri sorgularında (hava durumu, haber, fiyat…) araçlar çalışsın diye
     // ajan modunu otomatik aç — yoksa model uydurur. AUTO_AGENT_ENABLED=0 ile kapatılır.
-    if (AUTO_AGENT && !agent && !team && provider === "ollama" && !hasImageContent(messages)
-        && needsLiveData(messageText(messages[messages.length - 1]))) {
+    if (automaticAgent) {
       agent = true;
       res.setHeader("x-nova-auto-agent", "1");
     }
@@ -577,9 +562,9 @@ app.post("/v1/chat/completions", async (req, res) => {
       const sysMsg = messages.find(m => m.role === "system");
       const baseSys = (sysMsg && sysMsg.content) || "Sen NOVA'nın bir alt-ajanısın; verilen alt-görevi net ve eksiksiz yerine getir.";
       const uid = req.principal && req.principal.userId;
-      const mcp = await getMcpTools(up.signal);
+      const mcp = await getMcpTools(up.signal, Date.now(), {userId:req.principal?.userId});
       const runOne = (prompt) => runAgent({ ollamaBase: OLLAMA, model, messages: [{ role: "system", content: baseSys }, { role: "user", content: prompt }], signal: up.signal, userId: uid, extraTools: mcp.specs, extraDispatch: mcp.dispatch, think, params: ctx.params });
-      const synthesize = (synthPrompt) => runAgent({ ollamaBase: OLLAMA, model, messages: [{ role: "user", content: synthPrompt }], signal: up.signal, userId: uid, think, params: ctx.params });
+      const synthesize = (synthPrompt) => runAgent({ ollamaBase: OLLAMA, model, messages: [{ role: "user", content: synthPrompt }], signal: up.signal, userId: uid, think, params: ctx.params, toolsEnabled: false });
       const teamOut = await runTeam({
         task, subtasks, runOne, synthesize, concurrency: TEAM_CONCURRENCY,
         onResult: (out) => { if (stream) res.write("data: " + JSON.stringify({ choices: [{ delta: { tool_step: { name: "subtask", args: { role: out.role }, done: true } } }] }) + "\n\n"); },
@@ -593,13 +578,13 @@ app.post("/v1/chat/completions", async (req, res) => {
       if (stream) { emit(res, text); finish(res); }
       else res.json({ choices: [{ message: { role: "assistant", content: text } }], nova_team: subtasks.map(s => s.role) });
       assistantText = text;
-      await recordChatCompletion(req, { route: full + " (team)", model, messages, assistantText, usage });
+      await recordChatCompletion(req, { route: full, model, messages, assistantText, usage });
       if (req.principal) agentRunStore.recordRun(req.principal.userId, { mode: "team", model: full, prompt: task, tools: subtasks.map((s) => s.role).join(", "), result: text, rounds: subtasks.length }).catch(() => {});
       return;
     }
     if (agent && provider === "ollama" && !hasImageContent(messages)) {
       if (stream) sse(res);
-      const mcp = await getMcpTools(up.signal);
+      const mcp = await getMcpTools(up.signal, Date.now(), {userId:req.principal?.userId});
       let r;
       try {
         r = await runAgent({
@@ -651,7 +636,7 @@ app.post("/v1/chat/completions", async (req, res) => {
       else res.json({ choices: [{ message: { role: "assistant", content: text } }], nova_tools: r.toolsUsed });
       // kalıcı geçmişte not her iki modda da yer alsın (akışta ayrı delta gitti)
       assistantText = stream ? noticeText + text : text;
-      await recordChatCompletion(req, { route: full + " (agent)", model, messages, assistantText, usage });
+      await recordChatCompletion(req, { route: full, model, messages, assistantText, usage });
       if (req.principal) agentRunStore.recordRun(req.principal.userId, { mode: "agent", model: full, prompt: messageText(messages[messages.length - 1]) || "", tools: agentRunStore.formatRunTools(r.toolsUsed), result: text, rounds: r.rounds }).catch(() => {});
       return;
     }
@@ -681,7 +666,12 @@ app.post("/v1/chat/completions", async (req, res) => {
     }
     return;
   } catch (e) {
-    if (e && e.name === "AbortError") { if (!res.writableEnded) { try { res.end(); } catch {} } return; }
+    if (up.signal.aborted && !res.destroyed && !res.writableEnded) {
+      const text = "İstek zaman aşımına uğradı. Lütfen yeniden deneyin.";
+      if (res.headersSent) { emit(res, "⚠️ " + text); finish(res); }
+      else res.status(504).json({ error: text, code: UP.TIMEOUT });
+      return;
+    }
     // Ham hata istemciye gitmez ama SUNUCU LOGUNA mutlaka yazılır — yoksa
     // üretimde "upstream error" görüp logda da hiçbir şey bulunamıyordu.
     const code = classifyUpstream(e);
@@ -692,7 +682,7 @@ app.post("/v1/chat/completions", async (req, res) => {
     if (stream) { sse(res); emit(res, shown); return finish(res); }
     res.status(e && e.status ? e.status : 500).json({ error: clientErr(e, errMeta), code });
   } finally { clearTimeout(to); }
-});
+}));
 
 // ---------- Model eval / comparison (step F) ----------
 // Run one prompt against several models in parallel and return each output with
@@ -712,8 +702,6 @@ app.post("/v1/eval", async (req, res) => {
 
   if (req.principal) {
     try {
-      const rl = await distributedRateLimit(req.principal.userId, RATE_MAX, RATE_WINDOW_MS);
-      if (!rl.allowed) { res.setHeader("Retry-After", String(Math.ceil(rl.retryAfterMs / 1000))); return res.status(429).json({ error: "rate limit exceeded" }); }
       const quota = await checkQuota(req.principal.userId);
       if (!quota.allowed) return res.status(402).json({ error: "quota exceeded", used: quota.used, limit: quota.limit });
     } catch (e) {
@@ -737,11 +725,12 @@ app.post("/v1/eval", async (req, res) => {
       const ctx = { signal: up.signal, params: pickParams(body), retries: MAX_RETRIES, usage };
       const t0 = Date.now();
       try {
+        priceFor(full);
         const text = await providerClient.chat({ provider, model, messages: baseMessages, stream: false, ctx, res: null });
         const real = usage.seen() ? usage.get() : null;
         const tokensIn  = real ? real.in  : approxTokens(prompt);
         const tokensOut = real ? real.out : approxTokens(text);
-        if (req.principal) { try { await recordUsage({ userId: req.principal.userId, route: full + " (eval)", tokensIn, tokensOut }); } catch {} }
+        if (req.principal) await recordUsage({ userId: req.principal.userId, route: full, tokensIn, tokensOut });
         return { model: full, ok: true, content: text, ms: Date.now() - t0, tokens_in: tokensIn, tokens_out: tokensOut, cost_micros: estimateCostMicros(full, tokensIn, tokensOut) };
       } catch (e) {
         if (e && e.name === "AbortError") return { model: full, ok: false, error: "aborted", ms: Date.now() - t0 };
@@ -760,8 +749,8 @@ app.get("/v1/mcp/tools", async (req, res) => {
   const up = new AbortController();
   const to = setTimeout(() => up.abort(), TIMEOUT_MS);
   try {
-    const mcp = await getMcpTools(up.signal);
-    res.json({ servers: parseServers(process.env.MCP_SERVERS).map((s) => s.name), tools: describeTools(mcp.specs) });
+    const mcp = await getMcpTools(up.signal, Date.now(), {userId:req.principal?.userId});
+    res.json({ servers: [...new Set(describeTools(mcp.specs).map(t=>t.server))], tools: describeTools(mcp.specs) });
   } catch (e) {
     res.status(500).json({ error: clientErr(e && e.message ? e.message : e) });
   } finally { clearTimeout(to); }
@@ -786,18 +775,19 @@ function normalizeVoiceJob(body) {
 }
 
 // ---------- Voice jobs: BullMQ-backed async STT/TTS ----------
+const voiceOwner = req => MULTI_USER ? `user:${req.principal.userId}` : "single-user";
 app.post("/v1/voice/jobs", async (req, res) => {
   try {
     if (!voiceJobs.enabled) return res.status(503).json({ error: "voice queue disabled (set VOICE_QUEUE_ENABLED=1)" });
     const job = normalizeVoiceJob(req.body || {});
-    res.status(202).json(await voiceJobs.add(job.type, job.data));
+    res.status(202).json(await voiceJobs.add(job.type, job.data, voiceOwner(req)));
   } catch (e) { sendVoiceError(res, e); }
 });
 
 app.get("/v1/voice/jobs/:id", async (req, res) => {
   try {
     if (!voiceJobs.enabled) return res.status(503).json({ error: "voice queue disabled (set VOICE_QUEUE_ENABLED=1)" });
-    const job = await voiceJobs.get(req.params.id);
+    const job = await voiceJobs.get(req.params.id, voiceOwner(req));
     if (!job) return res.status(404).json({ error: "job not found" });
     res.json(job);
   } catch (e) { sendVoiceError(res, e); }
@@ -806,7 +796,7 @@ app.get("/v1/voice/jobs/:id", async (req, res) => {
 app.get("/v1/voice/jobs/:id/audio", async (req, res) => {
   try {
     if (!voiceJobs.enabled) return res.status(503).json({ error: "voice queue disabled (set VOICE_QUEUE_ENABLED=1)" });
-    const job = await voiceJobs.get(req.params.id);
+    const job = await voiceJobs.get(req.params.id, voiceOwner(req));
     if (!job) return res.status(404).json({ error: "job not found" });
     if (job.state !== "completed" || job.type !== "tts" || !job.result?.audio) {
       return res.status(409).json({ error: "audio not ready" });
@@ -839,6 +829,17 @@ app.use((err, req, res, _next) => {
   res.status(err?.status || 500).json({ error: clientErr(err?.message || "internal error") });
 });
 
+if (MULTI_USER) {
+  let cleaningMedia=false;
+  const cleanup = async()=>{
+    if(cleaningMedia)return; cleaningMedia=true;
+    try {await cleanupExpiredMedia();}
+    catch(e){logger.warn({err:e.message},'media retention cleanup failed');}
+    finally {cleaningMedia=false;}
+  };
+  const timer=setInterval(cleanup,600000);timer.unref?.();
+}
+
 if (process.env.STRIPE_SECRET_KEY && process.env.DATABASE_URL && BILLING_FLUSH_MS > 0) {
   const billingTimer = setInterval(() => {
     flushUsage()
@@ -853,21 +854,26 @@ if (process.env.STRIPE_SECRET_KEY && process.env.DATABASE_URL && BILLING_FLUSH_M
 // due tasks through the agent loop (tools available) and stores the last result.
 if (MULTI_USER && process.env.SCHEDULER_ENABLED === "1" && process.env.DATABASE_URL) {
   const tickMs = parseInt(process.env.SCHEDULER_TICK_MS || "30000", 10);
+  let ticking = false;
   const tick = async () => {
+    if (ticking) return;
+    ticking = true;
     try {
-      const due = await schedStore.listDue(Date.now(), 20);
-      for (const task of due) {
+      for (let count=0; count<20; count++) {
+        const task = await schedStore.claimDue(Date.now(),AGENT_TIMEOUT_MS+30000);
+        if (!task) break;
         const out = await runScheduledTask(task, {
           defaultModel: DEFAULT,
           ollamaBase: OLLAMA,
           providerClient,
-          timeoutMs: TIMEOUT_MS,
+          timeoutMs: AGENT_TIMEOUT_MS,
           maxRetries: MAX_RETRIES,
         });
-        await schedStore.markRun(task.id, { ...out, nextRunAt: schedNextRunAt(task.schedule, Date.now()) });
+        await schedStore.markRun(task.id, { ...out, claimToken:task.claim_token, nextRunAt: schedNextRunAt(task.schedule, Date.now()) });
         logger.info({ taskId: task.id, status: out.status }, "scheduled task ran");
       }
     } catch (e) { logger.warn({ err: e.message || e }, "scheduler tick failed"); }
+    finally { ticking=false; }
   };
   const schedTimer = setInterval(tick, tickMs);
   if (schedTimer.unref) schedTimer.unref();

@@ -60,16 +60,17 @@ test("evaluate: multi-user requires DATABASE_URL; admins is a soft warning", () 
   assert.equal(admins.hard, false);
 });
 
-test("evaluate: OIDC without an audience is a soft warning", () => {
+test("evaluate: incomplete OIDC configuration fails the deployment gate", () => {
   const base = { NODE_ENV: "production", ALLOW_ORIGINS: "https://x", DATABASE_URL: "postgres://u@h/db", CSP_CONNECT_SRC: "'self'" };
   let rows = evaluate({ ...base, OIDC_ISSUER: "https://auth.example.com/realms/nova" });
   const aud = find(rows, "oidc-audience");
   assert.equal(aud.pass, false);
-  assert.equal(aud.hard, false);
-  assert.equal(hardFailures(rows), 0);   // advisory only — must not fail the gate
+  assert.equal(aud.hard, true);
+  assert.ok(hardFailures(rows) > 0);
 
-  rows = evaluate({ ...base, OIDC_JWKS_URL: "https://auth.example.com/jwks", OIDC_AUDIENCE: "nova-web" });
+  rows = evaluate({ ...base, OIDC_ISSUER:'https://auth.example.com/realms/nova', OIDC_JWKS_URL: "https://auth.example.com/jwks", OIDC_AUDIENCE: "nova-gateway" });
   assert.equal(find(rows, "oidc-audience").pass, true);
+  assert.equal(hardFailures(rows),0);
 });
 
 test("evaluate: no OIDC config means no audience row", () => {

@@ -4,10 +4,23 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const backoff = (n) => Math.min(4000, 400 * Math.pow(2, n)) + Math.random() * 200;
 
 export function routeModel(model, defaultModel) {
+  if (model != null && typeof model !== "string") throw inputError("model must be a string");
   const selected = (!model || model === "auto") ? defaultModel : model;
+  if (typeof selected !== "string" || !selected.trim() || selected.length > 256)
+    throw inputError("invalid model");
   const i = selected.indexOf("/");
   if (i < 0) return { provider: "ollama", model: selected };
   return { provider: selected.slice(0, i), model: selected.slice(i + 1) };
+}
+
+function inputError(message) {
+  return Object.assign(new Error(message), { status: 400 });
+}
+
+export function providerPathSegment(value) {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$/.test(value))
+    throw inputError('invalid provider model identifier');
+  return encodeURIComponent(value);
 }
 
 // effort kademeleri → makul üretim varsayılanları. Böylece "Hızlı/Dengeli/Derin/Maks"
@@ -84,16 +97,24 @@ function sseLine(pick, observe) {
 }
 
 export function normMsg(m = {}) {
+  if (!m || typeof m !== "object" || Array.isArray(m)) throw inputError("invalid message");
   if (typeof m.content === "string") return { role: m.role, text: m.content, images: [] };
+  if (m.content == null && m.role === "assistant") return { role: m.role, text: "", images: [] };
+  if (!Array.isArray(m.content)) throw inputError("message content must be text or an array of parts");
   const text = [];
   const images = [];
   for (const part of (m.content || [])) {
-    if (part.type === "text") text.push(part.text || "");
+    if (!part || typeof part !== "object" || Array.isArray(part)) throw inputError("invalid content part");
+    if (part.type === "text") {
+      if (typeof part.text !== "string") throw inputError("content text must be a string");
+      text.push(part.text);
+    }
     else if (part.type === "image_url") {
-      const u = (part.image_url && part.image_url.url) || "";
+      const u = part.image_url?.url;
+      if (typeof u !== "string" || !u) throw inputError("image_url.url must be a string");
       const mm = /^data:([^;]+);base64,(.*)$/i.exec(u);
       if (mm) images.push({ mime: mm[1], b64: mm[2] });
-    }
+    } else throw inputError("unsupported content part type");
   }
   return { role: m.role, text: text.join("\n"), images };
 }
@@ -293,7 +314,7 @@ export function createProviderClient({
     if (p.temperature != null) gen.temperature = p.temperature;
     if (p.top_p != null) gen.topP = p.top_p;
     if (p.max_tokens != null) gen.maxOutputTokens = p.max_tokens;
-    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + model +
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + providerPathSegment(model) +
       ":streamGenerateContent?alt=sse&key=" + encodeURIComponent(keys.gemini);
     const r = await upFetch(url, {
       method: "POST",
@@ -349,7 +370,7 @@ export function createProviderClient({
   }
 
   async function viaOpenClaw(res, agent, messages, stream, ctx) {
-    const path = openclawPath.replace("{agent}", agent || "default");
+    const path = openclawPath.replace("{agent}", providerPathSegment(agent || "default"));
     const lastUser = [...messages].reverse().find(m => m.role === "user")?.content || "";
     const r = await upFetch(openclawUrl.replace(/\/$/, "") + path, {
       method: "POST",
